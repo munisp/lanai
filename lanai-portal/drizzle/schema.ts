@@ -62,6 +62,15 @@ export const members = mysqlTable("members", {
   active: boolean("active").default(true).notNull(),
   /** Which advisor invited this member. */
   invitedByUserId: int("invitedByUserId"),
+  /**
+   * Stripe Customer ID (cus_…) — created on first checkout.
+   * Used to list payment methods, subscriptions, and invoices.
+   */
+  stripeCustomerId: varchar("stripeCustomerId", { length: 64 }),
+  /**
+   * Active Stripe Subscription ID (sub_…) — null if no active subscription.
+   */
+  stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 64 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn"),

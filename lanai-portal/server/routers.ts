@@ -14,6 +14,8 @@ import {
   router,
   seniorAdvisorProcedure,
 } from "./_core/trpc";
+import { sendInvitationEmail } from "./email";
+import { memberPaymentsRouter } from "./stripeRouter";
 import {
   createInvitation,
   createMember,
@@ -478,19 +480,38 @@ export const appRouter = router({
         });
 
         const inviteUrl = `${input.origin}/client/onboard?token=${token}`;
+        const expiresHours = Math.round(INVITE_TTL_MS / 3_600_000);
 
-        // Send notification to owner (advisor) — in production wire to email service
+        // Send real invitation email via Resend
+        let emailId: string | null = null;
+        try {
+          const result = await sendInvitationEmail({
+            toEmail: input.email,
+            toName: input.name,
+            inviteUrl,
+            advisorName: ctx.user.name ?? "Your Lanai Advisor",
+            memberTier: input.tier,
+            expiresHours,
+          });
+          emailId = result.id;
+        } catch (emailErr) {
+          // Email failure is non-fatal — log and fall through so the invite
+          // record is still created and the URL is returned to the advisor.
+          console.error("[Invite] Email delivery failed:", emailErr);
+        }
+
+        // Also notify the owner advisor via the platform notification channel
         try {
           const { notifyOwner } = await import("./_core/notification");
           await notifyOwner({
             title: `Member invitation sent to ${input.email}`,
-            content: `Invite URL (share with member): ${inviteUrl}\nTier: ${input.tier}\nExpires: ${expiresAt.toISOString()}`,
+            content: `Invite URL: ${inviteUrl}\nTier: ${input.tier}\nExpires: ${expiresAt.toISOString()}${emailId ? `\nEmail ID: ${emailId}` : " (email delivery failed — share URL manually)"}`,
           });
         } catch {
           // Non-fatal
         }
 
-        return { token, inviteUrl, expiresAt };
+        return { token, inviteUrl, expiresAt, emailSent: emailId !== null };
       }),
 
     /** List pending (unaccepted, non-expired) invitations. */
@@ -544,6 +565,9 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
+
+  // ── Member payments (Stripe) ────────────────────────────────────────────────
+  memberPayments: memberPaymentsRouter,
 });
 
 export type AppRouter = typeof appRouter;

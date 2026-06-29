@@ -22,6 +22,7 @@ import ClientPortalLogin from "./pages/ClientPortalLogin";
 import ClientPortalDashboard from "./pages/ClientPortalDashboard";
 import ClientPortalOnboard from "./pages/ClientPortalOnboard";
 import MemberManagementPage from "./pages/MemberManagementPage";
+import MemberBillingPage from "./pages/MemberBillingPage";
 import { Crown, Loader2 } from "lucide-react";
 import { Button } from "./components/ui/button";
 
@@ -145,6 +146,11 @@ function App() {
             <Route path="/client/dashboard">
               <MemberPortalGuard>
                 <ClientPortalDashboard />
+              </MemberPortalGuard>
+            </Route>
+            <Route path="/client/billing">
+              <MemberPortalGuard>
+                <MemberBillingPage />
               </MemberPortalGuard>
             </Route>
             {/* Advisor portal — full sidebar layout, gated by Manus OAuth */}

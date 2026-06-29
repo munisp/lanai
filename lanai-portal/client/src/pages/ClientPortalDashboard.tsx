@@ -13,7 +13,7 @@ import { useLocation } from "wouter";
 import {
   Crown, Plane, MapPin, Calendar, Plus, Send, LogOut,
   FileText, MessageCircle, ChevronRight, Loader2, CheckCircle,
-  Lock, ExternalLink,
+  Lock, ExternalLink, CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,8 +21,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 import { stageLabel, stageColor, formatCurrency, type CRMOpportunity } from "@/lib/crmApi";
+import MemberBillingPage from "./MemberBillingPage";
 
-type Tab = "trips" | "request" | "documents" | "messages";
+type Tab = "trips" | "request" | "documents" | "messages" | "billing";
 type ChatMsg = { id: string; from: "advisor" | "client"; text: string; time: string };
 
 export default function ClientPortalDashboard() {
@@ -118,6 +119,7 @@ export default function ClientPortalDashboard() {
     { id: "request", label: "New Request", icon: Plus },
     { id: "documents", label: "Documents", icon: FileText },
     { id: "messages", label: "Messages", icon: MessageCircle },
+    { id: "billing", label: "Billing", icon: CreditCard },
   ];
 
   const tierColor =
@@ -544,6 +546,12 @@ export default function ClientPortalDashboard() {
                 </Button>
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === "billing" && (
+          <div>
+            <MemberBillingPage />
           </div>
         )}
       </main>
