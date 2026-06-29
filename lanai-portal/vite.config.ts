@@ -150,60 +150,7 @@ function vitePluginManusDebugCollector(): Plugin {
   };
 }
 
-function vitePluginStorageProxy(): Plugin {
-  return {
-    name: "manus-storage-proxy",
-    configureServer(server: ViteDevServer) {
-      server.middlewares.use("/manus-storage", async (req, res) => {
-        const key = req.url?.replace(/^\//, "");
-        if (!key) {
-          res.writeHead(400, { "Content-Type": "text/plain" });
-          res.end("Missing storage key");
-          return;
-        }
-
-        const forgeBaseUrl = (process.env.BUILT_IN_FORGE_API_URL || "").replace(/\/+$/, "");
-        const forgeKey = process.env.BUILT_IN_FORGE_API_KEY;
-
-        if (!forgeBaseUrl || !forgeKey) {
-          res.writeHead(500, { "Content-Type": "text/plain" });
-          res.end("Storage proxy not configured");
-          return;
-        }
-
-        try {
-          const forgeUrl = new URL("v1/storage/presign/get", forgeBaseUrl + "/");
-          forgeUrl.searchParams.set("path", key);
-
-          const forgeResp = await fetch(forgeUrl, {
-            headers: { Authorization: `Bearer ${forgeKey}` },
-          });
-
-          if (!forgeResp.ok) {
-            res.writeHead(502, { "Content-Type": "text/plain" });
-            res.end("Storage backend error");
-            return;
-          }
-
-          const { url } = (await forgeResp.json()) as { url: string };
-          if (!url) {
-            res.writeHead(502, { "Content-Type": "text/plain" });
-            res.end("Empty signed URL");
-            return;
-          }
-
-          res.writeHead(307, { Location: url, "Cache-Control": "no-store" });
-          res.end();
-        } catch {
-          res.writeHead(502, { "Content-Type": "text/plain" });
-          res.end("Storage proxy error");
-        }
-      });
-    },
-  };
-}
-
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector(), vitePluginStorageProxy()];
+const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector()];
 
 export default defineConfig({
   plugins,
@@ -216,6 +163,7 @@ export default defineConfig({
   },
   envDir: path.resolve(import.meta.dirname),
   root: path.resolve(import.meta.dirname, "client"),
+  publicDir: path.resolve(import.meta.dirname, "client", "public"),
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
@@ -230,13 +178,13 @@ export default defineConfig({
       '/api/briefing': { target: 'http://localhost:5558', changeOrigin: true, rewrite: (p) => p.replace(/^\/api\/briefing/, '/api') },
       '/api/whatsapp': { target: 'http://localhost:5555', changeOrigin: true, rewrite: (p) => p.replace(/^\/api\/whatsapp/, '') },
       '/crm': {
-        target: 'http://localhost:3000',
+        target: process.env.TWENTY_CRM_URL ?? 'http://localhost:3000',
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/crm/, ''),
         configure: (proxy) => {
-          const CRM_TOKEN = 'eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjkzYjA0MjU1LTFhOWMtNGIwZC1hZDZkLTA2MTk2MmMwNjdkNCJ9.eyJzdWIiOiIyMDIwMjAyMC0xYzI1LTRkMDItYmYyNS02YWVjY2Y3ZWE0MTkiLCJ0eXBlIjoiQVBJX0tFWSIsIndvcmtzcGFjZUlkIjoiMjAyMDIwMjAtMWMyNS00ZDAyLWJmMjUtNmFlY2NmN2VhNDE5IiwiaWF0IjoxNzgyNzYzMjM4LCJleHAiOjQ5MzYzNjMyMzcsImp0aSI6IjI3MDQzNDNmLTBkOTAtNDFhNy1iMmVmLTM0N2M0ODdhNjAxZCJ9.JDmyZS6w2qKuERiAYb1EWjZZOd9Np3O7gbV7sb5A-xWFSyrF4ncot71z1swy7lOjp8PhYUa2rL7B-d4JKgELPA';
+          const CRM_TOKEN = process.env.TWENTY_CRM_API_TOKEN ?? '';
           proxy.on('proxyReq', (proxyReq) => {
-            proxyReq.setHeader('Authorization', `Bearer ${CRM_TOKEN}`);
+            if (CRM_TOKEN) proxyReq.setHeader('Authorization', `Bearer ${CRM_TOKEN}`);
           });
         },
       },

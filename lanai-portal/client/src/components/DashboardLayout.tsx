@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Users, Plane, Crown, FileText,
   Brain, Sunrise, Building2, MessageCircle, Settings,
-  ChevronLeft, ChevronRight, Menu, X
+  ChevronLeft, ChevronRight, Menu, UserCog
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -17,7 +17,8 @@ const NAV_ITEMS = [
   { href: "/intelligence",    icon: Brain,           label: "Client Intelligence", group: "ai" },
   { href: "/suppliers",       icon: Building2,       label: "Suppliers",        group: "ops" },
   { href: "/whatsapp",        icon: MessageCircle,   label: "WhatsApp",         group: "ops" },
-  { href: "/settings",        icon: Settings,        label: "Settings",         group: "system" },
+  { href: "/member-management", icon: UserCog,      label: "Member Portal",    group: "system" },
+  { href: "/settings",          icon: Settings,      label: "Settings",         group: "system" },
 ];
 
 const GROUP_LABELS: Record<string, string> = {
