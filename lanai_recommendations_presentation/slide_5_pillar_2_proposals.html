@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        .slide-container { 
+            width: 1280px; 
+            min-height: 720px; 
+            background-color: #0B132B; 
+            font-family: 'Inter', sans-serif;
+            position: relative;
+            padding-top: 60px;
+            padding-left: 80px;
+            padding-right: 80px;
+            display: flex;
+            flex-direction: column;
+        }
+        .monogram-small {
+            position: absolute;
+            top: 40px;
+            left: 40px;
+            font-family: 'Space Mono', monospace;
+            font-size: 24px;
+            font-weight: 700;
+            color: #D97757;
+            border: 1px solid #D97757;
+            padding: 4px 12px;
+        }
+        .header-block {
+            margin-bottom: 12px;
+            margin-top: 20px;
+        }
+        .pillar-label {
+            font-family: 'Space Mono', monospace;
+            font-size: 18px;
+            color: #D97757;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 12px;
+        }
+        h1 {
+            font-family: 'Space Mono', monospace;
+            font-size: 36px;
+            font-weight: 700;
+            color: #FFFFFF;
+            line-height: 1.2;
+            max-width: 1100px;
+        }
+        .accent-line {
+            width: 60px;
+            height: 4px;
+            background-color: #3182CE;
+            margin-top: 12px;
+        }
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .left-column {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .context-block {
+            border: 1px solid #3182CE;
+            padding: 12px;
+            background-color: rgba(49, 130, 206, 0.05);
+        }
+        .context-title {
+            font-family: 'Space Mono', monospace;
+            font-size: 20px;
+            font-weight: 700;
+            color: #3182CE;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+        .context-text {
+            font-size: 18px;
+            color: #E2E8F0;
+            line-height: 1.5;
+            font-weight: 300;
+        }
+        .benchmark-block {
+            border: 1px solid #D97757;
+            padding: 12px;
+            background-color: rgba(217, 119, 87, 0.05);
+            align-self: start;
+            flex: 0 0 auto;
+        }
+        .benchmark-title {
+            font-family: 'Space Mono', monospace;
+            font-size: 20px;
+            font-weight: 700;
+            color: #D97757;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .benchmark-stat {
+            font-family: 'Space Mono', monospace;
+            font-size: 48px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 8px;
+            line-height: 1;
+        }
+        .benchmark-text {
+            font-size: 16px;
+            color: #E2E8F0;
+            line-height: 1.4;
+            font-weight: 300;
+        }
+        .right-column {
+            display: flex;
+            flex-direction: column;
+        }
+        .recommendations-title {
+            font-family: 'Space Mono', monospace;
+            font-size: 24px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #3182CE;
+            padding-bottom: 6px;
+        }
+        .enhancement-list {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px 12px;
+        }
+        .enhancement-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            background-color: #101B3A;
+            padding: 8px 12px;
+            border-left: 4px solid #D97757;
+        }
+        .enhancement-icon {
+            color: #D97757;
+            font-size: 20px;
+            margin-top: 2px;
+            width: 24px;
+            text-align: center;
+        }
+        .enhancement-content {
+            flex-grow: 1;
+        }
+        .enhancement-name {
+            font-family: 'Space Mono', monospace;
+            font-size: 18px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 4px;
+        }
+        .enhancement-desc {
+            font-size: 15px;
+            color: #E2E8F0;
+            line-height: 1.4;
+            font-weight: 300;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="monogram-small">L</div>
+
+        <div class="header-block">
+            <div class="pillar-label">Pillar 2: LLM-Powered Proposal &amp; Itinerary Engine</div>
+            <h1>Replace Manual Proposal Writing with an AI Co-Pilot That Knows Every Client</h1>
+            <div class="accent-line"></div>
+        </div>
+
+        <div class="content-grid">
+            <div class="left-column">
+                <div class="context-block">
+                    <div class="context-title">Current State</div>
+                    <div class="context-text">Advisors write proposals manually, referencing client notes and supplier catalogues, which is time-consuming and limits scalability.</div>
+                </div>
+                
+                <div class="benchmark-block">
+                    <div class="benchmark-title"><i class="fas fa-chart-bar"></i> Real-World Benchmark</div>
+                    <div class="benchmark-stat">60-70%</div>
+                    <div class="benchmark-text">Reduction in consultation & proposal time for boutique agencies using AI assistants. Generative recommendation engines lead AI adoption in luxury travel.</div>
+                </div>
+            </div>
+
+            <div class="right-column">
+                <div class="recommendations-title">Recommended Enhancements</div>
+                <div class="enhancement-list">
+                    <div class="enhancement-item">
+                        <i class="fas fa-robot enhancement-icon"></i>
+                        <div class="enhancement-content">
+                            <div class="enhancement-name">Proposal Co-Pilot</div>
+                            <div class="enhancement-desc">LLM drafts personalised proposals from CRM signals.</div>
+                        </div>
+                    </div>
+                    
+                    <div class="enhancement-item">
+                        <i class="fas fa-map-location-dot enhancement-icon"></i>
+                        <div class="enhancement-content">
+                            <div class="enhancement-name">Dynamic Itinerary Builder</div>
+                            <div class="enhancement-desc">Auto-generated day-by-day itineraries with ranked supplier suggestions.</div>
+                        </div>
+                    </div>
+                    
+                    <div class="enhancement-item">
+                        <i class="fas fa-code-branch enhancement-icon"></i>
+                        <div class="enhancement-content">
+                            <div class="enhancement-name">Proposal Versioning</div>
+                            <div class="enhancement-desc">Version history tracked; client feedback improves future drafts.</div>
+                        </div>
+                    </div>
+                    
+                    <div class="enhancement-item">
+                        <i class="fas fa-file-export enhancement-icon"></i>
+                        <div class="enhancement-content">
+                            <div class="enhancement-name">PDF / Client Portal Output</div>
+                            <div class="enhancement-desc">Export to branded PDF or live portal for client review and approval.</div>
+                        </div>
+                    </div>
+                    
+                    <div class="enhancement-item">
+                        <i class="fas fa-shield-halved enhancement-icon"></i>
+                        <div class="enhancement-content">
+                            <div class="enhancement-name">Tone &amp; Brand Guardrails</div>
+                            <div class="enhancement-desc">Ensure Lanai's luxury, human-first voice in all outputs.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            background-color: #0B132B;
+            font-family: 'Inter', sans-serif;
+            position: relative;
+            padding-top: 52px;
+            padding-left: 80px;
+            padding-right: 80px;
+            display: flex;
+            flex-direction: column;
+        }
+        .monogram-small {
+            position: absolute;
+            top: 40px;
+            left: 40px;
+            font-family: 'Space Mono', monospace;
+            font-size: 24px;
+            font-weight: 700;
+            color: #D97757;
+            border: 1px solid #D97757;
+            padding: 4px 12px;
+        }
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background-color: rgba(72, 187, 120, 0.15);
+            border: 1px solid #48BB78;
+            color: #48BB78;
+            font-family: 'Space Mono', monospace;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            padding: 4px 14px;
+            margin-bottom: 10px;
+        }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #48BB78; }
+        h1 {
+            font-family: 'Space Mono', monospace;
+            font-size: 32px;
+            font-weight: 700;
+            color: #FFFFFF;
+            line-height: 1.2;
+            margin-bottom: 6px;
+        }
+        .accent-line { width: 60px; height: 4px; background-color: #D97757; margin-bottom: 18px; }
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            flex: 1;
+        }
+        .left-col { display: flex; flex-direction: column; gap: 12px; }
+        .feature-card {
+            background-color: #101B3A;
+            border: 1px solid #1E3A5F;
+            border-left: 4px solid #D97757;
+            padding: 14px 16px;
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+        }
+        .feature-icon {
+            width: 40px;
+            height: 40px;
+            background-color: rgba(217, 119, 87, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #D97757;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+        .feature-title {
+            font-family: 'Space Mono', monospace;
+            font-size: 16px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 4px;
+        }
+        .feature-desc { font-size: 14px; color: #E2E8F0; line-height: 1.5; font-weight: 300; }
+        .feature-tags { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+        .tag {
+            font-size: 11px;
+            font-family: 'Space Mono', monospace;
+            color: #48BB78;
+            border: 1px solid rgba(72, 187, 120, 0.4);
+            padding: 2px 8px;
+        }
+        .right-col { display: flex; flex-direction: column; gap: 12px; }
+        .portal-preview {
+            background-color: #0D1F3C;
+            border: 1px solid #2D3748;
+            padding: 0;
+            flex: 1;
+            overflow: hidden;
+        }
+        .preview-topbar {
+            background-color: #1A2744;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid #2D3748;
+        }
+        .preview-url {
+            font-family: 'Space Mono', monospace;
+            font-size: 12px;
+            color: #A0AEC0;
+            background-color: #0B132B;
+            padding: 4px 12px;
+            flex: 1;
+        }
+        .preview-body {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            min-height: 380px;
+        }
+        .preview-left {
+            background-color: #0D1A2E;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .preview-brand {
+            font-family: 'Space Mono', monospace;
+            font-size: 20px;
+            font-weight: 700;
+            color: #D97757;
+            margin-bottom: 16px;
+        }
+        .preview-quote {
+            font-size: 14px;
+            color: #A0AEC0;
+            line-height: 1.6;
+            font-style: italic;
+            margin-bottom: 20px;
+        }
+        .preview-pills { display: flex; flex-direction: column; gap: 6px; }
+        .preview-pill {
+            font-size: 11px;
+            color: #E2E8F0;
+            font-family: 'Space Mono', monospace;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .preview-pill-dot { width: 4px; height: 4px; background: #D97757; border-radius: 50%; }
+        .preview-right {
+            background-color: #F7F5EF;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .preview-form-title {
+            font-family: 'Space Mono', monospace;
+            font-size: 18px;
+            font-weight: 700;
+            color: #1A202C;
+            margin-bottom: 4px;
+        }
+        .preview-form-sub { font-size: 12px; color: #718096; margin-bottom: 16px; }
+        .preview-field {
+            background-color: #FFFFFF;
+            border: 1px solid #CBD5E0;
+            padding: 8px 12px;
+            font-size: 12px;
+            color: #A0AEC0;
+            margin-bottom: 8px;
+        }
+        .preview-btn {
+            background-color: #1A3A2A;
+            color: #FFFFFF;
+            font-size: 13px;
+            font-weight: 700;
+            padding: 10px;
+            text-align: center;
+            font-family: 'Space Mono', monospace;
+            margin-top: 4px;
+        }
+        .url-chip {
+            background-color: rgba(49, 130, 206, 0.15);
+            border: 1px solid #3182CE;
+            color: #63B3ED;
+            font-family: 'Space Mono', monospace;
+            font-size: 13px;
+            padding: 6px 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="monogram-small">L</div>
+
+        <div class="status-badge"><span class="status-dot"></span> NOW LIVE</div>
+        <h1>Client Portal — Secure Member-Facing Interface at /client</h1>
+        <div class="accent-line"></div>
+
+        <div class="content-grid">
+            <div class="left-col">
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-lock"></i></div>
+                    <div>
+                        <div class="feature-title">Secure PIN Login</div>
+                        <div class="feature-desc">Members sign in with email + 4-digit PIN. Separate route from advisor portal — no sidebar, fully branded Lanai Lifestyle experience.</div>
+                        <div class="feature-tags"><span class="tag">✓ Email + PIN</span><span class="tag">✓ Demo credentials</span><span class="tag">✓ Isolated route</span></div>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-map-marked-alt"></i></div>
+                    <div>
+                        <div class="feature-title">Trip Dashboard</div>
+                        <div class="feature-desc">Members view their upcoming and past trips, itinerary details, destination highlights, and trip status — all in one branded view.</div>
+                        <div class="feature-tags"><span class="tag">✓ Upcoming trips</span><span class="tag">✓ Itinerary view</span><span class="tag">✓ Status badges</span></div>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fab fa-whatsapp"></i></div>
+                    <div>
+                        <div class="feature-title">Travel Request + WhatsApp</div>
+                        <div class="feature-desc">Submit new travel requests via a structured form. One-tap WhatsApp button connects directly to the dedicated Lanai advisor number.</div>
+                        <div class="feature-tags"><span class="tag">✓ Request form</span><span class="tag">✓ WhatsApp CTA</span><span class="tag">✓ Concierge link</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-col">
+                <div class="portal-preview">
+                    <div class="preview-topbar">
+                        <div class="preview-url">lanai.lifestyle / client</div>
+                        <span style="color:#48BB78; font-size:11px; font-family:'Space Mono',monospace;">● LIVE</span>
+                    </div>
+                    <div class="preview-body">
+                        <div class="preview-left">
+                            <div class="preview-brand">Lanai Lifestyle</div>
+                            <div class="preview-quote">"Every journey begins with a conversation. Your dedicated advisor crafts experiences that exceed every expectation."</div>
+                            <div class="preview-pills">
+                                <div class="preview-pill"><span class="preview-pill-dot"></span> BESPOKE ITINERARIES</div>
+                                <div class="preview-pill"><span class="preview-pill-dot"></span> 24/7 CONCIERGE</div>
+                                <div class="preview-pill"><span class="preview-pill-dot"></span> PRIVATE ACCESS</div>
+                            </div>
+                        </div>
+                        <div class="preview-right">
+                            <div class="preview-form-title">Member Portal</div>
+                            <div class="preview-form-sub">Sign in to view trips and submit requests</div>
+                            <div class="preview-field">your@email.com</div>
+                            <div class="preview-field">4-digit PIN</div>
+                            <div class="preview-btn">Sign In →</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="url-chip"><i class="fas fa-link"></i> Route: /client &amp; /client/dashboard — no advisor sidebar</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

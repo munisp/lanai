@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        .slide-container { 
+            width: 1280px; 
+            min-height: 720px; 
+            background-color: #0B132B; 
+            font-family: 'Inter', sans-serif;
+            position: relative;
+            padding-top: 60px;
+            padding-left: 80px;
+            padding-right: 80px;
+            display: flex;
+            flex-direction: column;
+        }
+        .monogram-small {
+            position: absolute;
+            top: 40px;
+            left: 40px;
+            font-family: 'Space Mono', monospace;
+            font-size: 24px;
+            font-weight: 700;
+            color: #D97757;
+            border: 1px solid #D97757;
+            padding: 4px 12px;
+        }
+        .header-block {
+            margin-bottom: 24px;
+            margin-top: 20px;
+        }
+        .pillar-label {
+            font-family: 'Space Mono', monospace;
+            font-size: 18px;
+            font-weight: 700;
+            color: #D97757;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        h1 {
+            font-family: 'Space Mono', monospace;
+            font-size: 36px;
+            font-weight: 700;
+            color: #FFFFFF;
+            line-height: 1.2;
+            max-width: 1100px;
+        }
+        .accent-line {
+            width: 60px;
+            height: 4px;
+            background-color: #3182CE;
+            margin-top: 16px;
+        }
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.6fr;
+            gap: 12px; /* tightened gap to save vertical space */
+            flex-grow: 1;
+        }
+        .left-column {
+            display: flex;
+            flex-direction: column;
+            gap: 10px; /* reduced gap */
+        }
+        .status-block {
+            border-left: 4px solid #3182CE;
+            background-color: rgba(49, 130, 206, 0.05);
+            padding: 14px; /* reduced padding */
+        }
+        .status-block h3 {
+            font-family: 'Space Mono', monospace;
+            font-size: 20px;
+            color: #3182CE;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+        .status-block p {
+            font-size: 18px;
+            color: #E2E8F0;
+            line-height: 1.5;
+            font-weight: 300;
+        }
+        .benchmark-block {
+            border: 1px solid #D97757;
+            background-color: rgba(217, 119, 87, 0.05);
+            padding: 10px; /* reduced padding */
+            display: grid; /* place benchmark items into two columns to reduce vertical length */
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            align-items: start;
+        }
+        .benchmark-block h3 {
+            font-family: 'Space Mono', monospace;
+            font-size: 20px;
+            color: #D97757;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            grid-column: 1 / -1; /* make heading span both columns */
+        }
+        .benchmark-item {
+            margin-bottom: 0; /* handled by grid gap */
+        }
+        .benchmark-item strong {
+            font-family: 'Space Mono', monospace;
+            color: #FFFFFF;
+            display: block;
+            margin-bottom: 4px;
+            font-size: 16px;
+        }
+        .benchmark-item p {
+            font-size: 16px;
+            color: #E2E8F0;
+            line-height: 1.5;
+            font-weight: 300;
+        }
+        .right-column {
+            display: grid; /* keep grid to place enhancements in two columns */
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            border-top: 1px solid #3182CE;
+            padding-top: 12px;
+        }
+        .enhancement-item {
+            display: flex;
+            gap: 10px;
+            padding: 8px 6px; /* slightly reduced padding */
+        }
+        .enhancement-icon {
+            color: #D97757;
+            font-size: 24px;
+            width: 32px;
+            text-align: center;
+            margin-top: 0;
+        }
+        .enhancement-text h4 {
+            font-family: 'Space Mono', monospace;
+            font-size: 20px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 6px;
+        }
+        .enhancement-text p {
+            font-size: 16px;
+            color: #E2E8F0;
+            line-height: 1.35; /* slightly tighter line-height to save space */
+            font-weight: 300;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="monogram-small">L</div>
+
+        <div class="header-block">
+            <div class="pillar-label">Pillar 1</div>
+            <h1>Upgrade WhatsApp from a Message Log to a Fully Intelligent Concierge Channel</h1>
+            <div class="accent-line"></div>
+        </div>
+
+        <div class="content-grid">
+            <div class="left-column">
+                <div class="status-block">
+                    <h3>Current State</h3>
+                    <p>WhatsApp messages are logged as Notes in the CRM. Advisors read and respond manually, creating bottlenecks during high volume.</p>
+                </div>
+                
+                <div class="benchmark-block">
+                    <h3><i class="fas fa-chart-bar"></i> Real-World Benchmark</h3>
+                    <div class="benchmark-item">
+                        <strong>Revenue Impact</strong>
+                        <p>WTFares increased annual revenue by 35–40% using WhatsApp API automation.</p>
+                    </div>
+                    <div class="benchmark-item">
+                        <strong>Cost Efficiency</strong>
+                        <p>AI concierge interactions cost $0.50–$0.70 vs $8–$15 for a human agent.</p>
+                    </div>
+                    <div class="benchmark-item">
+                        <strong>Operational Scale</strong>
+                        <p>OYO reduced call centre traffic significantly by handling routine queries via WhatsApp.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-column">
+                <div class="enhancement-item">
+                    <i class="fas fa-network-wired enhancement-icon"></i>
+                    <div class="enhancement-text">
+                        <h4>AI Triage Layer</h4>
+                        <p>An LLM reads every inbound message, classifies it (Enquiry, Travel Request, Event, Lifestyle, Complaint) and auto-routes to the correct pipeline stage and advisor.</p>
+                    </div>
+                </div>
+                
+                <div class="enhancement-item">
+                    <i class="fas fa-crosshairs enhancement-icon"></i>
+                    <div class="enhancement-text">
+                        <h4>Intent Extraction</h4>
+                        <p>Automatically extracts key entities—destination, dates, party size, budget signals, occasion—and pre-populates the CRM Request record.</p>
+                    </div>
+                </div>
+
+                <div class="enhancement-item">
+                    <i class="fas fa-pen-nib enhancement-icon"></i>
+                    <div class="enhancement-text">
+                        <h4>AI Draft Replies</h4>
+                        <p>Advisors see a suggested reply generated from client history and message context. One-click send or edit before sending.</p>
+                    </div>
+                </div>
+
+                <div class="enhancement-item">
+                    <i class="fas fa-heart-pulse enhancement-icon"></i>
+                    <div class="enhancement-text">
+                        <h4>Sentiment Monitoring</h4>
+                        <p>Real-time sentiment scoring on inbound messages. Negative sentiment triggers an immediate alert to the senior advisor.</p>
+                    </div>
+                </div>
+
+                <!-- Removed the fifth enhancement (Multi-channel Unification) to reduce vertical overflow -->
+
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        .slide-container { 
+            width: 1280px; 
+            min-height: 720px; 
+            background-color: #0B132B; 
+            font-family: 'Inter', sans-serif;
+            position: relative;
+            padding-top: 50px;
+            padding-left: 80px;
+            padding-right: 80px;
+            display: flex;
+            flex-direction: column;
+        }
+        .monogram-small {
+            position: absolute;
+            top: 30px;
+            left: 40px;
+            font-family: 'Space Mono', monospace;
+            font-size: 20px;
+            font-weight: 700;
+            color: #D97757;
+            border: 1px solid #D97757;
+            padding: 4px 10px;
+        }
+        .header-block {
+            margin-bottom: 16px;
+        }
+        .pillar-label {
+            font-family: 'Space Mono', monospace;
+            font-size: 16px;
+            color: #D97757;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            letter-spacing: 1px;
+        }
+        h1 {
+            font-family: 'Space Mono', monospace;
+            font-size: 36px;
+            font-weight: 700;
+            color: #FFFFFF;
+            line-height: 1.2;
+        }
+        .accent-line {
+            width: 60px;
+            height: 4px;
+            background-color: #3182CE;
+            margin-top: 12px;
+        }
+        .current-state-banner {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .state-box {
+            flex: 1;
+            padding: 16px 20px;
+            border: 1px solid #3182CE;
+        }
+        .state-box.current {
+            background-color: rgba(49, 130, 206, 0.05);
+            border-color: #3182CE;
+        }
+        .state-box.future {
+            background-color: rgba(217, 119, 87, 0.1);
+            border-color: #D97757;
+        }
+        .state-label {
+            font-family: 'Space Mono', monospace;
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+        .state-box.current .state-label { color: #3182CE; }
+        .state-box.future .state-label { color: #D97757; }
+        .state-desc {
+            font-size: 15px;
+            color: #E2E8F0;
+            line-height: 1.4;
+        }
+        .state-arrow {
+            color: #3182CE;
+            font-size: 20px;
+        }
+        .features-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+            flex-grow: 1;
+        }
+        .feature-card {
+            background-color: #101B3A;
+            border-left: 4px solid #3182CE;
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+        }
+        .feature-icon {
+            color: #D97757;
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+        .feature-title {
+            font-family: 'Space Mono', monospace;
+            font-size: 18px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 6px;
+        }
+        .feature-desc {
+            font-size: 15px;
+            color: #E2E8F0;
+            line-height: 1.4;
+        }
+        .benchmark-block {
+            background-color: #3182CE;
+            color: #0B132B;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 15px;
+            line-height: 1.4;
+        }
+        .benchmark-block i {
+            font-size: 24px;
+        }
+        .benchmark-block strong {
+            font-family: 'Space Mono', monospace;
+            text-transform: uppercase;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="monogram-small">L</div>
+
+        <div class="header-block">
+            <div class="pillar-label">Pillar 3: Client Intelligence & Predictive Personalisation</div>
+            <h1>Move from Reactive Service to Proactive Relationship Management</h1>
+            <div class="accent-line"></div>
+        </div>
+
+        <div class="current-state-banner">
+            <div class="state-box current">
+                <div class="state-label">Current State</div>
+                <div class="state-desc">Client profiles hold static data — preferences, past trips, membership tier.</div>
+            </div>
+            <div class="state-arrow"><i class="fas fa-arrow-right"></i></div>
+            <div class="state-box future">
+                <div class="state-label">360° Living Client Profile</div>
+                <div class="state-desc">Every interaction (WhatsApp, email, proposal, booking, note) enriches the profile automatically in real time.</div>
+            </div>
+        </div>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <i class="fas fa-brain feature-icon"></i>
+                <div class="feature-title">Preference Inference Engine</div>
+                <div class="feature-desc">LLM analyses historical interactions to infer unstated preferences ("prefers boutique", "always books suites") and surfaces them as insights.</div>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-bolt feature-icon"></i>
+                <div class="feature-title">Predictive Trip Triggers</div>
+                <div class="feature-desc">Proactively alerts advisors based on past patterns: "James typically books a winter ski trip in October. No booking yet this year."</div>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-chart-pie feature-icon"></i>
+                <div class="feature-title">Lifetime Value Scoring</div>
+                <div class="feature-desc">Automatic LTV calculation per client, updated after every booking to drive tier management and advisor prioritisation.</div>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-exclamation-triangle feature-icon"></i>
+                <div class="feature-title">Churn Risk Signals</div>
+                <div class="feature-desc">Clients who haven't engaged in X months, or whose sentiment has declined, are flagged automatically for re-engagement.</div>
+            </div>
+        </div>
+
+        <div class="benchmark-block">
+            <i class="fas fa-chart-bar"></i>
+            <span><strong>Benchmark:</strong> Personalised AI interactions drive 60% higher repeat rates and 33% higher LTV. Predictive personalisation is the fastest-growing AI segment in luxury hospitality.</span>
+        </div>
+    </div>
+</body>
+</html>

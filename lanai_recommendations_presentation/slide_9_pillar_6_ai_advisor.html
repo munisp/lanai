@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        .slide-container { 
+            width: 1280px; 
+            min-height: 720px; 
+            background-color: #0B132B; 
+            font-family: 'Inter', sans-serif;
+            position: relative;
+            padding-top: 60px;
+            padding-left: 80px;
+            padding-right: 80px;
+            display: flex;
+            flex-direction: column;
+        }
+        .monogram-small {
+            position: absolute;
+            top: 40px;
+            left: 40px;
+            font-family: 'Space Mono', monospace;
+            font-size: 24px;
+            font-weight: 700;
+            color: #D97757;
+            border: 1px solid #D97757;
+            padding: 4px 12px;
+        }
+        .header-block {
+            margin-bottom: 24px;
+            margin-top: 20px;
+        }
+        .pillar-label {
+            font-family: 'Space Mono', monospace;
+            font-size: 18px;
+            color: #D97757;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            letter-spacing: 1px;
+        }
+        h1 {
+            font-family: 'Space Mono', monospace;
+            font-size: 36px;
+            font-weight: 700;
+            color: #FFFFFF;
+            line-height: 1.2;
+            max-width: 1100px;
+        }
+        .accent-line {
+            width: 60px;
+            height: 4px;
+            background-color: #3182CE;
+            margin-top: 16px;
+        }
+        /* Reduced padding and gap to save vertical space */
+        .vision-banner {
+            border: 1px solid #D97757;
+            background-color: rgba(217, 119, 87, 0.05);
+            padding: 12px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .vision-icon {
+            color: #D97757;
+            font-size: 32px;
+        }
+        .vision-text {
+            font-family: 'Space Mono', monospace;
+            font-size: 20px;
+            color: #FFFFFF;
+            line-height: 1.4;
+        }
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            flex-grow: 1;
+            margin-bottom: 10px;
+        }
+        .feature-card {
+            background-color: #101B3A;
+            border-top: 4px solid #3182CE;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+        }
+        .feature-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .feature-icon-wrapper {
+            width: 40px;
+            height: 40px;
+            background-color: rgba(49, 130, 206, 0.1);
+            border: 1px solid #3182CE;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #3182CE;
+            font-size: 18px;
+        }
+        .feature-title {
+            font-family: 'Space Mono', monospace;
+            font-size: 20px;
+            font-weight: 700;
+            color: #FFFFFF;
+        }
+        .feature-desc {
+            font-size: 16px;
+            color: #E2E8F0;
+            line-height: 1.5;
+            font-weight: 300;
+            margin-bottom: 8px;
+        }
+        .feature-example {
+            margin-top: auto;
+            background-color: rgba(11, 19, 43, 0.5);
+            border-left: 2px solid #D97757;
+            padding: 8px 12px;
+            font-family: 'Space Mono', monospace;
+            font-size: 13px;
+            color: #D97757;
+            line-height: 1.4;
+        }
+        .impact-footer {
+            background-color: #3182CE;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+        }
+        .impact-text {
+            font-family: 'Space Mono', monospace;
+            font-size: 18px;
+            font-weight: 700;
+            color: #0B132B;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="monogram-small">L</div>
+
+        <div class="header-block">
+            <div class="pillar-label">Pillar 6: The Lanai Intelligence Engine</div>
+            <h1>The Ultimate Vision: An AI Co-Pilot for Every Advisor</h1>
+            <div class="accent-line"></div>
+        </div>
+
+        <div class="vision-banner">
+            <i class="fas fa-microchip vision-icon"></i>
+            <div class="vision-text">
+                Not replacing the human touch, but giving every advisor the memory, speed, and analytical power of a 100-person team.
+            </div>
+        </div>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-header">
+                    <div class="feature-icon-wrapper"><i class="fas fa-sun"></i></div>
+                    <div class="feature-title">The Morning Briefing</div>
+                </div>
+                <div class="feature-desc">AI summarizes overnight WhatsApps, flags urgent emails, and lists today's priority clients based on LTV and trip proximity.</div>
+                <div class="feature-example">
+                    "3 urgent messages. James needs a restaurant change for tonight. Sarah's flight is delayed; I've drafted a rebooking option."
+                </div>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-header">
+                    <div class="feature-icon-wrapper"><i class="fas fa-radar"></i></div>
+                    <div class="feature-title">Opportunity Spotting</div>
+                </div>
+                <div class="feature-desc">The engine scans global events, supplier availability, and client preferences to proactively suggest high-conversion outreach.</div>
+                <div class="feature-example">
+                    "James is in Paris next week. His favorite restaurant, L'Ambroisie, just had a cancellation. Draft an offer via WhatsApp?"
+                </div>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-header">
+                    <div class="feature-icon-wrapper"><i class="fas fa-infinity"></i></div>
+                    <div class="feature-title">Infinite Memory</div>
+                </div>
+                <div class="feature-desc">Automatically applies deep, unstructured client knowledge to every proposal, booking, and interaction without manual data entry.</div>
+                <div class="feature-example">
+                    "Applied: Daughter allergic to peanuts, prefers corner suites, requires late checkout. Supplier notes updated automatically."
+                </div>
+            </div>
+        </div>
+
+        <div class="impact-footer">
+            <i class="fas fa-rocket" style="color: #0B132B; font-size: 20px;"></i>
+            <div class="impact-text">Result: Advisors manage 3x the client volume with zero dropped balls.</div>
+        </div>
+    </div>
+</body>
+</html>

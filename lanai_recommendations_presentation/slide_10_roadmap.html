@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        .slide-container { 
+            width: 1280px; 
+            min-height: 720px; 
+            background-color: #0B132B; 
+            font-family: 'Inter', sans-serif;
+            position: relative;
+            padding-top: 60px;
+            padding-left: 80px;
+            padding-right: 80px;
+            display: flex;
+            flex-direction: column;
+        }
+        .monogram-small {
+            position: absolute;
+            top: 40px;
+            left: 40px;
+            font-family: 'Space Mono', monospace;
+            font-size: 24px;
+            font-weight: 700;
+            color: #D97757;
+            border: 1px solid #D97757;
+            padding: 4px 12px;
+        }
+        .header-block {
+            margin-bottom: 30px;
+            margin-top: 20px;
+        }
+        h1 {
+            font-family: 'Space Mono', monospace;
+            font-size: 42px;
+            font-weight: 700;
+            color: #FFFFFF;
+            line-height: 1.2;
+        }
+        .accent-line {
+            width: 60px;
+            height: 4px;
+            background-color: #3182CE;
+            margin-top: 16px;
+        }
+        .roadmap-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-bottom: 30px;
+            flex-grow: 1;
+        }
+        .phase-card {
+            background-color: #101B3A;
+            border-top: 4px solid #3182CE;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .phase-card:nth-child(1) { border-top-color: #D97757; }
+        .phase-card:nth-child(2) { border-top-color: #3182CE; }
+        .phase-card:nth-child(3) { border-top-color: #E2E8F0; }
+        
+        .phase-header {
+            margin-bottom: 20px;
+            border-bottom: 1px solid rgba(49, 130, 206, 0.3);
+            padding-bottom: 16px;
+        }
+        .phase-title {
+            font-family: 'Space Mono', monospace;
+            font-size: 24px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .phase-title span {
+            color: #D97757;
+            font-size: 18px;
+        }
+        .phase-card:nth-child(2) .phase-title span { color: #3182CE; }
+        .phase-card:nth-child(3) .phase-title span { color: #E2E8F0; }
+        
+        .phase-time {
+            font-size: 16px;
+            color: #E2E8F0;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .phase-theme {
+            font-family: 'Space Mono', monospace;
+            font-size: 16px;
+            color: #3182CE;
+            margin-bottom: 16px;
+            text-transform: uppercase;
+        }
+        .phase-card:nth-child(1) .phase-theme { color: #D97757; }
+        
+        .deliverables-list {
+            list-style: none;
+            margin-bottom: 24px;
+            flex-grow: 1;
+        }
+        .deliverables-list li {
+            font-size: 16px;
+            color: #E2E8F0;
+            line-height: 1.5;
+            margin-bottom: 12px;
+            padding-left: 24px;
+            position: relative;
+            font-weight: 300;
+        }
+        .deliverables-list li::before {
+            content: '■';
+            position: absolute;
+            left: 0;
+            top: 2px;
+            color: #3182CE;
+            font-size: 12px;
+        }
+        .phase-card:nth-child(1) .deliverables-list li::before { color: #D97757; }
+        .phase-card:nth-child(3) .deliverables-list li::before { color: #E2E8F0; }
+        
+        .investment-level {
+            margin-top: auto;
+            padding-top: 16px;
+            border-top: 1px solid rgba(49, 130, 206, 0.3);
+            font-family: 'Space Mono', monospace;
+            font-size: 14px;
+            color: #E2E8F0;
+            display: flex;
+            justify-content: space-between;
+        }
+        .investment-level strong {
+            color: #FFFFFF;
+        }
+        .principle-banner {
+            background-color: rgba(217, 119, 87, 0.1);
+            border: 1px solid #D97757;
+            padding: 20px 30px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-top: auto;
+            margin-bottom: 8px; /* reduced from 40px to fit under 720px */
+        }
+        .principle-icon {
+            color: #D97757;
+            font-size: 32px;
+        }
+        .principle-text {
+            font-family: 'Space Mono', monospace;
+            font-size: 20px;
+            font-weight: 700;
+            color: #FFFFFF;
+            line-height: 1.4;
+        }
+        .principle-text span {
+            color: #D97757;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="monogram-small">L</div>
+
+        <div class="header-block">
+            <h1>Implementation Roadmap</h1>
+            <div class="accent-line"></div>
+        </div>
+
+        <div class="roadmap-grid">
+            <div class="phase-card">
+                <div class="phase-header">
+                    <div class="phase-title">Enhance <span>H1</span></div>
+                    <div class="phase-time">0–6 Months</div>
+                </div>
+                <div class="phase-theme">Quick Wins & Automation</div>
+                <ul class="deliverables-list">
+                    <li>Core CRM Adoption & Data Migration</li>
+                    <li>WhatsApp AI Triage & Intent Extraction</li>
+                    <li>LLM Proposal Co-Pilot (V1)</li>
+                    <li>Basic Preference Inference</li>
+                </ul>
+                <div class="investment-level">
+                    <span>Investment:</span>
+                    <strong>Low / Medium</strong>
+                </div>
+            </div>
+
+            <div class="phase-card">
+                <div class="phase-header">
+                    <div class="phase-title">Expand <span>H2</span></div>
+                    <div class="phase-time">6–18 Months</div>
+                </div>
+                <div class="phase-theme">Connectivity & Experience</div>
+                <ul class="deliverables-list">
+                    <li>White-labeled Client Portal & Vault</li>
+                    <li>GDS & Hotel API Integrations</li>
+                    <li>Automated Commission Tracking</li>
+                    <li>Dynamic Itinerary Builder</li>
+                </ul>
+                <div class="investment-level">
+                    <span>Investment:</span>
+                    <strong>Medium / High</strong>
+                </div>
+            </div>
+
+            <div class="phase-card">
+                <div class="phase-header">
+                    <div class="phase-title">Innovate <span>H3</span></div>
+                    <div class="phase-time">18–36 Months</div>
+                </div>
+                <div class="phase-theme">Predictive Intelligence</div>
+                <ul class="deliverables-list">
+                    <li>360° Living Client Profile</li>
+                    <li>Predictive Trip Triggers & LTV Scoring</li>
+                    <li>Lanai Intelligence Engine (Proactive Advisor)</li>
+                    <li>Multi-channel Sentiment Monitoring</li>
+                </ul>
+                <div class="investment-level">
+                    <span>Investment:</span>
+                    <strong>High</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="principle-banner">
+            <i class="fas fa-gem principle-icon"></i>
+            <div class="principle-text">
+                Guiding Principle: Technology supports the advisor; it <span>never replaces the human relationship</span> that differentiates Lanai.
+            </div>
+        </div>
+    </div>
+</body>
+</html>

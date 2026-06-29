@@ -1,0 +1,163 @@
+{
+  "project_info": {
+    "title": "The Intelligence Layer",
+    "created": 1782761481.657,
+    "last_updated": 1782766633.929,
+    "total_slides": 14
+  },
+  "slides": [
+    {
+      "id": "slide_1_title",
+      "state": "edited",
+      "pageNum": 1
+    },
+    {
+      "id": "slide_2_executive_framing",
+      "state": "edited",
+      "pageNum": 2
+    },
+    {
+      "id": "slide_3_framework",
+      "state": "edited",
+      "pageNum": 3
+    },
+    {
+      "id": "slide_4_pillar_1_whatsapp",
+      "state": "edited",
+      "pageNum": 4
+    },
+    {
+      "id": "slide_5_pillar_2_proposals",
+      "state": "edited",
+      "pageNum": 5
+    },
+    {
+      "id": "slide_6_pillar_3_client_intelligence",
+      "state": "edited",
+      "pageNum": 6
+    },
+    {
+      "id": "slide_7_pillar_4_client_portal",
+      "state": "edited",
+      "pageNum": 7
+    },
+    {
+      "id": "slide_8_pillar_5_suppliers",
+      "state": "edited",
+      "pageNum": 8
+    },
+    {
+      "id": "slide_9_pillar_6_ai_advisor",
+      "state": "edited",
+      "pageNum": 9
+    },
+    {
+      "id": "slide_12_live_crm",
+      "state": "edited",
+      "pageNum": 10
+    },
+    {
+      "id": "slide_13_client_portal",
+      "state": "edited",
+      "pageNum": 11
+    },
+    {
+      "id": "slide_14_streaming_proposals",
+      "state": "edited",
+      "pageNum": 12
+    },
+    {
+      "id": "slide_10_roadmap",
+      "state": "edited",
+      "pageNum": 13
+    },
+    {
+      "id": "slide_11_closing",
+      "state": "edited",
+      "pageNum": 14
+    }
+  ],
+  "outline": [
+    {
+      "id": "slide_1_title",
+      "title": "The Intelligence Layer",
+      "summary": "Title slide introducing the recommendations for Lanai Lifestyle's CRM and AI innovations.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "slide_2_executive_framing",
+      "title": "Luxury Travel Is Being Redefined by Intelligence",
+      "summary": "Executive framing highlighting market growth, metrics, and the imperative for Lanai to adopt AI.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "slide_3_framework",
+      "title": "Six Recommendation Pillars Across Three Horizons",
+      "summary": "Overview of the 3-horizon roadmap and the 6 key pillars of innovation.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "slide_4_pillar_1_whatsapp",
+      "title": "Pillar 1: Conversational AI & WhatsApp Intelligence",
+      "summary": "Recommendations for upgrading WhatsApp with AI triage, intent extraction, and sentiment monitoring.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "slide_5_pillar_2_proposals",
+      "title": "Pillar 2: LLM-Powered Proposal & Itinerary Engine",
+      "summary": "Recommendations for an AI co-pilot to automate and personalise travel proposal generation.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "slide_6_pillar_3_client_intelligence",
+      "title": "Pillar 3: Client Intelligence & Predictive Personalisation",
+      "summary": "Recommendations for moving from reactive service to proactive relationship management using AI.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "slide_7_pillar_4_client_portal",
+      "title": "Pillar 4: Client Portal & Digital Vault",
+      "summary": "Recommendations for a white-labeled client portal, digital vault, and live trip tracking.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "slide_8_pillar_5_suppliers",
+      "title": "Pillar 5: Supplier & Booking System Integration",
+      "summary": "Recommendations for integrating GDS, hotel APIs, and automated commission tracking.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "slide_9_pillar_6_ai_advisor",
+      "title": "Pillar 6: The Lanai Intelligence Engine",
+      "summary": "Vision for a proactive AI advisor providing morning briefings, opportunity spotting, and relationship memory.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "slide_12_live_crm",
+      "title": "Live CRM Integration — Now Implemented",
+      "summary": "All advisor portal pages (Clients, Travel Requests, Members) are now wired to live Twenty CRM data via GraphQL, replacing mock data with 1,200 real client records and 150 pipeline opportunities."
+    },
+    {
+      "id": "slide_13_client_portal",
+      "title": "Client Portal — Now Live at /client",
+      "summary": "A dedicated client-facing portal at /client with secure PIN login, trip itinerary view, travel request submission form, and WhatsApp quick-connect — no advisor sidebar, fully branded."
+    },
+    {
+      "id": "slide_14_streaming_proposals",
+      "title": "Streaming Proposal Co-Pilot — Word-by-Word AI Output",
+      "summary": "The Proposal Co-Pilot now streams output word-by-word via SSE from Ollama, with a toggle between Streaming (live markdown) and Structured (JSON sections) modes, plus a Stop button for control."
+    },
+    {
+      "id": "slide_10_roadmap",
+      "title": "Implementation Roadmap",
+      "summary": "Phased roadmap from H1 (Enhance) to H3 (Innovate) with investment levels and guiding principles.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "slide_11_closing",
+      "title": "The Opportunity",
+      "summary": "Closing slide summarizing the vision of Lanai as the world's most intelligent luxury concierge.",
+      "image_plan": "Use a suitable image if needed"
+    }
+  ]
+}

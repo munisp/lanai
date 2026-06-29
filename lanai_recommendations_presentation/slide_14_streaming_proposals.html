@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            background-color: #0B132B;
+            font-family: 'Inter', sans-serif;
+            position: relative;
+            padding-top: 52px;
+            padding-left: 80px;
+            padding-right: 80px;
+            display: flex;
+            flex-direction: column;
+        }
+        .monogram-small {
+            position: absolute;
+            top: 40px;
+            left: 40px;
+            font-family: 'Space Mono', monospace;
+            font-size: 24px;
+            font-weight: 700;
+            color: #D97757;
+            border: 1px solid #D97757;
+            padding: 4px 12px;
+        }
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background-color: rgba(72, 187, 120, 0.15);
+            border: 1px solid #48BB78;
+            color: #48BB78;
+            font-family: 'Space Mono', monospace;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            padding: 4px 14px;
+            margin-bottom: 10px;
+        }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #48BB78; }
+        h1 {
+            font-family: 'Space Mono', monospace;
+            font-size: 30px;
+            font-weight: 700;
+            color: #FFFFFF;
+            line-height: 1.2;
+            margin-bottom: 6px;
+        }
+        .accent-line { width: 60px; height: 4px; background-color: #3182CE; margin-bottom: 16px; }
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            flex: 1;
+        }
+        .left-col { display: flex; flex-direction: column; gap: 12px; }
+        .mode-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .mode-card {
+            background-color: #101B3A;
+            border: 1px solid #1E3A5F;
+            padding: 14px;
+        }
+        .mode-card.active { border-color: #3182CE; background-color: rgba(49, 130, 206, 0.08); }
+        .mode-icon { font-size: 22px; margin-bottom: 6px; }
+        .mode-card.active .mode-icon { color: #3182CE; }
+        .mode-card:not(.active) .mode-icon { color: #D97757; }
+        .mode-title {
+            font-family: 'Space Mono', monospace;
+            font-size: 14px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 4px;
+        }
+        .mode-desc { font-size: 13px; color: #A0AEC0; line-height: 1.4; font-weight: 300; }
+        .arch-block {
+            background-color: #101B3A;
+            border: 1px solid #1E3A5F;
+            padding: 14px 16px;
+        }
+        .arch-title {
+            font-family: 'Space Mono', monospace;
+            font-size: 14px;
+            font-weight: 700;
+            color: #3182CE;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .arch-flow { display: flex; align-items: center; gap: 0; flex-wrap: nowrap; }
+        .arch-node {
+            background-color: #0B132B;
+            border: 1px solid #2D3748;
+            padding: 8px 10px;
+            text-align: center;
+            flex: 1;
+        }
+        .arch-node-name {
+            font-family: 'Space Mono', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 2px;
+        }
+        .arch-node-sub { font-size: 10px; color: #A0AEC0; }
+        .arch-arrow { color: #3182CE; font-size: 14px; margin: 0 4px; flex-shrink: 0; }
+        .improvements { display: flex; flex-direction: column; gap: 6px; }
+        .improvement-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            color: #E2E8F0;
+        }
+        .improvement-icon { color: #48BB78; font-size: 14px; width: 18px; text-align: center; }
+        .right-col { display: flex; flex-direction: column; }
+        .stream-mockup {
+            background-color: #0D1A2E;
+            border: 1px solid #2D3748;
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .mockup-topbar {
+            background-color: #1A2744;
+            padding: 8px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #2D3748;
+        }
+        .mockup-title {
+            font-family: 'Space Mono', monospace;
+            font-size: 13px;
+            font-weight: 700;
+            color: #FFFFFF;
+        }
+        .mockup-badge {
+            font-family: 'Space Mono', monospace;
+            font-size: 11px;
+            color: #3182CE;
+            border: 1px solid #3182CE;
+            padding: 2px 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .mockup-body { padding: 16px; flex: 1; }
+        .stream-h1 {
+            font-family: 'Space Mono', monospace;
+            font-size: 16px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 8px;
+        }
+        .stream-h2 {
+            font-family: 'Space Mono', monospace;
+            font-size: 13px;
+            font-weight: 700;
+            color: #3182CE;
+            margin-bottom: 4px;
+            margin-top: 10px;
+        }
+        .stream-text { font-size: 13px; color: #E2E8F0; line-height: 1.6; font-weight: 300; }
+        .stream-cursor {
+            display: inline-block;
+            width: 8px;
+            height: 14px;
+            background-color: #3182CE;
+            vertical-align: middle;
+            margin-left: 2px;
+        }
+        .mockup-footer {
+            border-top: 1px solid #2D3748;
+            padding: 8px 14px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .mockup-btn {
+            font-family: 'Space Mono', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 5px 12px;
+            border: 1px solid;
+        }
+        .mockup-btn-stop { border-color: #FC8181; color: #FC8181; }
+        .mockup-btn-copy { border-color: #A0AEC0; color: #A0AEC0; }
+        .mockup-status { font-size: 11px; color: #48BB78; font-family: 'Space Mono', monospace; margin-left: auto; }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="monogram-small">L</div>
+
+        <div class="status-badge"><span class="status-dot"></span> NOW IMPLEMENTED</div>
+        <h1>Streaming Proposal Co-Pilot — Word-by-Word AI Output via SSE</h1>
+        <div class="accent-line"></div>
+
+        <div class="content-grid">
+            <div class="left-col">
+                <div class="mode-row">
+                    <div class="mode-card active">
+                        <div class="mode-icon"><i class="fas fa-bolt"></i></div>
+                        <div class="mode-title">Streaming Mode</div>
+                        <div class="mode-desc">Proposal appears word-by-word as the LLM writes it. Rich markdown rendered live. Stop button for control.</div>
+                    </div>
+                    <div class="mode-card">
+                        <div class="mode-icon"><i class="fas fa-file-alt"></i></div>
+                        <div class="mode-title">Structured Mode</div>
+                        <div class="mode-desc">JSON response with expandable sections: Summary, Itinerary, Accommodation, Investment, Next Steps.</div>
+                    </div>
+                </div>
+
+                <div class="arch-block">
+                    <div class="arch-title">Technical Architecture</div>
+                    <div class="arch-flow">
+                        <div class="arch-node">
+                            <div class="arch-node-name">Ollama</div>
+                            <div class="arch-node-sub">stream: true</div>
+                        </div>
+                        <span class="arch-arrow">→</span>
+                        <div class="arch-node">
+                            <div class="arch-node-name">Flask SSE</div>
+                            <div class="arch-node-sub">iter_lines()</div>
+                        </div>
+                        <span class="arch-arrow">→</span>
+                        <div class="arch-node">
+                            <div class="arch-node-name">Vite Proxy</div>
+                            <div class="arch-node-sub">/api/proposals</div>
+                        </div>
+                        <span class="arch-arrow">→</span>
+                        <div class="arch-node">
+                            <div class="arch-node-name">React</div>
+                            <div class="arch-node-sub">ReadableStream</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="arch-block">
+                    <div class="arch-title">UX Improvements Delivered</div>
+                    <div class="improvements">
+                        <div class="improvement-item"><i class="fas fa-check improvement-icon"></i> Live blinking cursor while AI is writing</div>
+                        <div class="improvement-item"><i class="fas fa-check improvement-icon"></i> Markdown rendered in real-time (H1, H2, bullets)</div>
+                        <div class="improvement-item"><i class="fas fa-check improvement-icon"></i> Stop button aborts stream mid-generation</div>
+                        <div class="improvement-item"><i class="fas fa-check improvement-icon"></i> Copy to clipboard for the full streamed text</div>
+                        <div class="improvement-item"><i class="fas fa-check improvement-icon"></i> Demo fallback if Ollama is warming up</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-col">
+                <div class="stream-mockup">
+                    <div class="mockup-topbar">
+                        <div class="mockup-title">Generated Proposal <span class="stream-cursor"></span></div>
+                        <div class="mockup-badge"><i class="fas fa-bolt"></i> STREAMING</div>
+                    </div>
+                    <div class="mockup-body">
+                        <div class="stream-h1"># A Private Maldives Experience — The Harrington Family</div>
+                        <div class="stream-h2">## Executive Summary</div>
+                        <div class="stream-text">We have curated an exceptional honeymoon experience to the Maldives tailored exclusively for the Harrington Family. This proposal combines the finest overwater villas, private dining experiences, and curated moments that define the Lanai standard of travel.</div>
+                        <div class="stream-h2">## Why the Maldives</div>
+                        <div class="stream-text">The Maldives offers an unparalleled combination of crystalline turquoise lagoons, pristine coral reefs, and world-class hospitality. With 26 natural atolls and over 1,000 coral islands, it remains the ultimate destination for...</div>
+                    </div>
+                    <div class="mockup-footer">
+                        <div class="mockup-btn mockup-btn-stop">■ Stop</div>
+                        <div class="mockup-btn mockup-btn-copy">⎘ Copy</div>
+                        <div class="mockup-status">● Generating... 312 tokens</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

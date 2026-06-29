@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        .slide-container { 
+            width: 1280px; 
+            min-height: 720px; 
+            background-color: #0B132B; 
+            font-family: 'Inter', sans-serif;
+            position: relative;
+            padding-top: 60px; /* keep title top padding */
+            padding-left: 80px;
+            padding-right: 80px;
+            display: flex;
+            flex-direction: column;
+        }
+        .monogram-small {
+            position: absolute;
+            top: 40px;
+            left: 40px;
+            font-family: 'Space Mono', monospace;
+            font-size: 24px;
+            font-weight: 700;
+            color: #D97757;
+            border: 1px solid #D97757;
+            padding: 4px 12px;
+        }
+        .header-block {
+            margin-bottom: 16px; /* reduced from 40 to save height */
+            margin-top: 20px;
+        }
+        h1 {
+            font-family: 'Space Mono', monospace;
+            font-size: 42px;
+            font-weight: 700;
+            color: #FFFFFF;
+            line-height: 1.2;
+            max-width: 1000px;
+        }
+        .accent-line {
+            width: 60px;
+            height: 4px;
+            background-color: #3182CE;
+            margin-top: 16px;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px; /* reduced gap */
+            margin-bottom: 16px; /* reduced from 40 */
+            flex-grow: 1;
+        }
+        .metric-block {
+            border: 1px solid #3182CE;
+            padding: 16px; /* reduced from 30 */
+            display: flex;
+            flex-direction: column;
+            background-color: rgba(49, 130, 206, 0.05);
+        }
+        .metric-icon {
+            color: #D97757;
+            font-size: 28px;
+            margin-bottom: 12px; /* slight reduction */
+        }
+        .metric-highlight {
+            font-family: 'Space Mono', monospace;
+            font-size: 36px;
+            font-weight: 700;
+            color: #D97757;
+            margin-bottom: 12px;
+            line-height: 1.1;
+        }
+        .metric-text {
+            font-size: 18px;
+            color: #E2E8F0;
+            line-height: 1.5;
+            font-weight: 300;
+        }
+        .bottom-banner {
+            background-color: #D97757;
+            padding: 12px 32px; /* reduced vertical padding */
+            margin-bottom: 0; /* removed extra bottom margin */
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .banner-icon {
+            color: #0B132B;
+            font-size: 32px;
+        }
+        .banner-text {
+            font-family: 'Space Mono', monospace;
+            font-size: 22px;
+            font-weight: 700;
+            color: #0B132B;
+            line-height: 1.4;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="monogram-small">L</div>
+
+        <div class="header-block">
+            <h1>Luxury Travel Is Being Redefined by Intelligence — Lanai Must Lead, Not Follow</h1>
+            <div class="accent-line"></div>
+        </div>
+
+        <div class="metrics-grid">
+            <div class="metric-block">
+                <i class="fas fa-chart-line metric-icon"></i>
+                <div class="metric-highlight">$11.9 Billion</div>
+                <div class="metric-text">Projected value of the global AI-driven luxury travel personalisation market by 2034 (CAGR 8.8%).</div>
+            </div>
+            
+            <div class="metric-block">
+                <i class="fas fa-arrow-trend-up metric-icon"></i>
+                <div class="metric-highlight">+15–35% Revenue</div>
+                <div class="metric-text">Major hospitality groups deploying AI report guest satisfaction increases of 12–28% and ancillary revenue lifts of 15–35% within 18 months.</div>
+            </div>
+
+            <div class="metric-block">
+                <i class="fas fa-users-viewfinder metric-icon"></i>
+                <div class="metric-highlight">+40% Repeat Rate</div>
+                <div class="metric-text">Agencies using CRM-driven retention and predictive intelligence report repeat booking rates 40% higher than manual outreach.</div>
+            </div>
+
+            <div class="metric-block">
+                <i class="fas fa-plane-departure metric-icon"></i>
+                <div class="metric-highlight">14.3 Trips/Year</div>
+                <div class="metric-text">The wealthiest 5% of travellers take an average of 14.3 trips per year — each one a high-value relationship opportunity.</div>
+            </div>
+        </div>
+
+        <div class="bottom-banner">
+            <i class="fas fa-triangle-exclamation banner-icon"></i>
+            <div class="banner-text">The risk is not moving too fast. The risk is standing still while competitors automate the relationship.</div>
+        </div>
+    </div>
+</body>
+</html>

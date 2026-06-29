@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            background-color: #0B132B;
+            font-family: 'Inter', sans-serif;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .monogram-large {
+            font-family: 'Space Mono', monospace;
+            font-size: 600px;
+            font-weight: 700;
+            color: rgba(217, 119, 87, 0.03);
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            line-height: 1;
+            z-index: 1;
+        }
+        .content-wrapper {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            max-width: 900px;
+            border: 1px solid #3182CE;
+            padding: 80px 100px;
+            background-color: rgba(11, 19, 43, 0.85);
+        }
+        .content-wrapper::before {
+            content: '';
+            position: absolute;
+            top: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 4px;
+            background-color: #D97757;
+        }
+        .subtitle {
+            font-family: 'Space Mono', monospace;
+            font-size: 20px;
+            color: #D97757;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            margin-bottom: 24px;
+        }
+        h1 {
+            font-family: 'Space Mono', monospace;
+            font-size: 56px;
+            font-weight: 700;
+            color: #FFFFFF;
+            line-height: 1.2;
+            margin-bottom: 32px;
+        }
+        .description {
+            font-size: 24px;
+            color: #E2E8F0;
+            line-height: 1.5;
+            font-weight: 300;
+        }
+        .footer {
+            position: absolute;
+            bottom: 60px;
+            font-family: 'Space Mono', monospace;
+            font-size: 16px;
+            color: #3182CE;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            z-index: 2;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="monogram-large">L</div>
+
+        <div class="content-wrapper">
+            <div class="subtitle">The Opportunity</div>
+            <h1>The World's Most Intelligent Luxury Concierge</h1>
+            <div class="description">
+                Scaling the unscalable art of human connection through invisible, predictive intelligence.
+            </div>
+        </div>
+
+        <div class="footer">
+            Lanai Lifestyle
+        </div>
+    </div>
+</body>
+</html>

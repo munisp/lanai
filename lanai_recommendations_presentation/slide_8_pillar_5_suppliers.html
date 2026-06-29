@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        .slide-container { 
+            width: 1280px; 
+            min-height: 720px; 
+            background-color: #0B132B; 
+            font-family: 'Inter', sans-serif;
+            position: relative;
+            padding-top: 60px;
+            padding-left: 80px;
+            padding-right: 80px;
+            display: flex;
+            flex-direction: column;
+        }
+        .monogram-small {
+            position: absolute;
+            top: 40px;
+            left: 40px;
+            font-family: 'Space Mono', monospace;
+            font-size: 24px;
+            font-weight: 700;
+            color: #D97757;
+            border: 1px solid #D97757;
+            padding: 4px 12px;
+        }
+        .header-block {
+            margin-bottom: 20px;
+            margin-top: 20px;
+        }
+        .pillar-label {
+            font-family: 'Space Mono', monospace;
+            font-size: 18px;
+            color: #D97757;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            letter-spacing: 1px;
+        }
+        h1 {
+            font-family: 'Space Mono', monospace;
+            font-size: 36px;
+            font-weight: 700;
+            color: #FFFFFF;
+            line-height: 1.2;
+            max-width: 1100px;
+        }
+        .accent-line {
+            width: 60px;
+            height: 4px;
+            background-color: #3182CE;
+            margin-top: 12px;
+        }
+        .context-row {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .context-box {
+            flex: 1;
+            border: 1px solid #3182CE;
+            padding: 16px;
+            background-color: rgba(49, 130, 206, 0.05);
+        }
+        .context-box.benchmark {
+            border-color: #D97757;
+            background-color: rgba(217, 119, 87, 0.05);
+        }
+        .context-title {
+            font-family: 'Space Mono', monospace;
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+        .context-box .context-title { color: #3182CE; }
+        .context-box.benchmark .context-title { color: #D97757; }
+        .context-text {
+            font-size: 16px;
+            color: #E2E8F0;
+            line-height: 1.4;
+        }
+        .context-text strong {
+            color: #FFFFFF;
+            font-weight: 600;
+        }
+        .enhancements-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            flex-grow: 1;
+        }
+        .enhancement-card {
+            background-color: #101B3A;
+            border-top: 3px solid #3182CE;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+        }
+        .enhancement-card:nth-child(1), .enhancement-card:nth-child(2) {
+            border-top-color: #D97757;
+        }
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .card-icon {
+            color: #D97757;
+            font-size: 20px;
+            width: 24px;
+            text-align: center;
+        }
+        .card-title {
+            font-family: 'Space Mono', monospace;
+            font-size: 18px;
+            font-weight: 700;
+            color: #FFFFFF;
+            line-height: 1.2;
+        }
+        .card-text {
+            font-size: 15px;
+            color: #E2E8F0;
+            line-height: 1.4;
+            font-weight: 300;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="monogram-small">L</div>
+
+        <div class="header-block">
+            <div class="pillar-label">Pillar 5</div>
+            <h1>Connect Lanai's Supplier Network to Live Inventory, Pricing, and Commission Tracking</h1>
+            <div class="accent-line"></div>
+        </div>
+
+        <div class="context-row">
+            <div class="context-box">
+                <div class="context-title">Current State</div>
+                <div class="context-text">Suppliers are stored as static records in the CRM. Bookings, availability checks, and commissions are tracked manually across disparate systems.</div>
+            </div>
+            <div class="context-box benchmark">
+                <div class="context-title">Real-World Benchmark</div>
+                <div class="context-text">Agencies using integrated booking systems save <strong>12–18 hours per agent per week</strong>. Conversion rates lift <strong>20–35%</strong> within 90 days of CRM adoption.</div>
+            </div>
+        </div>
+
+        <div class="enhancements-grid">
+            <div class="enhancement-card">
+                <div class="card-header">
+                    <i class="fas fa-plane card-icon"></i>
+                    <div class="card-title">GDS Integration</div>
+                </div>
+                <div class="card-text">Direct Amadeus/Sabre connectivity. Real-time flight availability, pricing, and booking directly from the CRM. No switching between systems.</div>
+            </div>
+
+            <div class="enhancement-card">
+                <div class="card-header">
+                    <i class="fas fa-hotel card-icon"></i>
+                    <div class="card-title">Hotel & Villa API Layer</div>
+                </div>
+                <div class="card-text">Direct connections to Hotelbeds, Little Emperors, RateHawk, and luxury villa platforms. Live availability and rates surfaced inside Travel Requests.</div>
+            </div>
+
+            <div class="enhancement-card">
+                <div class="card-header">
+                    <i class="fas fa-file-invoice-dollar card-icon"></i>
+                    <div class="card-title">Automated Commission</div>
+                </div>
+                <div class="card-text">Every booking automatically calculates expected commission, tracks payment status, and alerts the finance team on overdue payments.</div>
+            </div>
+
+            <div class="enhancement-card">
+                <div class="card-header">
+                    <i class="fas fa-star card-icon"></i>
+                    <div class="card-title">Supplier Scorecard</div>
+                </div>
+                <div class="card-text">After each trip, the system prompts the advisor (and optionally the client) to rate the supplier. Builds a quality-weighted supplier ranking over time.</div>
+            </div>
+
+            <div class="enhancement-card">
+                <div class="card-header">
+                    <i class="fas fa-bullseye card-icon"></i>
+                    <div class="card-title">Preferred Supplier Alerts</div>
+                </div>
+                <div class="card-text">When building a proposal, the system highlights Lanai's preferred/contracted suppliers first, maximising margin and ensuring quality control.</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

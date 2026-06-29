@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            background-color: #0B132B;
+            font-family: 'Inter', sans-serif;
+            position: relative;
+            padding-top: 52px;
+            padding-left: 80px;
+            padding-right: 80px;
+            display: flex;
+            flex-direction: column;
+        }
+        .monogram-small {
+            position: absolute;
+            top: 40px;
+            left: 40px;
+            font-family: 'Space Mono', monospace;
+            font-size: 24px;
+            font-weight: 700;
+            color: #D97757;
+            border: 1px solid #D97757;
+            padding: 4px 12px;
+        }
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background-color: rgba(72, 187, 120, 0.15);
+            border: 1px solid #48BB78;
+            color: #48BB78;
+            font-family: 'Space Mono', monospace;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            padding: 4px 14px;
+            margin-bottom: 10px;
+        }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #48BB78; }
+        h1 {
+            font-family: 'Space Mono', monospace;
+            font-size: 34px;
+            font-weight: 700;
+            color: #FFFFFF;
+            line-height: 1.2;
+            margin-bottom: 6px;
+        }
+        .accent-line { width: 60px; height: 4px; background-color: #3182CE; margin-bottom: 18px; }
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+        .stat-card {
+            background-color: #101B3A;
+            border: 1px solid #1E3A5F;
+            padding: 14px 18px;
+            border-top: 3px solid #3182CE;
+        }
+        .stat-number {
+            font-family: 'Space Mono', monospace;
+            font-size: 40px;
+            font-weight: 700;
+            color: #FFFFFF;
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+        .stat-label { font-size: 14px; color: #A0AEC0; font-weight: 300; text-transform: uppercase; letter-spacing: 1px; }
+        .stat-sub { font-size: 13px; color: #D97757; margin-top: 4px; font-weight: 600; }
+        .pages-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+        .page-card {
+            background-color: #101B3A;
+            border: 1px solid #1E3A5F;
+            border-left: 4px solid #D97757;
+            padding: 14px 16px;
+        }
+        .page-title {
+            font-family: 'Space Mono', monospace;
+            font-size: 16px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .page-icon { color: #D97757; font-size: 16px; }
+        .page-desc { font-size: 14px; color: #E2E8F0; line-height: 1.5; font-weight: 300; }
+        .page-feature { font-size: 12px; color: #48BB78; margin-top: 6px; font-weight: 600; }
+        .arch-bar {
+            background-color: rgba(49, 130, 206, 0.08);
+            border: 1px solid #3182CE;
+            padding: 12px 18px;
+            display: flex;
+            align-items: center;
+            gap: 0;
+        }
+        .arch-step {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+        }
+        .arch-icon { color: #3182CE; font-size: 18px; }
+        .arch-text { font-size: 13px; color: #E2E8F0; font-weight: 600; }
+        .arch-sub { font-size: 11px; color: #A0AEC0; font-weight: 300; }
+        .arch-arrow { color: #3182CE; font-size: 18px; margin: 0 6px; }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="monogram-small">L</div>
+
+        <div class="status-badge"><span class="status-dot"></span> NOW IMPLEMENTED</div>
+        <h1>Live CRM Integration — All Advisor Pages Wired to Twenty CRM</h1>
+        <div class="accent-line"></div>
+
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-number">1,200</div>
+                <div class="stat-label">Client Records</div>
+                <div class="stat-sub">Live from Twenty CRM GraphQL</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">150</div>
+                <div class="stat-label">Pipeline Opportunities</div>
+                <div class="stat-sub">Across 6 stages, filterable</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">21</div>
+                <div class="stat-label">Active Members</div>
+                <div class="stat-sub">Platinum / Gold / Silver tiers</div>
+            </div>
+        </div>
+
+        <div class="pages-row">
+            <div class="page-card">
+                <div class="page-title"><i class="fas fa-users page-icon"></i> Clients Page</div>
+                <div class="page-desc">Searchable table of all 1,200 CRM contacts with name, email, phone, city, and timestamps. Real-time search and refresh.</div>
+                <div class="page-feature">✓ Live GraphQL · ✓ Search · ✓ Pagination</div>
+            </div>
+            <div class="page-card">
+                <div class="page-title"><i class="fas fa-paper-plane page-icon"></i> Travel Requests</div>
+                <div class="page-desc">Pipeline view of 150 opportunities with stage filters (Enquiry → Booking), value, close date, and linked client contact.</div>
+                <div class="page-feature">✓ Stage tabs · ✓ Value totals · ✓ Live data</div>
+            </div>
+            <div class="page-card">
+                <div class="page-title"><i class="fas fa-crown page-icon"></i> Members Page</div>
+                <div class="page-desc">Membership dashboard showing 21 active bookings with Platinum/Gold tier badges, total pipeline value, and member search.</div>
+                <div class="page-feature">✓ Tier breakdown · ✓ £7.7M value · ✓ Live</div>
+            </div>
+        </div>
+
+        <div class="arch-bar">
+            <div class="arch-step">
+                <i class="fas fa-database arch-icon"></i>
+                <div>
+                    <div class="arch-text">Twenty CRM</div>
+                    <div class="arch-sub">PostgreSQL + GraphQL</div>
+                </div>
+            </div>
+            <span class="arch-arrow">→</span>
+            <div class="arch-step">
+                <i class="fas fa-shield-halved arch-icon"></i>
+                <div>
+                    <div class="arch-text">Vite Proxy</div>
+                    <div class="arch-sub">JWT auth injected server-side</div>
+                </div>
+            </div>
+            <span class="arch-arrow">→</span>
+            <div class="arch-step">
+                <i class="fas fa-code arch-icon"></i>
+                <div>
+                    <div class="arch-text">React Frontend</div>
+                    <div class="arch-sub">useEffect + fetch hooks</div>
+                </div>
+            </div>
+            <span class="arch-arrow">→</span>
+            <div class="arch-step">
+                <i class="fas fa-desktop arch-icon"></i>
+                <div>
+                    <div class="arch-text">Advisor Portal</div>
+                    <div class="arch-sub">Live data, no mock fallback</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
