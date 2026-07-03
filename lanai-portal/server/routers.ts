@@ -16,6 +16,8 @@ import {
 } from "./_core/trpc";
 import { sendInvitationEmail } from "./email";
 import { memberPaymentsRouter } from "./stripeRouter";
+import { chatwootRouter } from "./chatwootRouter";
+import { syncContactForMember } from "./chatwootService";
 import {
   createInvitation,
   createMember,
@@ -302,6 +304,13 @@ export const appRouter = router({
         await createMemberSession({ token, memberId: member.id, expiresAt });
         setMemberSessionCookie(ctx.req, ctx.res, token);
 
+        // Sync member contact to Chatwoot (non-fatal)
+        try {
+          await syncContactForMember(member.id, member.name, member.email, null);
+        } catch (chatwootErr) {
+          console.warn("[Chatwoot] Contact sync skipped:", chatwootErr);
+        }
+
         return {
           id: member.id,
           email: member.email,
@@ -568,6 +577,9 @@ export const appRouter = router({
 
   // ── Member payments (Stripe) ────────────────────────────────────────────────
   memberPayments: memberPaymentsRouter,
+
+  // ── Chatwoot (communication layer) ────────────────────────────────────────
+  chatwoot: chatwootRouter,
 });
 
 export type AppRouter = typeof appRouter;
