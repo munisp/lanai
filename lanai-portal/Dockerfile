@@ -22,8 +22,18 @@ RUN corepack enable && pnpm install --frozen-lockfile
 # Copy source code
 COPY . .
 
+# Pass VITE_ env vars at build time (required for frontend URL construction)
+ARG VITE_OAUTH_PORTAL_URL=http://keycloak:8080
+ARG VITE_APP_ID=lanai-portal
+ARG VITE_FRONTEND_FORGE_API_URL=http://dapr:3500
+ARG VITE_FRONTEND_FORGE_API_KEY=CHANGE_ME
+
 # Build frontend + bundle server in one step
-RUN pnpm build
+RUN VITE_OAUTH_PORTAL_URL=$VITE_OAUTH_PORTAL_URL \
+    VITE_APP_ID=$VITE_APP_ID \
+    VITE_FRONTEND_FORGE_API_URL=$VITE_FRONTEND_FORGE_API_URL \
+    VITE_FRONTEND_FORGE_API_KEY=$VITE_FRONTEND_FORGE_API_KEY \
+    pnpm build
 
 # ── Stage 2: Runtime ────────────────────────────────────────────────────────
 
