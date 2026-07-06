@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { href: "/intelligence",    icon: Brain,           label: "Client Intelligence", group: "ai" },
   { href: "/suppliers",       icon: Building2,       label: "Suppliers",        group: "ops" },
   { href: "/whatsapp",        icon: MessageCircle,   label: "WhatsApp",         group: "ops" },
+  { href: "/chatwoot",        icon: MessageCircle,   label: "Chatwoot Inbox",   group: "ops" },
   { href: "/member-management", icon: UserCog,      label: "Member Portal",    group: "system" },
   { href: "/settings",          icon: Settings,      label: "Settings",         group: "system" },
 ];

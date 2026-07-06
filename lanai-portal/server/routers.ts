@@ -16,6 +16,7 @@ import {
 } from "./_core/trpc";
 import { sendInvitationEmail } from "./email";
 import { memberPaymentsRouter } from "./stripeRouter";
+import { chatwootRouter } from "./chatwootRouter";
 import {
   createInvitation,
   createMember,
@@ -568,6 +569,9 @@ export const appRouter = router({
 
   // ── Member payments (Stripe) ────────────────────────────────────────────────
   memberPayments: memberPaymentsRouter,
+
+  // ── Chatwoot Integration ──────────────────────────────────────────────────
+  chatwoot: chatwootRouter,
 });
 
 export type AppRouter = typeof appRouter;
