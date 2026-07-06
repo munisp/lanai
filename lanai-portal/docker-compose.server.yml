@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  lanai-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # CRITICAL: VITE_ env vars MUST be passed at build time
+        # Frontend JavaScript uses import.meta.env.VITE_* to construct API URLs
+        VITE_OAUTH_PORTAL_URL: ${VITE_OAUTH_PORTAL_URL:-http://keycloak:8080}
+        VITE_APP_ID: ${VITE_APP_ID:-lanai-portal}
+        VITE_FRONTEND_FORGE_API_URL: ${VITE_FRONTEND_FORGE_API_URL:-http://dapr:3500}
+        VITE_FRONTEND_FORGE_API_KEY: ${VITE_FRONTEND_FORGE_API_KEY:-CHANGE_ME}
+    container_name: lanai-server
+    network_mode: service:farmers-postgres  # Use same network as farmer-postgres
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://openhands:PASSWORD@farmer-postgres:5432/openhands
+      - OAUTH_SERVER_URL=http://keycloak:8080
+      - JWT_SECRET=${JWT_SECRET:-CHANGE_ME}
+      - OWNER_OPEN_ID=${OWNER_OPEN_ID:-}
+      - BUILT_IN_FORGE_API_URL=http://dapr:3500
+      - BUILT_IN_FORGE_API_KEY=${BUILT_IN_FORGE_API_KEY:-CHANGE_ME}
+      - REDIS_URL=redis://redis:6379/0
+      - OPENSEARCH_URL=http://opensearch:9200
+      - TEMPORAL_URL=temporal:7233
+      - TIGERBEETLE_ADDRESS=tigerbeetle:3001
+      - APISIX_ADMIN_URL=http://apisix:9180
+      - TWENTY_CRM_URL=http://twenty:3000
+      - TWENTY_CRM_API_TOKEN=${TWENTY_CRM_API_TOKEN:-CHANGE_ME}
+      - CHATWOOT_URL=http://chatwoot:3000
+      - CHATWOOT_ACCESS_TOKEN=${CHATWOOT_ACCESS_TOKEN:-CHANGE_ME}
+      - CHATWOOT_ACCOUNT_ID=1
+      - CHATWOOT_WEBHOOK_SECRET=${CHATWOOT_WEBHOOK_SECRET:-CHANGE_ME}
+      - CHATWOOT_AI_BRIDGE_URL=http://localhost:5560
+      - RESEND_API_KEY=${RESEND_API_KEY:-CHANGE_ME}
+      - FROM_EMAIL="Lanai Lifestyle <noreply@lanai.newfire.app>"
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-CHANGE_ME}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-CHANGE_ME}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "com.lanai.version=1.0.0"
+      - "com.lanai.description=Main API + SPA server"

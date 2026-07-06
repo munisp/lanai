@@ -129,13 +129,39 @@ sudo docker compose -f lanai-portal/docker-compose.server.yml up -d --build lana
 
 Or manually:
 
+### Critical: VITE_ Build-Time Environment Variables
+
+**The frontend JavaScript uses `import.meta.env.VITE_*` variables at BUILD TIME to construct API URLs. These MUST be passed as Docker build arguments, NOT as runtime environment variables.**
+
+If these are missing, the frontend will crash with `TypeError: Invalid URL` errors.
+
+```bash
+# Build with VITE_ env vars as build arguments (CRITICAL)
+sudo docker build \
+  --build-arg VITE_OAUTH_PORTAL_URL=http://keycloak:8080 \
+  --build-arg VITE_APP_ID=lanai-portal \
+  --build-arg VITE_FRONTEND_FORGE_API_URL=http://dapr:3500 \
+  --build-arg VITE_FRONTEND_FORGE_API_KEY=YOUR_FORGE_API_KEY \
+  -t lanai-server:latest .
+
+# Or use the redeploy script:
+sudo ./redeploy.sh
+```
+
+### Manual Deploy with Runtime Environment Variables
+
 ```bash
 cd /home/newwaveclaw/projects/lanai-code/lanai-portal
 
-# Build the Docker image
-sudo docker build -t lanai-server:latest .
+# Build the Docker image (WITH build-args as shown above)
+sudo docker build \
+  --build-arg VITE_OAUTH_PORTAL_URL=http://keycloak:8080 \
+  --build-arg VITE_APP_ID=lanai-portal \
+  --build-arg VITE_FRONTEND_FORGE_API_URL=http://dapr:3500 \
+  --build-arg VITE_FRONTEND_FORGE_API_KEY=YOUR_FORGE_API_KEY \
+  -t lanai-server:latest .
 
-# Restart the container with correct env vars
+# Restart the container with runtime env vars
 sudo docker rm -f lanai-server 2>/dev/null
 sudo docker run -d \
   --name lanai-server \
@@ -145,7 +171,6 @@ sudo docker run -d \
   -e NODE_ENV=production \
   -e DATABASE_URL=postgresql://openhands:PASSWORD@farmer-postgres:5432/openhands \
   -e OAUTH_SERVER_URL=http://keycloak:8080 \
-  -e VITE_APP_ID=lanai-portal \
   -e JWT_SECRET=YOUR_JWT_SECRET \
   -e OWNER_OPEN_ID=YOUR_OWNER_OPEN_ID \
   -e BUILT_IN_FORGE_API_URL=http://dapr:3500 \
