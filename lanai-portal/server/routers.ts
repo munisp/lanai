@@ -24,6 +24,19 @@ import {
   documentsRouter,
 } from "./travelRouter";
 import {
+  notificationsRouter,
+  aiInsightsRouter,
+  messagingRouter,
+  commissionRouter,
+  auditRouter,
+  preferencesRouter,
+  tasksRouter,
+  tagsRouter,
+  proposalItemsRouter,
+  analyticsRouter,
+  supplierContactsRouter,
+} from "./platformRouter";
+import {
   createInvitation,
   createMember,
   createMemberSession,
@@ -579,9 +592,22 @@ export const appRouter = router({
   // ── Travel, Proposals, Bookings, Suppliers, Documents ─────────────────────
   travelRequests: travelRequestsRouter,
   proposals: proposalsRouter,
+  proposalItems: proposalItemsRouter,
   bookings: bookingsRouter,
   suppliers: suppliersRouter,
+  supplierContacts: supplierContactsRouter,
   documents: documentsRouter,
+
+  // ── Platform features ──────────────────────────────────────────────────────
+  notifications: notificationsRouter,
+  aiInsights: aiInsightsRouter,
+  messaging: messagingRouter,
+  commissions: commissionRouter,
+  audit: auditRouter,
+  preferences: preferencesRouter,
+  tasks: tasksRouter,
+  tags: tagsRouter,
+  analytics: analyticsRouter,
 });
 
 export type AppRouter = typeof appRouter;

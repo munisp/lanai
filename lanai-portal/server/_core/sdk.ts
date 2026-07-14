@@ -297,7 +297,7 @@ class SDKServer {
         await db.upsertUser({
           openId: userInfo.openId,
           name: userInfo.name || null,
-          email: userInfo.email ?? null,
+          email: userInfo.email ?? `${userInfo.openId}@placeholder.lanai`,
           loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
           lastSignedIn: signedInAt,
         });
@@ -312,10 +312,7 @@ class SDKServer {
       throw ForbiddenError("User not found");
     }
 
-    await db.upsertUser({
-      openId: user.openId,
-      lastSignedIn: signedInAt,
-    });
+    await db.upsertUser({ openId: user.openId, email: user.email, lastSignedIn: signedInAt });
 
     return user;
   }
@@ -337,9 +334,13 @@ function buildCronUser(
     id: -1,
     openId: userInfo.openId,
     name: userInfo.name || "Manus Scheduled Task",
-    email: null,
+    email: userInfo.openId + "@cron.lanai",
     loginMethod: null,
     role: "advisor",
+    avatarUrl: null,
+    phone: null,
+    bio: null,
+    isActive: true,
     createdAt: now,
     updatedAt: now,
     lastSignedIn: now,

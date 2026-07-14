@@ -42,7 +42,10 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     return;
   }
 
-  const values: InsertUser = { openId: user.openId };
+  const values: InsertUser = {
+    openId: user.openId,
+    email: user.email ?? `${user.openId}@placeholder.lanai`,
+  };
   const updateSet: Record<string, unknown> = {};
 
   const textFields = ["name", "email", "loginMethod"] as const;
@@ -52,7 +55,11 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     const value = user[field];
     if (value === undefined) return;
     const normalized = value ?? null;
-    values[field] = normalized;
+    if (field === "email") {
+      values[field] = normalized ?? values.email;
+    } else {
+      (values as Record<string, unknown>)[field] = normalized;
+    }
     updateSet[field] = normalized;
   };
   textFields.forEach(assignNullable);
