@@ -31,6 +31,8 @@ const NAV_ITEMS = [
   { href: "/suppliers",           icon: Building2,       label: "Suppliers",           group: "ops" },
   { href: "/supplier-services",   icon: Star,            label: "Supplier Services",   group: "ops" },
   { href: "/whatsapp",            icon: MessageCircle,   label: "WhatsApp",            group: "ops" },
+  { href: "/inbox",               icon: MessageSquare,   label: "Unified Inbox",       group: "ops" },
+  { href: "/chatwoot",            icon: MessageCircle,   label: "Chatwoot Inbox",      group: "ops" },
   { href: "/communication-hub",   icon: MessageSquare,   label: "Communication Hub",   group: "ops" },
   { href: "/task-templates",      icon: CheckSquare,     label: "Task Templates",      group: "ops" },
 

@@ -10,6 +10,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { registerCrmProxy } from "./crmProxy";
 import { registerStripeWebhook } from "../stripeRouter";
+import { registerChatwootProxy } from "./chatwootProxy";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -42,6 +43,7 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerCrmProxy(app);
+  registerChatwootProxy(app);
   // tRPC API
   app.use(
     "/api/trpc",

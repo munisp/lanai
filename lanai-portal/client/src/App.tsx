@@ -19,6 +19,7 @@ import MorningBriefingPage from "./pages/MorningBriefingPage";
 import SuppliersPage from "./pages/SuppliersPage";
 import WhatsAppPage from "./pages/WhatsAppPage";
 import ChatwootInboxPage from "./pages/ChatwootInboxPage";
+import ChatwootPage from "./pages/ChatwootPage";
 import SettingsPage from "./pages/SettingsPage";
 import ClientPortalLogin from "./pages/ClientPortalLogin";
 import ClientPortalDashboard from "./pages/ClientPortalDashboard";
@@ -137,6 +138,7 @@ function AdvisorRouter() {
           <Route path="/supplier-services"    component={SupplierServicesPage} />
           <Route path="/whatsapp"             component={WhatsAppPage} />
           <Route path="/inbox"               component={ChatwootInboxPage} />
+          <Route path="/chatwoot"            component={ChatwootPage} />
           <Route path="/communication-hub">{() => <CommunicationHubPage />}</Route>
           <Route path="/analytics"            component={RevenueAnalyticsPage} />
           <Route path="/invoicing"            component={InvoicingPage} />

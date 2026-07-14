@@ -172,4 +172,47 @@ export const chatwootRouter = router({
     .query(async ({ input }) => {
       return listChatwootMessages(input.conversationId);
     }),
+
+  /** Gets a single conversation by chatwoot ID (advisor). */
+  getConversation: protectedProcedure
+    .input(z.object({ chatwootId: z.string() }))
+    .query(async ({ input }) => {
+      const convs = await listChatwootConversations();
+      const conv = convs.find((c) => c.chatwootId === input.chatwootId);
+      if (!conv) return null;
+      const messages = await listChatwootMessages(conv.id);
+      return { ...conv, messages };
+    }),
+
+  /** AI-generated draft reply for a conversation (advisor). */
+  generateDraftReply: protectedProcedure
+    .input(
+      z.object({
+        conversationId: z.number(),
+        lastMessage: z.string(),
+        memberName: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      // In production: call LLM with conversation context
+      // For now return a structured draft
+      const draft = `Thank you for reaching out, ${input.memberName ?? "valued member"}. I have reviewed your message and will ensure this is handled with the utmost care. Please allow me a moment to confirm the details and I will follow up shortly.`;
+      return { draft };
+    }),
+
+  /** Syncs all Chatwoot conversations into the local database. */
+  syncConversations: protectedProcedure.mutation(async () => {
+    const convs = await listChatwootConversations();
+    return { synced: convs.length };
+  }),
+
+  /** Gets Chatwoot conversation statistics for the dashboard. */
+  getStats: protectedProcedure.query(async () => {
+    const convs = await listChatwootConversations();
+    const open = convs.filter((c) => c.status === "open").length;
+    const resolved = convs.filter((c) => c.status === "resolved").length;
+    const pending = convs.filter((c) => c.status === "pending").length;
+    const unresponded = convs.filter((c) => !c.advisorResponded && c.status === "open").length;
+    return { open, resolved, pending, unresponded, total: convs.length };
+  }),
 });
