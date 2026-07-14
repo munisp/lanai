@@ -1,17 +1,21 @@
 import {
   boolean,
-  int,
-  mysqlEnum,
-  mysqlTable,
+  integer as int,
+  pgEnum,
+  pgTable,
   text,
   timestamp,
   varchar,
-} from "drizzle-orm/mysql-core";
+  serial,
+} from "drizzle-orm/pg-core";
+
+export const roleEnum = pgEnum("role", ["advisor", "senior_advisor", "admin"]);
+export const tierEnum = pgEnum("tier", ["platinum", "gold", "silver"]);
 
 // ─── Advisor / Staff Users (Manus OAuth) ─────────────────────────────────────
 
-export const users = mysqlTable("users", {
-  id: int("id").autoincrement().primaryKey(),
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
   /** Manus OAuth identifier returned from the OAuth callback. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
@@ -22,9 +26,9 @@ export const users = mysqlTable("users", {
    * senior_advisor — same as advisor + can promote other advisors, manage settings
    * admin          — alias for senior_advisor (used by Manus owner bootstrap)
    */
-  role: mysqlEnum("role", ["advisor", "senior_advisor", "admin"]).default("advisor").notNull(),
+  role: roleEnum("role").default("advisor").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
 });
 
@@ -33,8 +37,8 @@ export type InsertUser = typeof users.$inferInsert;
 
 // ─── Members (Client-facing portal users) ────────────────────────────────────
 
-export const members = mysqlTable("members", {
-  id: int("id").autoincrement().primaryKey(),
+export const members = pgTable("members", {
+  id: serial("id").primaryKey(),
   /** Email address — used as login identifier. */
   email: varchar("email", { length: 320 }).notNull().unique(),
   /** Display name pulled from CRM or set during onboarding. */
@@ -50,7 +54,7 @@ export const members = mysqlTable("members", {
    * gold:     standard features
    * silver:   basic features
    */
-  tier: mysqlEnum("tier", ["platinum", "gold", "silver"]).default("gold").notNull(),
+  tier: tierEnum("tier").default("gold").notNull(),
   /**
    * The Twenty CRM person UUID linked to this member.
    * Used to filter opportunities/trips to only this member's records.
@@ -72,7 +76,7 @@ export const members = mysqlTable("members", {
    */
   stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 64 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn"),
 });
 
@@ -81,8 +85,8 @@ export type InsertMember = typeof members.$inferInsert;
 
 // ─── Member Invitations ───────────────────────────────────────────────────────
 
-export const memberInvitations = mysqlTable("member_invitations", {
-  id: int("id").autoincrement().primaryKey(),
+export const memberInvitations = pgTable("member_invitations", {
+  id: serial("id").primaryKey(),
   /** Cryptographically random token sent in the invite email link. */
   token: varchar("token", { length: 128 }).notNull().unique(),
   /** Email address the invitation was sent to. */
@@ -90,7 +94,7 @@ export const memberInvitations = mysqlTable("member_invitations", {
   /** Pre-populated display name (from CRM or advisor input). */
   name: varchar("name", { length: 255 }).notNull(),
   /** Tier to assign on acceptance. */
-  tier: mysqlEnum("tier", ["platinum", "gold", "silver"]).default("gold").notNull(),
+  tier: tierEnum("tier").default("gold").notNull(),
   /** CRM person ID to link on acceptance. */
   crmPersonId: varchar("crmPersonId", { length: 64 }),
   /** Advisor who created the invitation. */
@@ -107,8 +111,8 @@ export type InsertMemberInvitation = typeof memberInvitations.$inferInsert;
 
 // ─── Member Sessions ──────────────────────────────────────────────────────────
 
-export const memberSessions = mysqlTable("member_sessions", {
-  id: int("id").autoincrement().primaryKey(),
+export const memberSessions = pgTable("member_sessions", {
+  id: serial("id").primaryKey(),
   /** Cryptographically random session token stored in an HttpOnly cookie. */
   token: varchar("token", { length: 128 }).notNull().unique(),
   memberId: int("memberId").notNull(),
@@ -119,3 +123,72 @@ export const memberSessions = mysqlTable("member_sessions", {
 
 export type MemberSession = typeof memberSessions.$inferSelect;
 export type InsertMemberSession = typeof memberSessions.$inferInsert;
+
+
+// ─── Additional Missing Schemas for Full Architecture ─────────────────────────
+
+export const travelRequestStatusEnum = pgEnum("travel_request_status", ["new", "in_progress", "proposal_sent", "booked", "completed", "cancelled"]);
+
+export const travelRequests = pgTable("travel_requests", {
+  id: serial("id").primaryKey(),
+  memberId: int("memberId").notNull(),
+  destination: varchar("destination", { length: 255 }).notNull(),
+  dates: varchar("dates", { length: 255 }).notNull(),
+  pax: int("pax").notNull(),
+  budget: varchar("budget", { length: 64 }),
+  notes: text("notes"),
+  status: travelRequestStatusEnum("status").default("new").notNull(),
+  assignedToUserId: int("assignedToUserId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export const proposalStatusEnum = pgEnum("proposal_status", ["draft", "sent", "approved", "rejected"]);
+
+export const proposals = pgTable("proposals", {
+  id: serial("id").primaryKey(),
+  travelRequestId: int("travelRequestId").notNull(),
+  memberId: int("memberId").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  status: proposalStatusEnum("status").default("draft").notNull(),
+  totalPrice: varchar("totalPrice", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export const bookingStatusEnum = pgEnum("booking_status", ["pending", "confirmed", "paid", "cancelled"]);
+
+export const bookings = pgTable("bookings", {
+  id: serial("id").primaryKey(),
+  proposalId: int("proposalId").notNull(),
+  memberId: int("memberId").notNull(),
+  supplierId: int("supplierId"),
+  referenceNumber: varchar("referenceNumber", { length: 128 }),
+  status: bookingStatusEnum("status").default("pending").notNull(),
+  commissionExpected: varchar("commissionExpected", { length: 64 }),
+  commissionReceived: boolean("commissionReceived").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export const suppliers = pgTable("suppliers", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  category: varchar("category", { length: 128 }),
+  rating: int("rating"),
+  contactEmail: varchar("contactEmail", { length: 320 }),
+  contactPhone: varchar("contactPhone", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export const documents = pgTable("documents", {
+  id: serial("id").primaryKey(),
+  memberId: int("memberId").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  fileUrl: varchar("fileUrl", { length: 1024 }).notNull(),
+  documentType: varchar("documentType", { length: 64 }),
+  uploadedByUserId: int("uploadedByUserId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});

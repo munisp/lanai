@@ -1,0 +1,24 @@
+deployment:
+  role: traditional
+  role_traditional:
+    config_provider: etcd
+  etcd:
+    host:
+      - "http://etcd:2379"
+    prefix: "/apisix"
+    timeout: 30
+
+apisix:
+  node_listen: 9080
+  enable_admin: true
+  enable_dev_mode: false
+  enable_reuseport: true
+  
+plugins:
+  - openappsec
+  - proxy-rewrite
+  - cors
+  - jwt-auth
+  - key-auth
+  - rate-limiting
+  - prometheus

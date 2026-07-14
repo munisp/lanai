@@ -17,6 +17,13 @@ import {
 import { sendInvitationEmail } from "./email";
 import { memberPaymentsRouter } from "./stripeRouter";
 import {
+  travelRequestsRouter,
+  proposalsRouter,
+  bookingsRouter,
+  suppliersRouter,
+  documentsRouter,
+} from "./travelRouter";
+import {
   createInvitation,
   createMember,
   createMemberSession,
@@ -568,6 +575,13 @@ export const appRouter = router({
 
   // ── Member payments (Stripe) ────────────────────────────────────────────────
   memberPayments: memberPaymentsRouter,
+
+  // ── Travel, Proposals, Bookings, Suppliers, Documents ─────────────────────
+  travelRequests: travelRequestsRouter,
+  proposals: proposalsRouter,
+  bookings: bookingsRouter,
+  suppliers: suppliersRouter,
+  documents: documentsRouter,
 });
 
 export type AppRouter = typeof appRouter;

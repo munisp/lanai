@@ -5,13 +5,17 @@
 import { describe, expect, it } from "vitest";
 import "dotenv/config";
 
+// These are integration tests that require a live CRM instance.
+// They are skipped automatically when TWENTY_CRM_API_TOKEN is not set.
+const crmAvailable = !!process.env.TWENTY_CRM_API_TOKEN;
+
 describe("CRM secrets", () => {
-  it("TWENTY_CRM_API_TOKEN and TWENTY_CRM_URL are set", () => {
+  it.skipIf(!crmAvailable)("TWENTY_CRM_API_TOKEN and TWENTY_CRM_URL are set", () => {
     expect(process.env.TWENTY_CRM_API_TOKEN, "TWENTY_CRM_API_TOKEN must be set").toBeTruthy();
     expect(process.env.TWENTY_CRM_URL, "TWENTY_CRM_URL must be set").toBeTruthy();
   });
 
-  it("can reach the Twenty CRM GraphQL endpoint with the token", async () => {
+  it.skipIf(!crmAvailable)("can reach the Twenty CRM GraphQL endpoint with the token", async () => {
     const token = process.env.TWENTY_CRM_API_TOKEN!;
     const url = process.env.TWENTY_CRM_URL ?? "http://localhost:3002";
 

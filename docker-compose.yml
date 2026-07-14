@@ -1,0 +1,148 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL (Primary DB)
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: lanai
+      POSTGRES_PASSWORD: lanai_password
+      POSTGRES_DB: lanai
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lanai"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. Redis (Cache/Sessions)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 3. Keycloak (Auth/SSO)
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0.0
+    command: start-dev
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/lanai
+      KC_DB_USERNAME: lanai
+      KC_DB_PASSWORD: lanai_password
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # 4. TigerBeetle (Financial Ledger)
+  tigerbeetle:
+    image: ghcr.io/tigerbeetle/tigerbeetle:latest
+    command: start --addresses=0.0.0.0:3000 /data/0_0.tigerbeetle
+    volumes:
+      - tigerbeetle_data:/data
+    ports:
+      - "3000:3000"
+    # Needs initialization step which we will handle via script
+
+  # 5. Permify (Authorization)
+  permify:
+    image: ghcr.io/permify/permify:latest
+    command: serve
+    environment:
+      PERMIFY_DB_ENGINE: postgres
+      PERMIFY_DB_URI: postgres://lanai:lanai_password@postgres:5432/lanai?sslmode=disable
+    ports:
+      - "3476:3476"
+      - "3478:3478"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # 6. Temporal (Workflows)
+  temporal:
+    image: temporalio/auto-setup:1.22.0
+    environment:
+      DB: postgresql
+      DB_PORT: 5432
+      POSTGRES_USER: lanai
+      POSTGRES_PWD: lanai_password
+      POSTGRES_SEEDS: postgres
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+    ports:
+      - "7233:7233"
+      - "8233:8233"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  temporal-ui:
+    image: temporalio/ui:latest
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "8081:8080"
+    depends_on:
+      - temporal
+
+  # 7. APISIX (API Gateway)
+  etcd:
+    image: bitnami/etcd:3.5.0
+    environment:
+      ALLOW_NONE_AUTHENTICATION: "yes"
+      ETCD_ADVERTISE_CLIENT_URLS: "http://etcd:2379"
+    ports:
+      - "2379:2379"
+
+  apisix:
+    image: apache/apisix:3.6.0-debian
+    volumes:
+      - ./config/apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+    ports:
+      - "9080:9080"
+      - "9443:9443"
+    depends_on:
+      - etcd
+
+  # 8. OpenAppSec (WAF)
+  openappsec:
+    image: openappsec/agent:latest
+    environment:
+      - TUNING_MODE=true
+    ports:
+      - "8082:80"
+      - "8443:443"
+
+  # 9. Fluvio (Streaming)
+  fluvio:
+    image: infinyon/fluvio:latest
+    ports:
+      - "9003:9003"
+      - "9004:9004"
+      - "9005:9005"
+
+  # 10. Dapr (Service Mesh) Placement Service
+  dapr-placement:
+    image: daprio/dapr:1.12.0
+    command: ["./placement", "-port", "50005"]
+    ports:
+      - "50005:50005"
+
+volumes:
+  postgres_data:
+  redis_data:
+  tigerbeetle_data:
