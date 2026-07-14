@@ -1,5 +1,11 @@
-import { Settings, Server, MessageCircle, Brain, Key, Bell } from "lucide-react";
+import { Settings, Server, MessageCircle, Brain, Key, Bell, Headphones } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { trpc } from "@/lib/trpc";
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 const SERVICES = [
   { name:"Twenty CRM",         url:"http://localhost:3000", status:"online",  icon:Server,        desc:"Core CRM platform — contacts, pipeline, tasks" },
@@ -8,6 +14,7 @@ const SERVICES = [
   { name:"Client Intelligence",url:"http://localhost:5557", status:"online",  icon:Brain,         desc:"Preference inference, churn risk, opportunity spotting" },
   { name:"Morning Briefing",   url:"http://localhost:5558", status:"online",  icon:Bell,          desc:"Daily AI digest — urgent actions, opportunities, insights" },
   { name:"Ollama LLM",         url:"http://localhost:11434",status:"online",  icon:Brain,         desc:"Local llama3.2:3b model — fully on-premise, no cloud API" },
+  { name:"Chatwoot",           url:"—",                   status:"offline",  icon:Headphones,    desc:"Omnichannel support — WhatsApp, email, web chat, SMS" },
 ];
 
 const CONFIG = [
@@ -97,6 +104,119 @@ export default function SettingsPage() {
             ))}
           </ol>
         </div>
+      </div>
+
+      {/* Chatwoot Configuration */}
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">Chatwoot Integration</h2>
+        <ChatwootConfigSection />
+      </div>
+    </div>
+  );
+}
+
+// ─── Chatwoot Config UI ─────────────────────────────────────────────────────
+
+function ChatwootConfigSection() {
+  const [url, setUrl] = useState("");
+  const [token, setToken] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const { data: config, isLoading, refetch } = trpc.chatwoot.getConfig.useQuery();
+  const updateMutation = trpc.chatwoot.updateConfig.useMutation();
+  const testMutation = trpc.chatwoot.testConnection.useMutation();
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    if (config) {
+      setUrl(config.instanceUrl);
+      setToken(config.accessToken);
+    }
+  }, [config]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setTestResult(null);
+    await updateMutation.mutateAsync({
+      instanceUrl: url,
+      accessToken: token,
+      enabled: true,
+    });
+    setSaving(false);
+    refetch();
+  };
+
+  const handleTest = async () => {
+    setTestResult(null);
+    const result = await testMutation.mutateAsync();
+    setTestResult(result);
+  };
+
+  if (isLoading) return <div className="lanai-card p-4">Loading...</div>;
+
+  return (
+    <div className="lanai-card p-5 space-y-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <Headphones className="w-4 h-4 text-primary" />
+          <span className="text-sm font-semibold">Chatwoot Instance Settings</span>
+        </div>
+        {config?.enabled && (
+          <Badge className="text-xs bg-green-100 text-green-700 border-green-200">Active</Badge>
+        )}
+        {!config?.enabled && (
+          <Badge variant="outline" className="text-xs">Inactive</Badge>
+        )}
+      </div>
+
+      <div className="grid gap-3">
+        <div>
+          <label className="text-xs font-medium text-muted-foreground">Instance URL</label>
+          <Input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://chatwoot.lanai.com"
+            className="mt-1"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted-foreground">Access Token</label>
+          <Input
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="Enter your Chatwoot access token"
+            className="mt-1"
+          />
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <Button onClick={handleSave} disabled={saving} className="flex-1">
+          {saving ? "Saving..." : "Save Configuration"}
+        </Button>
+        <Button variant="outline" onClick={() => handleTest()} disabled={testMutation.isPending}>
+          Test Connection
+        </Button>
+      </div>
+
+      {testResult && (
+        <div className={cn(
+          "p-3 rounded-lg text-sm",
+          testResult.success ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"
+        )}>
+          {testResult.message}
+        </div>
+      )}
+
+      <div className="text-xs text-muted-foreground border-t border-border pt-3 mt-2">
+        <p className="font-medium mb-1">Setup Instructions:</p>
+        <ol className="space-y-1 list-decimal list-inside">
+          <li>Deploy Chatwoot via Docker (see chatwoot.com/docs)</li>
+          <li>Create a personal access token in Chatwoot Settings</li>
+          <li>Enter the instance URL and token above</li>
+          <li>Click "Test Connection" to verify</li>
+          <li>Members can now chat via the floating widget</li>
+        </ol>
       </div>
     </div>
   );

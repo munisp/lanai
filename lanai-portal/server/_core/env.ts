@@ -7,4 +7,11 @@ export const ENV = {
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  // ── Chatwoot ──────────────────────────────────────────────────────────────
+  chatwootUrl: process.env.CHATWOOT_URL ?? "",
+  chatwootToken: process.env.CHATWOOT_TOKEN ?? "",
+  chatwootAccountId: process.env.CHATWOOT_ACCOUNT_ID
+    ? parseInt(process.env.CHATWOOT_ACCOUNT_ID, 10)
+    : 1,
+  chatwootSiteScriptId: process.env.CHATWOOT_SITE_SCRIPT_ID ?? "",
 };

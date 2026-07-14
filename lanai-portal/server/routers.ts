@@ -16,6 +16,8 @@ import {
 } from "./_core/trpc";
 import { sendInvitationEmail } from "./email";
 import { memberPaymentsRouter } from "./stripeRouter";
+import { chatwootRouter } from "./chatwootRouter";
+import { syncContactForMember } from "./chatwootService";
 import {
   travelRequestsRouter,
   proposalsRouter,
@@ -341,6 +343,13 @@ export const appRouter = router({
         await createMemberSession({ token, memberId: member.id, expiresAt });
         setMemberSessionCookie(ctx.req, ctx.res, token);
 
+        // Sync member contact to Chatwoot (non-fatal)
+        try {
+          await syncContactForMember(member.id, member.name, member.email, null);
+        } catch (chatwootErr) {
+          console.warn("[Chatwoot] Contact sync skipped:", chatwootErr);
+        }
+
         return {
           id: member.id,
           email: member.email,
@@ -617,7 +626,7 @@ export const appRouter = router({
   supplierContacts: supplierContactsRouter,
   documents: documentsRouter,
 
-  // ── Platform features ──────────────────────────────────────────────────────
+  // ── Platform features ──────────────────────────────────────────────
   notifications: notificationsRouter,
   aiInsights: aiInsightsRouter,
   messaging: messagingRouter,
@@ -627,7 +636,8 @@ export const appRouter = router({
   tasks: tasksRouter,
   tags: tagsRouter,
   analytics: analyticsRouter,
-  // ── Phase 2: Human Tester Feedback Features ───────────────────────────────────────
+
+  // ── Phase 2: Human Tester Feedback Features ────────────────────────────────────────────────
   memberProfile: memberProfileRouter,
   familyMembers: familyMembersRouter,
   supplierServices: supplierServicesRouter,
@@ -640,6 +650,9 @@ export const appRouter = router({
   vipAmenities: router({ ...vipAmenitiesRouter._def.record, ...vipAmenitiesPatchRouter._def.record }),
   revenueAnalytics: revenueAnalyticsRouter,
   aiConcierge: router({ ...aiConciergeRouter._def.record, ...aiConciergePatchRouter._def.record }),
+
+  // ── Chatwoot (omnichannel communication layer) ────────────────────────────────────────────
+  chatwoot: chatwootRouter,
 });
 
 export type AppRouter = typeof appRouter;

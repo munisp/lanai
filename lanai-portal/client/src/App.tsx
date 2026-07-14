@@ -8,6 +8,7 @@ import { useAuth } from "./_core/hooks/useAuth";
 import { trpc } from "./lib/trpc";
 import { getLoginUrl } from "./const";
 import DashboardLayout from "./components/DashboardLayout";
+import ChatwootWidget from "./components/ChatwootWidget";
 import Dashboard from "./pages/Dashboard";
 import ClientsPage from "./pages/ClientsPage";
 import TravelRequestsPage from "./pages/TravelRequestsPage";
@@ -17,6 +18,7 @@ import IntelligencePage from "./pages/IntelligencePage";
 import MorningBriefingPage from "./pages/MorningBriefingPage";
 import SuppliersPage from "./pages/SuppliersPage";
 import WhatsAppPage from "./pages/WhatsAppPage";
+import ChatwootInboxPage from "./pages/ChatwootInboxPage";
 import SettingsPage from "./pages/SettingsPage";
 import ClientPortalLogin from "./pages/ClientPortalLogin";
 import ClientPortalDashboard from "./pages/ClientPortalDashboard";
@@ -134,6 +136,7 @@ function AdvisorRouter() {
           <Route path="/suppliers"           component={SuppliersPage} />
           <Route path="/supplier-services"    component={SupplierServicesPage} />
           <Route path="/whatsapp"             component={WhatsAppPage} />
+          <Route path="/inbox"               component={ChatwootInboxPage} />
           <Route path="/communication-hub">{() => <CommunicationHubPage />}</Route>
           <Route path="/analytics"            component={RevenueAnalyticsPage} />
           <Route path="/invoicing"            component={InvoicingPage} />
@@ -182,6 +185,8 @@ function App() {
             {/* Advisor portal — full sidebar layout, gated by Manus OAuth */}
             <Route component={AdvisorRouter} />
           </Switch>
+          {/* Floating Chatwoot widget — available on all pages */}
+          <ChatwootWidget />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

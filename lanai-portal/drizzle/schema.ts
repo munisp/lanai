@@ -1507,3 +1507,99 @@ export const vipAmenitiesRelations = relations(vipAmenities, ({ one }) => ({
     references: [bookings.id],
   }),
 }));
+
+// ─── Chatwoot Configuration ───────────────────────────────────────────────────
+// Stores Chatwoot instance settings and sync state.
+
+export const chatwootConfig = pgTable("chatwoot_config", {
+  id: serial("id").primaryKey(),
+  /** Chatwoot instance URL (e.g. https://chatwoot.lanai.com). */
+  instanceUrl: varchar("instanceUrl", { length: 512 }).notNull(),
+  /** Chatwoot access token (personal token for API auth). */
+  accessToken: varchar("accessToken", { length: 256 }).notNull(),
+  /** Chatwoot account ID (usually 1 for single-account setups). */
+  accountId: integer("accountId").default(1).notNull(),
+  /** Whether the Chatwoot integration is active. */
+  enabled: boolean("enabled").default(false).notNull(),
+  /** Chatwoot inbox ID for web widget conversations. */
+  defaultInboxId: integer("defaultInboxId").default(1),
+  /** When the last successful sync occurred. */
+  lastSyncAt: timestamp("lastSyncAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type ChatwootConfig = typeof chatwootConfig.$inferSelect;
+export type InsertChatwootConfig = typeof chatwootConfig.$inferInsert;
+
+// ─── Chatwoot Conversations (local mirror) ────────────────────────────────────
+// Mirrors Chatwoot conversations for fast local queries and dashboard display.
+
+export const chatwootConversations = pgTable(
+  "chatwoot_conversations",
+  {
+    id: serial("id").primaryKey(),
+    /** Chatwoot conversation ID (conv_*). */
+    chatwootId: varchar("chatwootId", { length: 64 }).notNull().unique(),
+    /** Member linked to this conversation. */
+    memberId: integer("memberId"),
+    /** Advisor who owns this conversation. */
+    advisorUserId: integer("advisorUserId"),
+    /** Chatwoot contact identifier. */
+    contactIdentifier: varchar("contactIdentifier", { length: 512 }),
+    /** Contact name (cached). */
+    contactName: varchar("contactName", { length: 255 }),
+    /** Contact email (cached). */
+    contactEmail: varchar("contactEmail", { length: 320 }),
+    /** Channel type: website, whatsapp, email, sms, etc. */
+    channel: varchar("channel", { length: 64 }).default("website"),
+    /** Current status: open, resolved, pending. */
+    status: varchar("status", { length: 32 }).default("open").notNull(),
+    /** Last message body (cached). */
+    lastMessage: text("lastMessage"),
+    /** Whether the member saw the latest messages. */
+    memberSeen: boolean("memberSeen").default(false).notNull(),
+    /** Whether the advisor responded. */
+    advisorResponded: boolean("advisorResponded").default(false).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("chatwoot_conv_memberId_idx").on(t.memberId),
+    index("chatwoot_conv_status_idx").on(t.status),
+  ]
+);
+
+export type ChatwootConversation = typeof chatwootConversations.$inferSelect;
+export type InsertChatwootConversation = typeof chatwootConversations.$inferInsert;
+
+// ─── Chatwoot Messages (local mirror) ─────────────────────────────────────────
+// Mirrors Chatwoot messages for fast local queries.
+
+export const chatwootMessageTypeEnum = pgEnum("chatwoot_message_type", ["inbound", "outbound"]);
+
+export const chatwootMessages = pgTable(
+  "chatwoot_messages",
+  {
+    id: serial("id").primaryKey(),
+    /** Chatwoot message ID (msg_*). */
+    chatwootId: varchar("chatwootId", { length: 64 }).notNull(),
+    /** Parent conversation. */
+    conversationId: integer("conversationId").notNull(),
+    /** Which side sent it: account (advisor) or lead (member). */
+    messageType: chatwootMessageTypeEnum("messageType").notNull(),
+    /** Message body text. */
+    content: text("content").notNull(),
+    /** Attachment URL if any. */
+    attachmentUrl: varchar("attachmentUrl", { length: 1024 }),
+    /** Whether this is a template message (WhatsApp). */
+    isTemplate: boolean("isTemplate").default(false).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("chatwoot_msg_conversationId_idx").on(t.conversationId),
+  ]
+);
+
+export type ChatwootMessage = typeof chatwootMessages.$inferSelect;
+export type InsertChatwootMessage = typeof chatwootMessages.$inferInsert;

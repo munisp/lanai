@@ -11,6 +11,15 @@ import {
   memberSessions,
   members,
   users,
+  chatwootConfig,
+  chatwootConversations,
+  chatwootMessages,
+  InsertChatwootConfig,
+  InsertChatwootConversation,
+  InsertChatwootMessage,
+  ChatwootConfig,
+  ChatwootConversation,
+  ChatwootMessage,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -244,4 +253,87 @@ export async function deleteExpiredMemberSessions(): Promise<void> {
   if (!db) return;
   const now = new Date();
     await db.delete(memberSessions).where(gt(memberSessions.expiresAt, now));
+}
+
+// ─── Chatwoot Configuration ─────────────────────────────────────────────────
+
+export async function createChatwootConfig(data: InsertChatwootConfig): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(chatwootConfig).values(data);
+  return (result as unknown as { insertId: number }[])[0]?.insertId ?? 0;
+}
+
+export async function getChatwootConfig(): Promise<ChatwootConfig | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const results = await db.select().from(chatwootConfig).limit(1);
+  return results[0] ?? null;
+}
+
+export async function updateChatwootConfig(
+  id: number,
+  data: Partial<InsertChatwootConfig>
+): Promise<ChatwootConfig | null> {
+  const db = await getDb();
+  if (!db) return null;
+  await db.update(chatwootConfig).set({ ...data, updatedAt: new Date() }).where(eq(chatwootConfig.id, id));
+  const results = await db.select().from(chatwootConfig).where(eq(chatwootConfig.id, id)).limit(1);
+  return results[0] ?? null;
+}
+
+// ─── Chatwoot Conversations ─────────────────────────────────────────────────
+
+export async function createChatwootConversation(data: InsertChatwootConversation): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(chatwootConversations).values(data);
+  return (result as unknown as { insertId: number }[])[0]?.insertId ?? 0;
+}
+
+export async function getChatwootConversationByChatwootId(chatwootId: string): Promise<ChatwootConversation | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const results = await db.select().from(chatwootConversations).where(eq(chatwootConversations.chatwootId, chatwootId)).limit(1);
+  return results[0] ?? null;
+}
+
+export async function updateChatwootConversation(
+  chatwootId: string,
+  data: Partial<InsertChatwootConversation>
+): Promise<ChatwootConversation | null> {
+  const db = await getDb();
+  if (!db) return null;
+  await db.update(chatwootConversations).set({ ...data, updatedAt: new Date() }).where(eq(chatwootConversations.chatwootId, chatwootId));
+  const results = await db.select().from(chatwootConversations).where(eq(chatwootConversations.chatwootId, chatwootId)).limit(1);
+  return results[0] ?? null;
+}
+
+export async function listChatwootConversations(
+  advisorUserId?: number
+): Promise<ChatwootConversation[]> {
+  const db = await getDb();
+  if (!db) return [];
+  if (advisorUserId) {
+    const results = await db.select().from(chatwootConversations).where(eq(chatwootConversations.advisorUserId, advisorUserId)).orderBy(chatwootConversations.updatedAt);
+    return results;
+  }
+  const results = await db.select().from(chatwootConversations).orderBy(chatwootConversations.updatedAt);
+  return results;
+}
+
+// ─── Chatwoot Messages ──────────────────────────────────────────────────────
+
+export async function createChatwootMessage(data: InsertChatwootMessage): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(chatwootMessages).values(data);
+  return (result as unknown as { insertId: number }[])[0]?.insertId ?? 0;
+}
+
+export async function listChatwootMessages(conversationId: number): Promise<ChatwootMessage[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const results = await db.select().from(chatwootMessages).where(eq(chatwootMessages.conversationId, conversationId)).orderBy(chatwootMessages.createdAt);
+  return results;
 }
