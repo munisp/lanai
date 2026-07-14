@@ -49,6 +49,11 @@ import {
   vipAmenitiesRouter,
   revenueAnalyticsRouter,
   aiConciergeRouter,
+  celebrationsPatchRouter,
+  vipAmenitiesPatchRouter,
+  tripTimelinePatchRouter,
+  npsPatchRouter,
+  aiConciergePatchRouter,
 } from "./phase2Router";
 import {
   createInvitation,
@@ -627,14 +632,14 @@ export const appRouter = router({
   familyMembers: familyMembersRouter,
   supplierServices: supplierServicesRouter,
   invoicing: invoicingRouter,
-  celebrations: celebrationsRouter,
-  nps: npsRouter,
+  celebrations: router({ ...celebrationsRouter._def.record, ...celebrationsPatchRouter._def.record }),
+  nps: router({ ...npsRouter._def.record, ...npsPatchRouter._def.record }),
   communicationHub: communicationHubRouter,
   taskTemplates: taskTemplatesRouter,
-  tripTimeline: tripTimelineRouter,
-  vipAmenities: vipAmenitiesRouter,
+  tripTimeline: router({ ...tripTimelineRouter._def.record, ...tripTimelinePatchRouter._def.record }),
+  vipAmenities: router({ ...vipAmenitiesRouter._def.record, ...vipAmenitiesPatchRouter._def.record }),
   revenueAnalytics: revenueAnalyticsRouter,
-  aiConcierge: aiConciergeRouter,
+  aiConcierge: router({ ...aiConciergeRouter._def.record, ...aiConciergePatchRouter._def.record }),
 });
 
 export type AppRouter = typeof appRouter;

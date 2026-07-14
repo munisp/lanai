@@ -23,6 +23,17 @@ import ClientPortalDashboard from "./pages/ClientPortalDashboard";
 import ClientPortalOnboard from "./pages/ClientPortalOnboard";
 import MemberManagementPage from "./pages/MemberManagementPage";
 import MemberBillingPage from "./pages/MemberBillingPage";
+import RevenueAnalyticsPage from "./pages/RevenueAnalyticsPage";
+import MemberProfilePage from "./pages/MemberProfilePage";
+import InvoicingPage from "./pages/InvoicingPage";
+import CommunicationHubPage from "./pages/CommunicationHubPage";
+import CelebrationsPage from "./pages/CelebrationsPage";
+import NpsPage from "./pages/NpsPage";
+import TripTimelinePage from "./pages/TripTimelinePage";
+import SupplierServicesPage from "./pages/SupplierServicesPage";
+import AiConciergePage from "./pages/AiConciergePage";
+import TaskTemplatesPage from "./pages/TaskTemplatesPage";
+import MemberPortalEnhancedPage from "./pages/MemberPortalEnhancedPage";
 import { Crown, Loader2 } from "lucide-react";
 import { Button } from "./components/ui/button";
 
@@ -120,11 +131,21 @@ function AdvisorRouter() {
           <Route path="/proposals"       component={ProposalEnginePage} />
           <Route path="/intelligence"    component={IntelligencePage} />
           <Route path="/briefing"        component={MorningBriefingPage} />
-          <Route path="/suppliers"       component={SuppliersPage} />
-          <Route path="/whatsapp"        component={WhatsAppPage} />
-          <Route path="/settings"        component={SettingsPage} />
-          <Route path="/404"             component={NotFound} />
-          <Route                         component={NotFound} />
+          <Route path="/suppliers"           component={SuppliersPage} />
+          <Route path="/supplier-services"    component={SupplierServicesPage} />
+          <Route path="/whatsapp"             component={WhatsAppPage} />
+          <Route path="/communication-hub">{() => <CommunicationHubPage />}</Route>
+          <Route path="/analytics"            component={RevenueAnalyticsPage} />
+          <Route path="/invoicing"            component={InvoicingPage} />
+          <Route path="/celebrations">{() => <CelebrationsPage memberId={1} />}</Route>
+          <Route path="/nps"                  component={NpsPage} />
+          <Route path="/trip-timeline">{() => <TripTimelinePage memberId={1} />}</Route>
+          <Route path="/ai-concierge">{() => <AiConciergePage memberId={1} />}</Route>
+          <Route path="/task-templates"       component={TaskTemplatesPage} />
+          <Route path="/member/:id">{(params) => <MemberProfilePage memberId={Number(params.id) || 1} />}</Route>
+          <Route path="/settings"             component={SettingsPage} />
+          <Route path="/404"                  component={NotFound} />
+          <Route                              component={NotFound} />
         </Switch>
       </DashboardLayout>
     </AdvisorPortalGuard>
@@ -151,6 +172,11 @@ function App() {
             <Route path="/client/billing">
               <MemberPortalGuard>
                 <MemberBillingPage />
+              </MemberPortalGuard>
+            </Route>
+            <Route path="/client/profile">
+              <MemberPortalGuard>
+                <MemberPortalEnhancedPage />
               </MemberPortalGuard>
             </Route>
             {/* Advisor portal — full sidebar layout, gated by Manus OAuth */}

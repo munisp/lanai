@@ -3,30 +3,53 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Users, Plane, Crown, FileText,
   Brain, Sunrise, Building2, MessageCircle, Settings,
-  ChevronLeft, ChevronRight, Menu, UserCog
+  ChevronLeft, ChevronRight, Menu, UserCog,
+  BarChart2, Receipt, Gift, Star, CheckSquare,
+  MessageSquare, TrendingUp, Globe
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
-  { href: "/",                icon: LayoutDashboard, label: "Dashboard",        group: "main" },
-  { href: "/briefing",        icon: Sunrise,         label: "Morning Briefing", group: "main" },
-  { href: "/clients",         icon: Users,           label: "Clients",          group: "crm" },
-  { href: "/members",         icon: Crown,           label: "Members",          group: "crm" },
-  { href: "/travel-requests", icon: Plane,           label: "Travel Requests",  group: "crm" },
-  { href: "/proposals",       icon: FileText,        label: "Proposal Engine",  group: "ai" },
-  { href: "/intelligence",    icon: Brain,           label: "Client Intelligence", group: "ai" },
-  { href: "/suppliers",       icon: Building2,       label: "Suppliers",        group: "ops" },
-  { href: "/whatsapp",        icon: MessageCircle,   label: "WhatsApp",         group: "ops" },
-  { href: "/member-management", icon: UserCog,      label: "Member Portal",    group: "system" },
-  { href: "/settings",          icon: Settings,      label: "Settings",         group: "system" },
+  // Overview
+  { href: "/",                    icon: LayoutDashboard, label: "Dashboard",           group: "main" },
+  { href: "/briefing",            icon: Sunrise,         label: "Morning Briefing",    group: "main" },
+  { href: "/analytics",           icon: BarChart2,       label: "Revenue Analytics",   group: "main" },
+
+  // Client Management
+  { href: "/clients",             icon: Users,           label: "Clients",             group: "crm" },
+  { href: "/members",             icon: Crown,           label: "Members",             group: "crm" },
+  { href: "/travel-requests",     icon: Plane,           label: "Travel Requests",     group: "crm" },
+  { href: "/trip-timeline",       icon: Globe,           label: "Trip Timeline",       group: "crm" },
+  { href: "/celebrations",        icon: Gift,            label: "Celebrations",        group: "crm" },
+
+  // AI Intelligence
+  { href: "/proposals",           icon: FileText,        label: "Proposal Engine",     group: "ai" },
+  { href: "/intelligence",        icon: Brain,           label: "Client Intelligence", group: "ai" },
+  { href: "/ai-concierge",        icon: TrendingUp,      label: "AI Concierge",        group: "ai" },
+
+  // Operations
+  { href: "/suppliers",           icon: Building2,       label: "Suppliers",           group: "ops" },
+  { href: "/supplier-services",   icon: Star,            label: "Supplier Services",   group: "ops" },
+  { href: "/whatsapp",            icon: MessageCircle,   label: "WhatsApp",            group: "ops" },
+  { href: "/communication-hub",   icon: MessageSquare,   label: "Communication Hub",   group: "ops" },
+  { href: "/task-templates",      icon: CheckSquare,     label: "Task Templates",      group: "ops" },
+
+  // Finance
+  { href: "/invoicing",           icon: Receipt,         label: "Invoicing",           group: "finance" },
+  { href: "/nps",                 icon: Star,            label: "NPS & Feedback",      group: "finance" },
+
+  // System
+  { href: "/member-management",   icon: UserCog,         label: "Member Portal",       group: "system" },
+  { href: "/settings",            icon: Settings,        label: "Settings",            group: "system" },
 ];
 
 const GROUP_LABELS: Record<string, string> = {
-  main:   "Overview",
-  crm:    "Client Management",
-  ai:     "AI Intelligence",
-  ops:    "Operations",
-  system: "System",
+  main:    "Overview",
+  crm:     "Client Management",
+  ai:      "AI Intelligence",
+  ops:     "Operations",
+  finance: "Finance & Feedback",
+  system:  "System",
 };
 
 interface DashboardLayoutProps {
@@ -109,7 +132,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         {!collapsed && (
           <div className="text-sidebar-foreground/30 text-xs text-center"
                style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-            v1.0 · Lanai Intelligence
+            v2.0 · Lanai Intelligence
           </div>
         )}
       </div>

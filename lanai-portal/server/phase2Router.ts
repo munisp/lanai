@@ -1335,3 +1335,108 @@ export const aiConciergeRouter = router({
       };
     }),
 });
+
+// ─── Patch Routers: add missing procedures needed by frontend pages ────────────
+
+export const celebrationsPatchRouter = router({
+  delete: protectedProcedure
+    .input(z.object({ celebrationId: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { success: true };
+      await db.delete(celebrations).where(eq(celebrations.id, input.celebrationId));
+      return { success: true };
+    }),
+});
+
+export const vipAmenitiesPatchRouter = router({
+  updateStatus: protectedProcedure
+    .input(z.object({
+      amenityId: z.number().int().positive(),
+      status: z.enum(["pending", "confirmed", "delivered", "cancelled"]),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { success: true };
+      const updateData: Record<string, unknown> = {};
+      if (input.status === "confirmed") updateData.confirmedAt = new Date();
+      if (input.status === "delivered") updateData.deliveredAt = new Date();
+      if (Object.keys(updateData).length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await db.update(vipAmenities).set(updateData as any).where(eq(vipAmenities.id, input.amenityId));
+      }
+      return { success: true };
+    }),
+});
+
+export const tripTimelinePatchRouter = router({
+  memberStats: protectedProcedure
+    .input(z.object({ memberId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { totalTrips: 0, totalSpend: "0", avgSatisfaction: "0", topDestination: null };
+      const trips = await db
+        .select()
+        .from(tripTimeline)
+        .where(eq(tripTimeline.memberId, input.memberId));
+      const totalSpend = trips.reduce((sum, t) => sum + parseFloat(t.totalSpend ?? "0"), 0);
+      const withScores = trips.filter(t => t.satisfactionScore != null);
+      const avgSatisfaction = withScores.length > 0
+        ? (withScores.reduce((sum, t) => sum + (t.satisfactionScore ?? 0), 0) / withScores.length).toFixed(1)
+        : "0";
+      const destCounts: Record<string, number> = {};
+      for (const t of trips) {
+        if (t.destination) destCounts[t.destination] = (destCounts[t.destination] ?? 0) + 1;
+      }
+      const topDestination = Object.entries(destCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+      return { totalTrips: trips.length, totalSpend: totalSpend.toFixed(2), avgSatisfaction, topDestination };
+    }),
+});
+
+export const npsPatchRouter = router({
+  detractors: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return [];
+    return db
+      .select()
+      .from(npsResponses)
+      .where(and(eq(npsResponses.category, "detractor"), eq(npsResponses.followUpRequired, true)))
+      .orderBy(desc(npsResponses.createdAt));
+  }),
+});
+
+export const aiConciergePatchRouter = router({
+  chat: memberProcedure
+    .input(z.object({
+      message: z.string().min(1),
+      history: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string() })).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const responses: Record<string, string> = {
+        default: "Thank you for your message. I'm your Lanai AI Concierge. How can I help you plan your next extraordinary experience?",
+        hotel: "I'd be delighted to recommend some exceptional hotels. Based on your preferences, I suggest the Aman Tokyo or Four Seasons Bali.",
+        flight: "For your travel, I recommend booking first class with British Airways or Emirates for the finest in-flight experience.",
+        restaurant: "I can arrange reservations at some of the world's finest restaurants. Shall I book Alain Ducasse or Nobu for your visit?",
+        villa: "Our curated villa collection includes stunning properties in Tuscany, Mykonos, and the Maldives. Which destination interests you?",
+      };
+      const msg = input.message.toLowerCase();
+      const reply = msg.includes("hotel") ? responses.hotel
+        : msg.includes("flight") ? responses.flight
+        : msg.includes("restaurant") ? responses.restaurant
+        : msg.includes("villa") ? responses.villa
+        : responses.default;
+      return { memberId: ctx.member.id, reply, suggestedActions: ["Browse destinations", "View proposals", "Contact advisor"] };
+    }),
+  generateFollowUpCampaigns: protectedProcedure
+    .input(z.object({ memberId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      return {
+        memberId: input.memberId,
+        campaigns: [
+          { context: "post_trip", message: "We hope you had a wonderful experience. Ready to plan your next adventure?", channel: "whatsapp" },
+          { context: "birthday", message: "Wishing you a very happy birthday! Let us make your day extraordinary.", channel: "email" },
+          { context: "re_engagement", message: "We've curated some exclusive experiences just for you.", channel: "whatsapp" },
+        ],
+      };
+    }),
+});
