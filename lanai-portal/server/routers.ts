@@ -37,6 +37,20 @@ import {
   supplierContactsRouter,
 } from "./platformRouter";
 import {
+  memberProfileRouter,
+  familyMembersRouter,
+  supplierServicesRouter,
+  invoicingRouter,
+  celebrationsRouter,
+  npsRouter,
+  communicationHubRouter,
+  taskTemplatesRouter,
+  tripTimelineRouter,
+  vipAmenitiesRouter,
+  revenueAnalyticsRouter,
+  aiConciergeRouter,
+} from "./phase2Router";
+import {
   createInvitation,
   createMember,
   createMemberSession,
@@ -608,6 +622,19 @@ export const appRouter = router({
   tasks: tasksRouter,
   tags: tagsRouter,
   analytics: analyticsRouter,
+  // ── Phase 2: Human Tester Feedback Features ───────────────────────────────────────
+  memberProfile: memberProfileRouter,
+  familyMembers: familyMembersRouter,
+  supplierServices: supplierServicesRouter,
+  invoicing: invoicingRouter,
+  celebrations: celebrationsRouter,
+  nps: npsRouter,
+  communicationHub: communicationHubRouter,
+  taskTemplates: taskTemplatesRouter,
+  tripTimeline: tripTimelineRouter,
+  vipAmenities: vipAmenitiesRouter,
+  revenueAnalytics: revenueAnalyticsRouter,
+  aiConcierge: aiConciergeRouter,
 });
 
 export type AppRouter = typeof appRouter;

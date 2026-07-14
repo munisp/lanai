@@ -914,3 +914,596 @@ export const memberTagsRelations = relations(memberTags, ({ one }) => ({
 export const tagsRelations = relations(tags, ({ many }) => ({
   memberTags: many(memberTags),
 }));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 2 EXTENSIONS — Human Tester Feedback Implementation
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── New Enums ────────────────────────────────────────────────────────────────
+
+export const invoiceTypeEnum = pgEnum("invoice_type", [
+  "client_service",   // invoice sent to member for non-hotel services
+  "commission",       // commission invoice sent to supplier at month-end
+]);
+
+export const invoiceStatusEnum = pgEnum("invoice_status", [
+  "draft", "sent", "paid", "overdue", "voided", "disputed",
+]);
+
+export const invoiceLineItemTypeEnum = pgEnum("invoice_line_item_type", [
+  "hotel", "flight", "villa", "apartment", "yacht", "jet",
+  "transfer", "restaurant", "event", "experience", "membership_fee",
+  "ancillary", "other",
+]);
+
+export const pricingInquiryStatusEnum = pgEnum("pricing_inquiry_status", [
+  "pending", "responded", "accepted", "declined", "expired",
+]);
+
+export const celebrationTypeEnum = pgEnum("celebration_type", [
+  "birthday", "anniversary", "graduation", "honeymoon",
+  "retirement", "promotion", "other",
+]);
+
+export const npsResponseEnum = pgEnum("nps_response", [
+  "promoter",   // 9-10
+  "passive",    // 7-8
+  "detractor",  // 0-6
+]);
+
+export const taskTemplateTypeEnum = pgEnum("task_template_type", [
+  "airport_fast_track", "villa_provisioning", "yacht_charter",
+  "restaurant_reservation", "celebration_planning", "visa_check",
+  "welcome_gift", "vip_amenity", "jet_charter", "transfer_arrangement",
+  "custom",
+]);
+
+export const communicationTypeEnum = pgEnum("communication_type", [
+  "email", "whatsapp", "phone_call", "portal_message",
+  "internal_note", "sms",
+]);
+
+export const sentimentEnum = pgEnum("sentiment", [
+  "positive", "neutral", "negative", "urgent",
+]);
+
+// ─── Member Family Members ────────────────────────────────────────────────────
+
+export const memberFamilyMembers = pgTable(
+  "member_family_members",
+  {
+    id: serial("id").primaryKey(),
+    memberId: integer("memberId").notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    relationship: varchar("relationship", { length: 64 }).notNull(), // spouse, child, parent, etc.
+    dateOfBirth: timestamp("dateOfBirth"),
+    passportNumber: varchar("passportNumber", { length: 64 }),
+    passportExpiry: timestamp("passportExpiry"),
+    nationality: varchar("nationality", { length: 128 }),
+    dietaryRequirements: text("dietaryRequirements"),
+    notes: text("notes"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("family_members_memberId_idx").on(t.memberId),
+  ]
+);
+export type MemberFamilyMember = typeof memberFamilyMembers.$inferSelect;
+export type InsertMemberFamilyMember = typeof memberFamilyMembers.$inferInsert;
+
+// ─── Member Extended Profile ──────────────────────────────────────────────────
+// Stores rich luxury-profile data that is too large/structured for the members table
+
+export const memberProfiles = pgTable(
+  "member_profiles",
+  {
+    id: serial("id").primaryKey(),
+    memberId: integer("memberId").notNull().unique(),
+
+    // Frequent Flyer & Loyalty
+    frequentFlyerNumbers: jsonb("frequentFlyerNumbers"), // [{ airline: "BA", number: "BA123456" }]
+    hotelLoyaltyNumbers: jsonb("hotelLoyaltyNumbers"),   // [{ chain: "Marriott", number: "M123456", tier: "Titanium" }]
+
+    // Travel Documents
+    visaExpiry: jsonb("visaExpiry"),                     // [{ country: "USA", expiry: "2027-01-01" }]
+    globalEntryNumber: varchar("globalEntryNumber", { length: 64 }),
+    knownTravellerNumber: varchar("knownTravellerNumber", { length: 64 }),
+
+    // Preferences
+    preferredPaymentMethod: varchar("preferredPaymentMethod", { length: 128 }),
+    preferredCurrency: varchar("preferredCurrency", { length: 8 }).default("GBP"),
+    preferredHotelBrands: jsonb("preferredHotelBrands"),  // ["Four Seasons", "Aman"]
+    roomPreferences: jsonb("roomPreferences"),             // { type: "suite", floor: "high", view: "ocean", pillow: "soft" }
+    seatPreference: varchar("seatPreference", { length: 64 }),  // window, aisle, bulkhead
+    cabinClass: varchar("cabinClass", { length: 32 }).default("business"),
+    dietaryRequirements: jsonb("dietaryRequirements"),    // ["halal", "gluten-free"]
+    allergies: text("allergies"),
+    favouriteDestinations: jsonb("favouriteDestinations"),
+    bucketListDestinations: jsonb("bucketListDestinations"),
+    travelStyle: jsonb("travelStyle"),                    // ["adventure", "wellness", "cultural"]
+    amenityPreferences: jsonb("amenityPreferences"),      // ["champagne on arrival", "fruit basket"]
+
+    // Celebration Dates
+    anniversaryDate: timestamp("anniversaryDate"),
+    weddingAnniversaryDate: timestamp("weddingAnniversaryDate"),
+
+    // Personal & Professional
+    personalAssistantName: varchar("personalAssistantName", { length: 255 }),
+    personalAssistantEmail: varchar("personalAssistantEmail", { length: 320 }),
+    personalAssistantPhone: varchar("personalAssistantPhone", { length: 64 }),
+    familyOfficeContactName: varchar("familyOfficeContactName", { length: 255 }),
+    familyOfficeContactEmail: varchar("familyOfficeContactEmail", { length: 320 }),
+    familyOfficeContactPhone: varchar("familyOfficeContactPhone", { length: 64 }),
+
+    // Security & Privacy
+    securityLevel: varchar("securityLevel", { length: 32 }).default("standard"), // standard, enhanced, maximum
+    privacyNotes: text("privacyNotes"),
+    nda: boolean("nda").default(false).notNull(),
+
+    // Revenue & Value
+    lifetimeRevenue: numeric("lifetimeRevenue", { precision: 12, scale: 2 }).default("0"),
+    annualRevenue: numeric("annualRevenue", { precision: 12, scale: 2 }).default("0"),
+    membershipFeesPaid: numeric("membershipFeesPaid", { precision: 12, scale: 2 }).default("0"),
+    satisfactionScore: numeric("satisfactionScore", { precision: 3, scale: 1 }),
+    lastNpsScore: integer("lastNpsScore"),
+    conciergeNotes: text("conciergeNotes"),
+
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("member_profiles_memberId_idx").on(t.memberId),
+  ]
+);
+export type MemberProfile = typeof memberProfiles.$inferSelect;
+export type InsertMemberProfile = typeof memberProfiles.$inferInsert;
+
+// ─── Supplier Services ────────────────────────────────────────────────────────
+
+export const supplierServices = pgTable(
+  "supplier_services",
+  {
+    id: serial("id").primaryKey(),
+    supplierId: integer("supplierId").notNull(),
+    serviceType: varchar("serviceType", { length: 128 }).notNull(), // "hotel_rooms", "private_dining", "spa", "transfers"
+    description: text("description"),
+    basePrice: numeric("basePrice", { precision: 10, scale: 2 }),
+    currency: varchar("currency", { length: 8 }).default("GBP"),
+    commissionRate: numeric("commissionRate", { precision: 5, scale: 2 }),
+    availability: varchar("availability", { length: 255 }),
+    isActive: boolean("isActive").default(true).notNull(),
+    metadata: jsonb("metadata"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("supplier_services_supplierId_idx").on(t.supplierId),
+    index("supplier_services_type_idx").on(t.serviceType),
+  ]
+);
+export type SupplierService = typeof supplierServices.$inferSelect;
+export type InsertSupplierService = typeof supplierServices.$inferInsert;
+
+// ─── Pricing Inquiries ────────────────────────────────────────────────────────
+
+export const pricingInquiries = pgTable(
+  "pricing_inquiries",
+  {
+    id: serial("id").primaryKey(),
+    supplierId: integer("supplierId").notNull(),
+    travelRequestId: integer("travelRequestId"),
+    memberId: integer("memberId"),
+    requestedByUserId: integer("requestedByUserId").notNull(),
+    serviceType: varchar("serviceType", { length: 128 }).notNull(),
+    requestDetails: text("requestDetails").notNull(),
+    checkInDate: timestamp("checkInDate"),
+    checkOutDate: timestamp("checkOutDate"),
+    guestCount: integer("guestCount"),
+    budget: numeric("budget", { precision: 10, scale: 2 }),
+    currency: varchar("currency", { length: 8 }).default("GBP"),
+    status: pricingInquiryStatusEnum("status").default("pending").notNull(),
+    responseDetails: text("responseDetails"),
+    quotedPrice: numeric("quotedPrice", { precision: 10, scale: 2 }),
+    respondedAt: timestamp("respondedAt"),
+    expiresAt: timestamp("expiresAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("pricing_inquiries_supplierId_idx").on(t.supplierId),
+    index("pricing_inquiries_travelRequest_idx").on(t.travelRequestId),
+    index("pricing_inquiries_status_idx").on(t.status),
+  ]
+);
+export type PricingInquiry = typeof pricingInquiries.$inferSelect;
+export type InsertPricingInquiry = typeof pricingInquiries.$inferInsert;
+
+// ─── Invoices ─────────────────────────────────────────────────────────────────
+
+export const invoices = pgTable(
+  "invoices",
+  {
+    id: serial("id").primaryKey(),
+    invoiceNumber: varchar("invoiceNumber", { length: 64 }).notNull().unique(),
+    invoiceType: invoiceTypeEnum("invoiceType").notNull(),
+    status: invoiceStatusEnum("status").default("draft").notNull(),
+
+    // Recipient — either a member (client invoice) or supplier (commission invoice)
+    memberId: integer("memberId"),
+    supplierId: integer("supplierId"),
+
+    // Linked records
+    bookingId: integer("bookingId"),
+    travelRequestId: integer("travelRequestId"),
+
+    // Financial
+    subtotal: numeric("subtotal", { precision: 12, scale: 2 }).notNull(),
+    taxAmount: numeric("taxAmount", { precision: 12, scale: 2 }).default("0"),
+    discountAmount: numeric("discountAmount", { precision: 12, scale: 2 }).default("0"),
+    totalAmount: numeric("totalAmount", { precision: 12, scale: 2 }).notNull(),
+    currency: varchar("currency", { length: 8 }).default("GBP"),
+    commissionRate: numeric("commissionRate", { precision: 5, scale: 2 }),
+
+    // Dates
+    issuedAt: timestamp("issuedAt"),
+    dueDate: timestamp("dueDate"),
+    paidAt: timestamp("paidAt"),
+
+    // Content
+    notes: text("notes"),
+    pdfUrl: varchar("pdfUrl", { length: 1024 }),
+    brandedLogoUrl: varchar("brandedLogoUrl", { length: 1024 }),
+
+    // Audit
+    createdByUserId: integer("createdByUserId"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("invoices_memberId_idx").on(t.memberId),
+    index("invoices_supplierId_idx").on(t.supplierId),
+    index("invoices_status_idx").on(t.status),
+    index("invoices_type_idx").on(t.invoiceType),
+    index("invoices_dueDate_idx").on(t.dueDate),
+  ]
+);
+export type Invoice = typeof invoices.$inferSelect;
+export type InsertInvoice = typeof invoices.$inferInsert;
+
+// ─── Invoice Line Items ───────────────────────────────────────────────────────
+
+export const invoiceLineItems = pgTable(
+  "invoice_line_items",
+  {
+    id: serial("id").primaryKey(),
+    invoiceId: integer("invoiceId").notNull(),
+    itemType: invoiceLineItemTypeEnum("itemType").notNull(),
+    description: varchar("description", { length: 512 }).notNull(),
+    quantity: numeric("quantity", { precision: 8, scale: 2 }).default("1"),
+    unitPrice: numeric("unitPrice", { precision: 10, scale: 2 }).notNull(),
+    totalPrice: numeric("totalPrice", { precision: 10, scale: 2 }).notNull(),
+    commissionRate: numeric("commissionRate", { precision: 5, scale: 2 }),
+    commissionAmount: numeric("commissionAmount", { precision: 10, scale: 2 }),
+    supplierId: integer("supplierId"),
+    bookingId: integer("bookingId"),
+    sortOrder: integer("sortOrder").default(0),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("invoice_line_items_invoiceId_idx").on(t.invoiceId),
+  ]
+);
+export type InvoiceLineItem = typeof invoiceLineItems.$inferSelect;
+export type InsertInvoiceLineItem = typeof invoiceLineItems.$inferInsert;
+
+// ─── Celebrations & Special Dates ────────────────────────────────────────────
+
+export const celebrations = pgTable(
+  "celebrations",
+  {
+    id: serial("id").primaryKey(),
+    memberId: integer("memberId").notNull(),
+    celebrationType: celebrationTypeEnum("celebrationType").notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    celebrationDate: timestamp("celebrationDate").notNull(),
+    isRecurring: boolean("isRecurring").default(true).notNull(),
+    familyMemberId: integer("familyMemberId"),  // link to family member if applicable
+    reminderDaysBefore: integer("reminderDaysBefore").default(30),
+    lastReminderSentAt: timestamp("lastReminderSentAt"),
+    notes: text("notes"),
+    giftSuggestions: jsonb("giftSuggestions"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("celebrations_memberId_idx").on(t.memberId),
+    index("celebrations_date_idx").on(t.celebrationDate),
+  ]
+);
+export type Celebration = typeof celebrations.$inferSelect;
+export type InsertCelebration = typeof celebrations.$inferInsert;
+
+// ─── NPS & Feedback ───────────────────────────────────────────────────────────
+
+export const npsResponses = pgTable(
+  "nps_responses",
+  {
+    id: serial("id").primaryKey(),
+    memberId: integer("memberId").notNull(),
+    bookingId: integer("bookingId"),
+    travelRequestId: integer("travelRequestId"),
+    score: integer("score").notNull(),  // 0-10
+    category: npsResponseEnum("category").notNull(),
+    feedback: text("feedback"),
+    followUpRequired: boolean("followUpRequired").default(false).notNull(),
+    followedUpAt: timestamp("followedUpAt"),
+    followedUpByUserId: integer("followedUpByUserId"),
+    channel: varchar("channel", { length: 32 }).default("portal"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("nps_responses_memberId_idx").on(t.memberId),
+    index("nps_responses_score_idx").on(t.score),
+    index("nps_responses_createdAt_idx").on(t.createdAt),
+  ]
+);
+export type NpsResponse = typeof npsResponses.$inferSelect;
+export type InsertNpsResponse = typeof npsResponses.$inferInsert;
+
+// ─── Communication Timeline ───────────────────────────────────────────────────
+// Unified record of ALL communications with a member (email, WhatsApp, calls, notes)
+
+export const communicationTimeline = pgTable(
+  "communication_timeline",
+  {
+    id: serial("id").primaryKey(),
+    memberId: integer("memberId").notNull(),
+    advisorUserId: integer("advisorUserId"),
+    communicationType: communicationTypeEnum("communicationType").notNull(),
+    channel: messageChannelEnum("channel"),
+    direction: varchar("direction", { length: 16 }).notNull(), // inbound | outbound
+    subject: varchar("subject", { length: 512 }),
+    body: text("body"),
+    summary: text("summary"),                  // AI-generated summary
+    transcription: text("transcription"),       // AI transcription for calls
+    sentiment: sentimentEnum("sentiment"),
+    sentimentScore: numeric("sentimentScore", { precision: 4, scale: 3 }),
+    durationSeconds: integer("durationSeconds"), // for phone calls
+    attachmentUrls: jsonb("attachmentUrls"),
+    externalId: varchar("externalId", { length: 255 }),  // WhatsApp message ID, email thread ID
+    travelRequestId: integer("travelRequestId"),
+    bookingId: integer("bookingId"),
+    followUpRequired: boolean("followUpRequired").default(false).notNull(),
+    followUpDueAt: timestamp("followUpDueAt"),
+    followUpCompletedAt: timestamp("followUpCompletedAt"),
+    responseTimeMinutes: integer("responseTimeMinutes"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("comm_timeline_memberId_idx").on(t.memberId),
+    index("comm_timeline_type_idx").on(t.communicationType),
+    index("comm_timeline_createdAt_idx").on(t.createdAt),
+    index("comm_timeline_followUp_idx").on(t.followUpRequired, t.followUpDueAt),
+  ]
+);
+export type CommunicationTimelineEntry = typeof communicationTimeline.$inferSelect;
+export type InsertCommunicationTimelineEntry = typeof communicationTimeline.$inferInsert;
+
+// ─── Task Templates ───────────────────────────────────────────────────────────
+
+export const taskTemplates = pgTable(
+  "task_templates",
+  {
+    id: serial("id").primaryKey(),
+    templateType: taskTemplateTypeEnum("templateType").notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    description: text("description"),
+    defaultPriority: taskPriorityEnum("defaultPriority").default("medium").notNull(),
+    defaultDueDaysFromTrigger: integer("defaultDueDaysFromTrigger").default(1),
+    checklistItems: jsonb("checklistItems"),  // [{ item: "Confirm fast-track booking", required: true }]
+    triggerOnBookingStatus: varchar("triggerOnBookingStatus", { length: 64 }),
+    isActive: boolean("isActive").default(true).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("task_templates_type_idx").on(t.templateType),
+  ]
+);
+export type TaskTemplate = typeof taskTemplates.$inferSelect;
+export type InsertTaskTemplate = typeof taskTemplates.$inferInsert;
+
+// ─── Trip Timeline ────────────────────────────────────────────────────────────
+// Chronological view of all trips, spending, and experiences for a member
+
+export const tripTimeline = pgTable(
+  "trip_timeline",
+  {
+    id: serial("id").primaryKey(),
+    memberId: integer("memberId").notNull(),
+    travelRequestId: integer("travelRequestId"),
+    bookingId: integer("bookingId"),
+    title: varchar("title", { length: 255 }).notNull(),
+    destination: varchar("destination", { length: 255 }),
+    departureDate: timestamp("departureDate"),
+    returnDate: timestamp("returnDate"),
+    totalSpend: numeric("totalSpend", { precision: 12, scale: 2 }),
+    currency: varchar("currency", { length: 8 }).default("GBP"),
+    satisfactionScore: integer("satisfactionScore"),  // 1-5
+    highlights: jsonb("highlights"),
+    suppliersUsed: jsonb("suppliersUsed"),
+    aiRecommendations: jsonb("aiRecommendations"),
+    memberFeedback: text("memberFeedback"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("trip_timeline_memberId_idx").on(t.memberId),
+    index("trip_timeline_departure_idx").on(t.departureDate),
+  ]
+);
+export type TripTimelineEntry = typeof tripTimeline.$inferSelect;
+export type InsertTripTimelineEntry = typeof tripTimeline.$inferInsert;
+
+// ─── Welcome Gifts & VIP Amenities ───────────────────────────────────────────
+
+export const vipAmenities = pgTable(
+  "vip_amenities",
+  {
+    id: serial("id").primaryKey(),
+    memberId: integer("memberId").notNull(),
+    bookingId: integer("bookingId"),
+    travelRequestId: integer("travelRequestId"),
+    amenityType: varchar("amenityType", { length: 128 }).notNull(), // "welcome_gift", "room_upgrade", "champagne", "flowers"
+    description: text("description"),
+    supplierId: integer("supplierId"),
+    requestedByUserId: integer("requestedByUserId"),
+    confirmedAt: timestamp("confirmedAt"),
+    deliveredAt: timestamp("deliveredAt"),
+    cost: numeric("cost", { precision: 8, scale: 2 }),
+    currency: varchar("currency", { length: 8 }).default("GBP"),
+    notes: text("notes"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("vip_amenities_memberId_idx").on(t.memberId),
+    index("vip_amenities_bookingId_idx").on(t.bookingId),
+  ]
+);
+export type VipAmenity = typeof vipAmenities.$inferSelect;
+export type InsertVipAmenity = typeof vipAmenities.$inferInsert;
+
+// ─── Revenue Analytics (Materialized Snapshots) ───────────────────────────────
+
+export const revenueSnapshots = pgTable(
+  "revenue_snapshots",
+  {
+    id: serial("id").primaryKey(),
+    snapshotDate: varchar("snapshotDate", { length: 16 }).notNull().unique(), // YYYY-MM-DD
+    totalDailyRevenue: numeric("totalDailyRevenue", { precision: 12, scale: 2 }).default("0"),
+    averageBookingValue: numeric("averageBookingValue", { precision: 10, scale: 2 }).default("0"),
+    membershipFeesCollected: numeric("membershipFeesCollected", { precision: 12, scale: 2 }).default("0"),
+    revenueByCategory: jsonb("revenueByCategory"), // { hotels: 0, ancillary: 0, transport: 0, villas: 0, apartments: 0 }
+    bookingsCount: integer("bookingsCount").default(0),
+    newMembersCount: integer("newMembersCount").default(0),
+    activeRequestsCount: integer("activeRequestsCount").default(0),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("revenue_snapshots_date_idx").on(t.snapshotDate),
+  ]
+);
+export type RevenueSnapshot = typeof revenueSnapshots.$inferSelect;
+export type InsertRevenueSnapshot = typeof revenueSnapshots.$inferInsert;
+
+// ─── New Relations ────────────────────────────────────────────────────────────
+
+export const memberProfilesRelations = relations(memberProfiles, ({ one }) => ({
+  member: one(members, {
+    fields: [memberProfiles.memberId],
+    references: [members.id],
+  }),
+}));
+
+export const memberFamilyMembersRelations = relations(memberFamilyMembers, ({ one }) => ({
+  member: one(members, {
+    fields: [memberFamilyMembers.memberId],
+    references: [members.id],
+  }),
+}));
+
+export const supplierServicesRelations = relations(supplierServices, ({ one }) => ({
+  supplier: one(suppliers, {
+    fields: [supplierServices.supplierId],
+    references: [suppliers.id],
+  }),
+}));
+
+export const pricingInquiriesRelations = relations(pricingInquiries, ({ one }) => ({
+  supplier: one(suppliers, {
+    fields: [pricingInquiries.supplierId],
+    references: [suppliers.id],
+  }),
+  travelRequest: one(travelRequests, {
+    fields: [pricingInquiries.travelRequestId],
+    references: [travelRequests.id],
+  }),
+  requestedBy: one(users, {
+    fields: [pricingInquiries.requestedByUserId],
+    references: [users.id],
+  }),
+}));
+
+export const invoicesRelations = relations(invoices, ({ one, many }) => ({
+  member: one(members, {
+    fields: [invoices.memberId],
+    references: [members.id],
+  }),
+  supplier: one(suppliers, {
+    fields: [invoices.supplierId],
+    references: [suppliers.id],
+  }),
+  lineItems: many(invoiceLineItems),
+  createdBy: one(users, {
+    fields: [invoices.createdByUserId],
+    references: [users.id],
+  }),
+}));
+
+export const invoiceLineItemsRelations = relations(invoiceLineItems, ({ one }) => ({
+  invoice: one(invoices, {
+    fields: [invoiceLineItems.invoiceId],
+    references: [invoices.id],
+  }),
+}));
+
+export const celebrationsRelations = relations(celebrations, ({ one }) => ({
+  member: one(members, {
+    fields: [celebrations.memberId],
+    references: [members.id],
+  }),
+}));
+
+export const npsResponsesRelations = relations(npsResponses, ({ one }) => ({
+  member: one(members, {
+    fields: [npsResponses.memberId],
+    references: [members.id],
+  }),
+  booking: one(bookings, {
+    fields: [npsResponses.bookingId],
+    references: [bookings.id],
+  }),
+}));
+
+export const communicationTimelineRelations = relations(communicationTimeline, ({ one }) => ({
+  member: one(members, {
+    fields: [communicationTimeline.memberId],
+    references: [members.id],
+  }),
+  advisor: one(users, {
+    fields: [communicationTimeline.advisorUserId],
+    references: [users.id],
+  }),
+}));
+
+export const tripTimelineRelations = relations(tripTimeline, ({ one }) => ({
+  member: one(members, {
+    fields: [tripTimeline.memberId],
+    references: [members.id],
+  }),
+  travelRequest: one(travelRequests, {
+    fields: [tripTimeline.travelRequestId],
+    references: [travelRequests.id],
+  }),
+}));
+
+export const vipAmenitiesRelations = relations(vipAmenities, ({ one }) => ({
+  member: one(members, {
+    fields: [vipAmenities.memberId],
+    references: [members.id],
+  }),
+  booking: one(bookings, {
+    fields: [vipAmenities.bookingId],
+    references: [bookings.id],
+  }),
+}));
