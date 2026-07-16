@@ -46,7 +46,6 @@ export function registerChatwootProxy(app: express.Express) {
   const CHATWOOT_ACCOUNT_ID = process.env.CHATWOOT_ACCOUNT_ID || "1";
 
   if (!CHATWOOT_TOKEN) {
-    console.warn("[Chatwoot] Chatwoot access token not configured. Proxy disabled.");
     app.use("/api/chatwoot", (_req, res) => {
       res.status(503).json({ error: "Chatwoot not configured" });
     });
@@ -98,10 +97,8 @@ export function registerChatwootProxy(app: express.Express) {
       }
 
       res.status(response.status).json(response.data);
-    } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : "Unknown error";
-      console.error("[Chatwoot Proxy] Error:", msg);
-      res.status(502).json({ error: "Chatwoot proxy error", details: msg });
+    } catch {
+      res.status(502).json({ error: "Chatwoot proxy error" });
     }
   });
 }
