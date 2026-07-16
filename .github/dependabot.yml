@@ -1,0 +1,73 @@
+version: 2
+updates:
+  # ── Node.js / pnpm (lanai-portal) ─────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/lanai-portal"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/London"
+    open-pull-requests-limit: 10
+    groups:
+      # Group all Radix UI updates together
+      radix-ui:
+        patterns:
+          - "@radix-ui/*"
+      # Group all tRPC updates together
+      trpc:
+        patterns:
+          - "@trpc/*"
+      # Group all Drizzle ORM updates together
+      drizzle:
+        patterns:
+          - "drizzle-orm"
+          - "drizzle-kit"
+      # Group all Vite/build tooling updates together
+      build-tooling:
+        patterns:
+          - "vite"
+          - "esbuild"
+          - "tsx"
+          - "typescript"
+          - "@vitejs/*"
+      # Group all security-critical packages
+      security:
+        patterns:
+          - "helmet"
+          - "express-rate-limit"
+          - "cors"
+          - "bcryptjs"
+          - "jose"
+    labels:
+      - "dependencies"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # ── Python (chatwoot_ai_bridge) ────────────────────────────────────────────
+  - package-ecosystem: "pip"
+    directory: "/lanai_ai/chatwoot_ai_bridge"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+      - "automated"
+
+  # ── GitHub Actions ─────────────────────────────────────────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "automated"
+    commit-message:
+      prefix: "chore(actions)"

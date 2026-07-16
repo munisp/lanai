@@ -39,6 +39,9 @@ RUN VITE_OAUTH_PORTAL_URL=$VITE_OAUTH_PORTAL_URL \
 
 FROM node:22-alpine AS runtime
 
+# Install runtime utilities: dumb-init (proper signal handling), curl (health check)
+RUN apk add --no-cache dumb-init curl
+
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S lanai -u 1001
@@ -53,12 +56,13 @@ COPY --from=build --chown=lanai:nodejs /app/package.json ./
 # Expose port (default 3001, matches lanai.newfire.app tunnel target)
 EXPOSE 3001
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/ || exit 1
+# Health check — use the dedicated /api/health endpoint
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD curl -f http://localhost:3001/api/health || exit 1
 
 # Switch to non-root user
 USER lanai
 
-# Start the production server
+# Use dumb-init as PID 1 for proper signal handling (SIGTERM → graceful shutdown)
+ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "dist/index.js"]

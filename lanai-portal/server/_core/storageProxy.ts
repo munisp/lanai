@@ -1,11 +1,30 @@
+/**
+ * Storage Proxy — generates presigned download URLs for Forge storage objects.
+ *
+ * Security:
+ *  - All requests require an authenticated advisor or member session.
+ *  - Path traversal is blocked (no `..` segments allowed).
+ *  - The server-side Forge API key is never exposed to the client.
+ */
 import type { Express } from "express";
 import { ENV } from "./env";
+import { requireAnyAuth } from "./authMiddleware";
 
 export function registerStorageProxy(app: Express) {
+  // ── Auth guard: any authenticated user (advisor or member) ───────────────
+  app.use("/manus-storage", requireAnyAuth);
+
   app.get("/manus-storage/*", async (req, res) => {
     const key = (req.params as Record<string, string>)[0];
+
     if (!key) {
       res.status(400).send("Missing storage key");
+      return;
+    }
+
+    // Block path traversal attempts
+    if (key.includes("..") || key.includes("//")) {
+      res.status(400).send("Invalid storage key");
       return;
     }
 

@@ -260,8 +260,8 @@ export async function deleteExpiredMemberSessions(): Promise<void> {
 export async function createChatwootConfig(data: InsertChatwootConfig): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(chatwootConfig).values(data);
-  return (result as unknown as { insertId: number }[])[0]?.insertId ?? 0;
+  const result = await db.insert(chatwootConfig).values(data).returning({ id: chatwootConfig.id });
+  return result[0]?.id ?? 0;
 }
 
 export async function getChatwootConfig(): Promise<ChatwootConfig | null> {
@@ -287,8 +287,8 @@ export async function updateChatwootConfig(
 export async function createChatwootConversation(data: InsertChatwootConversation): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(chatwootConversations).values(data);
-  return (result as unknown as { insertId: number }[])[0]?.insertId ?? 0;
+  const result = await db.insert(chatwootConversations).values(data).returning({ id: chatwootConversations.id });
+  return result[0]?.id ?? 0;
 }
 
 export async function getChatwootConversationByChatwootId(chatwootId: string): Promise<ChatwootConversation | null> {
@@ -327,8 +327,8 @@ export async function listChatwootConversations(
 export async function createChatwootMessage(data: InsertChatwootMessage): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(chatwootMessages).values(data);
-  return (result as unknown as { insertId: number }[])[0]?.insertId ?? 0;
+  const result = await db.insert(chatwootMessages).values(data).returning({ id: chatwootMessages.id });
+  return result[0]?.id ?? 0;
 }
 
 export async function listChatwootMessages(conversationId: number): Promise<ChatwootMessage[]> {

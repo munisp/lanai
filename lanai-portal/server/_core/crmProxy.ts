@@ -1,6 +1,10 @@
 /**
  * CRM Proxy — forwards /crm/* requests to the Twenty CRM server.
  *
+ * Security:
+ *  - All routes require an authenticated advisor session.
+ *  - The server-side CRM API token is injected and never exposed to the client.
+ *
  * Because Express body-parser runs before this middleware and consumes the
  * request stream, we cannot pipe req directly. Instead we re-serialize
  * req.body (already parsed JSON) and write it to the upstream request.
@@ -9,6 +13,7 @@ import type { Express, Request, Response } from "express";
 import http from "http";
 import https from "https";
 import { URL } from "url";
+import { requireAdvisorAuth } from "./authMiddleware";
 
 export function registerCrmProxy(app: Express): void {
   const crmUrl = process.env.TWENTY_CRM_URL ?? "http://localhost:3002";
@@ -22,11 +27,11 @@ export function registerCrmProxy(app: Express): void {
     return;
   }
 
-  // Use express.raw to capture the raw body for /crm routes BEFORE body-parser
-  // runs. We register this route with express.raw so the body isn't consumed.
+  // ── Auth guard: only authenticated advisors may access the CRM ───────────
+  app.use("/crm", requireAdvisorAuth);
+
   app.use(
     "/crm",
-    // Re-parse as raw buffer so we forward the exact bytes
     (req: Request, res: Response, next: () => void) => {
       const targetPath = req.url || "/";
       const targetUrl = new URL(targetPath, crmUrl);
@@ -34,7 +39,6 @@ export function registerCrmProxy(app: Express): void {
       // Build the body to forward
       let bodyBuffer: Buffer | null = null;
       if (req.body !== undefined && req.body !== null) {
-        // Body was already parsed by express.json — re-serialize
         try {
           bodyBuffer = Buffer.from(JSON.stringify(req.body), "utf-8");
         } catch {
