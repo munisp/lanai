@@ -1,0 +1,265 @@
+{
+  "realm": "lanai",
+  "displayName": "Lanai Lifestyle",
+  "displayNameHtml": "<b>Lanai Lifestyle</b>",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 5,
+  "accessTokenLifespan": 300,
+  "accessTokenLifespanForImplicitFlow": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "offlineSessionIdleTimeout": 2592000,
+  "accessCodeLifespan": 60,
+  "accessCodeLifespanUserAction": 300,
+  "accessCodeLifespanLogin": 1800,
+  "actionTokenGeneratedByAdminLifespan": 43200,
+  "actionTokenGeneratedByUserLifespan": 300,
+  "internationalizationEnabled": true,
+  "supportedLocales": ["en", "fr", "ar", "zh-CN"],
+  "defaultLocale": "en",
+  "clients": [
+    {
+      "clientId": "lanai-portal",
+      "name": "Lanai Portal",
+      "description": "Lanai Lifestyle Management Platform",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KEYCLOAK_CLIENT_SECRET}",
+      "redirectUris": [
+        "https://${LANAI_DOMAIN}/*",
+        "https://admin.${LANAI_DOMAIN}/*",
+        "https://member.${LANAI_DOMAIN}/*",
+        "https://inbox.${LANAI_DOMAIN}/*"
+      ],
+      "webOrigins": [
+        "https://${LANAI_DOMAIN}",
+        "https://admin.${LANAI_DOMAIN}",
+        "https://member.${LANAI_DOMAIN}",
+        "https://inbox.${LANAI_DOMAIN}"
+      ],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "access.token.lifespan": "300",
+        "client.session.idle.timeout": "1800",
+        "client.session.max.lifespan": "36000",
+        "use.refresh.tokens": "true",
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "groups",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "email",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "email",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "email",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "member-tier",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "memberTier",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "member_tier",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "oauth2-proxy",
+      "name": "oauth2-proxy (Caddy forward_auth)",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${OAUTH2_PROXY_CLIENT_SECRET}",
+      "redirectUris": [
+        "https://admin.${LANAI_DOMAIN}/oauth2/callback",
+        "https://inbox.${LANAI_DOMAIN}/oauth2/callback"
+      ],
+      "webOrigins": [
+        "https://admin.${LANAI_DOMAIN}",
+        "https://inbox.${LANAI_DOMAIN}"
+      ],
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "publicClient": false,
+      "protocol": "openid-connect"
+    },
+    {
+      "clientId": "apisix",
+      "name": "APISIX API Gateway",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${APISIX_KEYCLOAK_SECRET}",
+      "bearerOnly": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "use.jwks.url": "true",
+        "jwks.url": "http://keycloak:8080/realms/lanai/protocol/openid-connect/certs"
+      }
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "admin",
+        "description": "Lanai Platform Administrator — full access"
+      },
+      {
+        "name": "senior-advisor",
+        "description": "Senior Concierge Advisor — can manage all members"
+      },
+      {
+        "name": "advisor",
+        "description": "Concierge Advisor — can manage assigned members"
+      },
+      {
+        "name": "platinum-member",
+        "description": "Platinum Tier Member"
+      },
+      {
+        "name": "gold-member",
+        "description": "Gold Tier Member"
+      },
+      {
+        "name": "silver-member",
+        "description": "Silver Tier Member"
+      }
+    ]
+  },
+  "groups": [
+    {
+      "name": "lanai-admins",
+      "realmRoles": ["admin"]
+    },
+    {
+      "name": "lanai-advisors",
+      "subGroups": [
+        {
+          "name": "senior-advisors",
+          "realmRoles": ["senior-advisor"]
+        },
+        {
+          "name": "advisors",
+          "realmRoles": ["advisor"]
+        }
+      ]
+    },
+    {
+      "name": "lanai-members",
+      "subGroups": [
+        {
+          "name": "platinum-members",
+          "realmRoles": ["platinum-member"]
+        },
+        {
+          "name": "gold-members",
+          "realmRoles": ["gold-member"]
+        },
+        {
+          "name": "silver-members",
+          "realmRoles": ["silver-member"]
+        }
+      ]
+    }
+  ],
+  "passwordPolicy": "length(12) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and notUsername(undefined) and passwordHistory(5)",
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyInitialCounter": 0,
+  "otpPolicyDigits": 6,
+  "otpPolicyLookAheadWindow": 1,
+  "otpPolicyPeriod": 30,
+  "otpSupportedApplications": ["FreeOTP", "Google Authenticator", "Microsoft Authenticator"],
+  "smtpServer": {
+    "host": "${SMTP_HOST}",
+    "port": "${SMTP_PORT}",
+    "from": "noreply@${LANAI_DOMAIN}",
+    "fromDisplayName": "Lanai Lifestyle",
+    "ssl": "true",
+    "auth": "true",
+    "user": "${SMTP_USER}",
+    "password": "${SMTP_PASSWORD}"
+  },
+  "loginTheme": "keycloak",
+  "accountTheme": "keycloak.v3",
+  "adminTheme": "keycloak.v2",
+  "emailTheme": "keycloak",
+  "eventsEnabled": true,
+  "eventsListeners": ["jboss-logging"],
+  "enabledEventTypes": [
+    "LOGIN", "LOGIN_ERROR", "LOGOUT", "REGISTER", "REGISTER_ERROR",
+    "UPDATE_PASSWORD", "UPDATE_PASSWORD_ERROR", "RESET_PASSWORD",
+    "SEND_VERIFY_EMAIL", "VERIFY_EMAIL", "SEND_RESET_PASSWORD",
+    "CLIENT_LOGIN", "CLIENT_LOGIN_ERROR", "TOKEN_EXCHANGE",
+    "PERMISSION_TOKEN", "INTROSPECT_TOKEN", "INTROSPECT_TOKEN_ERROR"
+  ],
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true
+}

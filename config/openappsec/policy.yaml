@@ -1,0 +1,178 @@
+# =============================================================================
+# OpenAppSec ML WAF Policy — Lanai Platform
+# =============================================================================
+# OpenAppSec uses machine learning to detect and prevent web attacks.
+# It runs as an external plugin runner for APISIX.
+# Policy defines protection levels per asset (API surface).
+# =============================================================================
+
+# Global settings
+version: "2.0"
+
+# Default behavior for unmatched assets
+default:
+  mode: detect-learn
+  max_body_size_kb: 1024
+  response_body_max_size_kb: 512
+
+assets:
+  # ---------------------------------------------------------------------------
+  # Main Lanai API — tRPC endpoints
+  # ---------------------------------------------------------------------------
+  - name: lanai-api
+    mode: prevent
+    practices:
+      - name: "OWASP Top 10 Prevention"
+        type: ThreatPrevention
+        ips:
+          mode: prevent
+          max_body_size_kb: 512
+          high_confidence: prevent
+          medium_confidence: prevent
+          low_confidence: detect
+        snort_signatures:
+          mode: prevent
+          high_confidence: prevent
+          medium_confidence: detect
+        web_attacks:
+          mode: prevent
+          minimum_confidence: high
+          max_object_depth: 10
+          max_url_size_bytes: 2048
+          max_header_count: 50
+          max_header_name_size_bytes: 256
+          max_header_value_size_bytes: 4096
+
+      - name: "API Schema Enforcement"
+        type: APISchema
+        enforce_schema: false  # Set to true when OpenAPI spec is provided
+        # openapi_spec: /etc/openappsec/openapi.yaml
+
+    exceptions:
+      # Allow Stripe webhook payloads (they have specific content patterns)
+      - match:
+          url: /api/webhooks/stripe
+          methods: [POST]
+        action: allow
+
+  # ---------------------------------------------------------------------------
+  # Advisor API — stricter enforcement
+  # ---------------------------------------------------------------------------
+  - name: lanai-advisor-api
+    mode: prevent
+    practices:
+      - name: "Advisor API Protection"
+        type: ThreatPrevention
+        ips:
+          mode: prevent
+          high_confidence: prevent
+          medium_confidence: prevent
+          low_confidence: prevent
+        web_attacks:
+          mode: prevent
+          minimum_confidence: medium
+
+  # ---------------------------------------------------------------------------
+  # Admin API — most strict
+  # ---------------------------------------------------------------------------
+  - name: lanai-admin-api
+    mode: prevent
+    practices:
+      - name: "Admin API Protection"
+        type: ThreatPrevention
+        ips:
+          mode: prevent
+          high_confidence: prevent
+          medium_confidence: prevent
+          low_confidence: prevent
+        web_attacks:
+          mode: prevent
+          minimum_confidence: low
+        snort_signatures:
+          mode: prevent
+          high_confidence: prevent
+          medium_confidence: prevent
+
+  # ---------------------------------------------------------------------------
+  # Chatwoot API
+  # ---------------------------------------------------------------------------
+  - name: chatwoot-api
+    mode: prevent
+    practices:
+      - name: "Chatwoot API Protection"
+        type: ThreatPrevention
+        ips:
+          mode: prevent
+          high_confidence: prevent
+          medium_confidence: prevent
+          low_confidence: detect
+        web_attacks:
+          mode: prevent
+          minimum_confidence: high
+
+  # ---------------------------------------------------------------------------
+  # AI Bridge — protect against prompt injection and data exfiltration
+  # ---------------------------------------------------------------------------
+  - name: ai-bridge-api
+    mode: prevent
+    practices:
+      - name: "AI API Protection"
+        type: ThreatPrevention
+        ips:
+          mode: prevent
+          high_confidence: prevent
+          medium_confidence: prevent
+          low_confidence: detect
+        web_attacks:
+          mode: prevent
+          minimum_confidence: medium
+          max_body_size_kb: 256  # Limit AI request body size
+
+  # ---------------------------------------------------------------------------
+  # Stripe Webhook — detect only (Stripe IPs are trusted)
+  # ---------------------------------------------------------------------------
+  - name: stripe-webhook
+    mode: detect-learn
+    practices:
+      - name: "Webhook Detection"
+        type: ThreatPrevention
+        ips:
+          mode: detect
+        web_attacks:
+          mode: detect
+
+  # ---------------------------------------------------------------------------
+  # Chatwoot Webhook
+  # ---------------------------------------------------------------------------
+  - name: chatwoot-webhook
+    mode: prevent
+    practices:
+      - name: "Webhook Protection"
+        type: ThreatPrevention
+        ips:
+          mode: prevent
+          high_confidence: prevent
+          medium_confidence: prevent
+        web_attacks:
+          mode: prevent
+          minimum_confidence: high
+
+# =============================================================================
+# Trusted Sources (bypass WAF for known internal IPs)
+# =============================================================================
+trusted_sources:
+  - name: "Docker Internal Network"
+    ips:
+      - 172.16.0.0/12
+      - 10.0.0.0/8
+    # Internal services bypass WAF checks
+
+# =============================================================================
+# Logging
+# =============================================================================
+logging:
+  verbosity: warning
+  max_log_file_size_mb: 100
+  log_destination: stdout
+  include_request_body: false  # Never log request bodies (PII protection)
+  include_response_body: false

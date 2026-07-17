@@ -1,0 +1,64 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: lanai-production
+    env: production
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files: []
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]
+
+  # Lanai Portal (Node.js) — exposes /api/metrics
+  - job_name: lanai-portal
+    static_configs:
+      - targets: [lanai-portal:3001]
+    metrics_path: /api/metrics
+
+  # APISIX API Gateway
+  - job_name: apisix
+    static_configs:
+      - targets: [apisix:9091]
+    metrics_path: /apisix/prometheus/metrics
+
+  # Caddy (via admin API)
+  - job_name: caddy
+    static_configs:
+      - targets: [caddy:2019]
+    metrics_path: /metrics
+
+  # Keycloak
+  - job_name: keycloak
+    static_configs:
+      - targets: [keycloak:8080]
+    metrics_path: /realms/lanai/metrics
+
+  # Temporal
+  - job_name: temporal
+    static_configs:
+      - targets: [temporal:8000]
+
+  # Redis (via redis_exporter)
+  - job_name: redis
+    static_configs:
+      - targets: [redis:6379]
+
+  # PostgreSQL (via postgres_exporter)
+  - job_name: postgres
+    static_configs:
+      - targets: [postgres:5432]
+
+  # Chatwoot AI Bridge
+  - job_name: chatwoot-ai-bridge
+    static_configs:
+      - targets: [chatwoot-ai-bridge:5560]
+    metrics_path: /metrics

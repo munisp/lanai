@@ -1,0 +1,28 @@
+server:
+  rate_limit: 100
+  http:
+    enabled: true
+    port: 3476
+    tls:
+      enabled: false
+  grpc:
+    port: 3478
+    tls:
+      enabled: false
+
+logger:
+  level: info
+
+profiler:
+  enabled: false
+
+database:
+  engine: postgres
+  uri: "postgres://lanai:${POSTGRES_PASSWORD}@postgres:5432/lanai?sslmode=disable"
+  auto_migrate: true
+  max_open_connections: 20
+  max_idle_connections: 5
+  max_connection_lifetime: 300s
+
+distributed:
+  enabled: false

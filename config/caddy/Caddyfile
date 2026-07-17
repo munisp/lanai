@@ -1,0 +1,397 @@
+# =============================================================================
+# Lanai Lifestyle Platform — Caddy Edge Gateway Configuration
+# =============================================================================
+# Architecture: Caddy (edge) → APISIX+OpenAppSec (API gateway) → Services
+#
+# Caddy handles:
+#   - Automatic TLS (Let's Encrypt / ZeroSSL)
+#   - HTTP → HTTPS redirect
+#   - Security headers (HSTS, CSP, X-Frame-Options, etc.)
+#   - Global rate limiting
+#   - forward_auth to Keycloak for admin/internal routes
+#   - HTTP/3 (QUIC) for performance
+#
+# APISIX handles:
+#   - Dynamic API routing
+#   - OpenAppSec ML-based WAF
+#   - JWT validation per-route
+#   - Service mesh (Dapr, Temporal)
+# =============================================================================
+
+{
+	# Global options
+	admin off                          # Disable admin API in production (use env var to enable)
+	email {$CADDY_ACME_EMAIL}          # Let's Encrypt account email
+
+	# Use ZeroSSL as primary CA with Let's Encrypt as fallback
+	acme_ca https://acme.zerossl.com/v2/DV90
+
+	# Enable HTTP/3 (QUIC) globally
+	servers {
+		protocols h1 h2 h3
+	}
+
+	# Logging
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 100mb
+			roll_keep 5
+		}
+		format json
+		level INFO
+	}
+}
+
+# =============================================================================
+# HTTP → HTTPS redirect (all hosts)
+# =============================================================================
+http:// {
+	redir https://{host}{uri} permanent
+}
+
+# =============================================================================
+# MAIN PORTAL — lanai.com / www.lanai.com
+# =============================================================================
+{$LANAI_DOMAIN:lanai.example.com}, www.{$LANAI_DOMAIN:lanai.example.com} {
+
+	# TLS — automatic via ACME
+	tls {$CADDY_ACME_EMAIL}
+
+	# Encode responses
+	encode zstd gzip
+
+	# -------------------------------------------------------------------------
+	# Security Headers (applied to all responses)
+	# -------------------------------------------------------------------------
+	header {
+		# HSTS — 1 year, include subdomains, preload
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+
+		# Content Security Policy — strict, allows Lanai CDN and Stripe
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://js.stripe.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.stripe.com wss://{$LANAI_DOMAIN:lanai.example.com}; frame-src https://js.stripe.com; object-src 'none'; base-uri 'self'; form-action 'self'"
+
+		# Anti-clickjacking
+		X-Frame-Options "SAMEORIGIN"
+
+		# Prevent MIME sniffing
+		X-Content-Type-Options "nosniff"
+
+		# Referrer policy
+		Referrer-Policy "strict-origin-when-cross-origin"
+
+		# Permissions policy — restrict sensitive browser APIs
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(self https://js.stripe.com)"
+
+		# Remove server fingerprinting
+		-Server
+		-X-Powered-By
+	}
+
+	# -------------------------------------------------------------------------
+	# Rate Limiting — global and per-endpoint
+	# -------------------------------------------------------------------------
+	# Auth endpoints: strict limit to prevent brute force
+	@auth_routes path /api/auth/* /api/trpc/auth.*
+	rate_limit @auth_routes {
+		zone auth_zone {
+			key {remote_host}
+			events 20
+			window 15m
+		}
+	}
+
+	# API routes: standard limit
+	@api_routes path /api/*
+	rate_limit @api_routes {
+		zone api_zone {
+			key {remote_host}
+			events 300
+			window 15m
+		}
+	}
+
+	# -------------------------------------------------------------------------
+	# API Routes → APISIX (which runs OpenAppSec WAF)
+	# -------------------------------------------------------------------------
+	handle /api/* {
+		reverse_proxy apisix:9080 {
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Forwarded-Host {host}
+
+			# Health check for APISIX
+			health_uri /apisix/status
+			health_interval 10s
+			health_timeout 5s
+
+			# Circuit breaker
+			fail_duration 30s
+			max_fails 3
+		}
+	}
+
+	# -------------------------------------------------------------------------
+	# WebSocket support for real-time features
+	# -------------------------------------------------------------------------
+	handle /ws/* {
+		reverse_proxy lanai-portal:3000 {
+			header_up Connection {>Connection}
+			header_up Upgrade {>Upgrade}
+		}
+	}
+
+	# -------------------------------------------------------------------------
+	# Static assets — long cache TTL
+	# -------------------------------------------------------------------------
+	@static_assets path *.js *.css *.png *.jpg *.jpeg *.gif *.svg *.ico *.woff *.woff2 *.ttf
+	handle @static_assets {
+		header Cache-Control "public, max-age=31536000, immutable"
+		reverse_proxy lanai-portal:3000
+	}
+
+	# -------------------------------------------------------------------------
+	# SPA fallback — all other routes serve the React app
+	# -------------------------------------------------------------------------
+	handle {
+		reverse_proxy lanai-portal:3000 {
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+}
+
+# =============================================================================
+# AUTH DOMAIN — auth.lanai.com → Keycloak
+# =============================================================================
+auth.{$LANAI_DOMAIN:lanai.example.com} {
+	tls {$CADDY_ACME_EMAIL}
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Frame-Options "SAMEORIGIN"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+
+	# Rate limit auth endpoints
+	rate_limit {
+		zone keycloak_zone {
+			key {remote_host}
+			events 50
+			window 15m
+		}
+	}
+
+	reverse_proxy keycloak:8080 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+
+		health_uri /health/ready
+		health_interval 15s
+	}
+}
+
+# =============================================================================
+# API GATEWAY DOMAIN — api.lanai.com → APISIX
+# =============================================================================
+api.{$LANAI_DOMAIN:lanai.example.com} {
+	tls {$CADDY_ACME_EMAIL}
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		-Server
+	}
+
+	# API rate limiting
+	rate_limit {
+		zone api_public_zone {
+			key {remote_host}
+			events 1000
+			window 1h
+		}
+	}
+
+	reverse_proxy apisix:9080 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+
+		health_uri /apisix/status
+		health_interval 10s
+		health_timeout 5s
+		fail_duration 30s
+		max_fails 5
+	}
+}
+
+# =============================================================================
+# ADMIN DOMAIN — admin.lanai.com
+# Protected by Keycloak forward_auth (requires admin role)
+# =============================================================================
+admin.{$LANAI_DOMAIN:lanai.example.com} {
+	tls {$CADDY_ACME_EMAIL}
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		Cache-Control "no-store, no-cache, must-revalidate"
+		-Server
+	}
+
+	# -------------------------------------------------------------------------
+	# Keycloak forward_auth — ALL admin routes require authentication
+	# oauth2-proxy validates the Keycloak OIDC token and returns 2xx on success
+	# -------------------------------------------------------------------------
+	forward_auth oauth2-proxy:4180 {
+		uri /oauth2/auth
+		copy_headers X-Auth-Request-User X-Auth-Request-Email X-Auth-Request-Groups X-Auth-Request-Access-Token
+		header_up X-Forwarded-Uri {uri}
+		header_up X-Forwarded-Method {method}
+		header_up X-Forwarded-Host {host}
+	}
+
+	# Temporal UI — workflow management
+	handle /temporal/* {
+		uri strip_prefix /temporal
+		reverse_proxy temporal-ui:8080 {
+			header_up X-Auth-User {>X-Auth-Request-User}
+			header_up X-Auth-Email {>X-Auth-Request-Email}
+		}
+	}
+
+	# Flower — Celery task monitoring
+	handle /flower/* {
+		uri strip_prefix /flower
+		reverse_proxy flower:5555 {
+			header_up X-Auth-User {>X-Auth-Request-User}
+		}
+	}
+
+	# APISIX Dashboard
+	handle /apisix-dashboard/* {
+		uri strip_prefix /apisix-dashboard
+		reverse_proxy apisix-dashboard:9000 {
+			header_up X-Auth-User {>X-Auth-Request-User}
+			header_up X-Auth-Groups {>X-Auth-Request-Groups}
+		}
+	}
+
+	# Permify dashboard
+	handle /permify/* {
+		uri strip_prefix /permify
+		reverse_proxy permify:3476 {
+			header_up X-Auth-User {>X-Auth-Request-User}
+		}
+	}
+
+	# Fallback — redirect to Temporal UI
+	handle {
+		redir /temporal/ temporary
+	}
+}
+
+# =============================================================================
+# CHATWOOT — inbox.lanai.com
+# Protected by Keycloak forward_auth (requires advisor or admin role)
+# =============================================================================
+inbox.{$LANAI_DOMAIN:lanai.example.com} {
+	tls {$CADDY_ACME_EMAIL}
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Frame-Options "SAMEORIGIN"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+
+	# Advisor/Admin authentication required
+	forward_auth oauth2-proxy:4180 {
+		uri /oauth2/auth
+		copy_headers X-Auth-Request-User X-Auth-Request-Email X-Auth-Request-Groups X-Auth-Request-Access-Token
+		header_up X-Forwarded-Uri {uri}
+		header_up X-Forwarded-Method {method}
+	}
+
+	# WebSocket support for Chatwoot real-time
+	handle /cable {
+		reverse_proxy chatwoot:3000 {
+			header_up Connection {>Connection}
+			header_up Upgrade {>Upgrade}
+			header_up X-Auth-User {>X-Auth-Request-User}
+		}
+	}
+
+	handle {
+		reverse_proxy chatwoot:3000 {
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Auth-User {>X-Auth-Request-User}
+			header_up X-Auth-Email {>X-Auth-Request-Email}
+		}
+	}
+}
+
+# =============================================================================
+# MEMBER PORTAL — member.lanai.com
+# Lightweight auth check — members can only access their own data
+# =============================================================================
+member.{$LANAI_DOMAIN:lanai.example.com} {
+	tls {$CADDY_ACME_EMAIL}
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Frame-Options "SAMEORIGIN"
+		X-Content-Type-Options "nosniff"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.stripe.com wss://member.{$LANAI_DOMAIN:lanai.example.com}; frame-src https://js.stripe.com; object-src 'none'"
+		-Server
+	}
+
+	# Strict rate limit for member portal
+	rate_limit {
+		zone member_zone {
+			key {remote_host}
+			events 100
+			window 15m
+		}
+	}
+
+	# API routes through APISIX
+	handle /api/* {
+		reverse_proxy apisix:9080 {
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Forwarded-Host {host}
+		}
+	}
+
+	# SPA
+	handle {
+		reverse_proxy lanai-portal:3000 {
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+}
+
+# =============================================================================
+# HEALTH CHECK — internal use only (not exposed publicly)
+# =============================================================================
+:2019 {
+	metrics /metrics
+	respond /health "OK" 200
+}

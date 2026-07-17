@@ -3,21 +3,28 @@ version: "3.9"
 # ==============================================================================
 # Lanai Lifestyle Platform — Full Stack Docker Compose
 # ==============================================================================
+# Two-Tier Gateway Architecture:
+#   Tier 1: Caddy (edge) — automatic TLS, HTTPS redirect, security headers,
+#           HTTP/3, rate limiting, forward_auth to Keycloak via oauth2-proxy
+#   Tier 2: APISIX + OpenAppSec — API routing, ML WAF, JWT auth, Permify authz
+#
 # Services:
+#   Edge:       caddy, oauth2-proxy
+#   Gateway:    apisix, etcd, openappsec
+#   Auth:       keycloak, permify
 #   Core:       postgres, redis, lanai-portal
-#   Auth:       keycloak
-#   Authz:      permify
-#   Messaging:  chatwoot, chatwoot-ai-bridge
+#   Messaging:  chatwoot, chatwoot-worker, chatwoot-ai-bridge
 #   CRM:        twenty-server, twenty-db
-#   Gateway:    apisix, etcd
-#   WAF:        openappsec
 #   Finance:    tigerbeetle
 #   Workflows:  temporal, temporal-ui
 #   Streaming:  fluvio
 #   Service Mesh: dapr-placement
+#   Monitoring: prometheus, grafana, zipkin
 # ==============================================================================
 
 networks:
+  # All services share a single bridge network for simplicity
+  # In production Kubernetes, these would be separate namespaces
   app-net:
     driver: bridge
 
@@ -25,6 +32,8 @@ volumes:
   postgres_data:
   redis_data:
   keycloak_data:
+  caddy_data:
+  caddy_config:
   chatwoot_storage:
   twenty_db_data:
   tigerbeetle_data:
@@ -33,12 +42,164 @@ volumes:
   etcd_data:
   permify_data:
   fluvio_data:
+  prometheus_data:
+  grafana_data:
 
 services:
+
+  # ============================================================================
+  # TIER 1: CADDY EDGE GATEWAY
+  # Handles: TLS termination, HTTPS redirect, HTTP/3, security headers,
+  #          rate limiting, forward_auth to Keycloak via oauth2-proxy
+  # ============================================================================
+  caddy:
+    build:
+      context: ./config/caddy
+      dockerfile: Dockerfile
+    container_name: lanai-caddy
+    restart: unless-stopped
+    networks: [app-net]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3 (QUIC)
+    volumes:
+      - ./config/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      LANAI_DOMAIN: ${LANAI_DOMAIN:-lanai.example.com}
+      CADDY_ACME_EMAIL: ${CADDY_ACME_EMAIL:-admin@lanai.example.com}
+    depends_on:
+      lanai-portal:
+        condition: service_healthy
+      apisix:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      oauth2-proxy:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2019/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    labels:
+      com.lanai.service: "caddy-edge-gateway"
+      com.lanai.tier: "1"
+
+  # ── oauth2-proxy — Keycloak OIDC bridge for Caddy forward_auth ──────────────
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+    container_name: lanai-oauth2-proxy
+    restart: unless-stopped
+    networks: [app-net]
+    command:
+      - --config=/etc/oauth2-proxy/oauth2-proxy.cfg
+    volumes:
+      - ./config/caddy/oauth2-proxy.cfg:/etc/oauth2-proxy/oauth2-proxy.cfg:ro
+    environment:
+      LANAI_DOMAIN: ${LANAI_DOMAIN:-lanai.example.com}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-lanai-portal}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-change_me}
+      OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_PROXY_CLIENT_SECRET:-change_me}
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET:-change_me_32_chars_min}
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    labels:
+      com.lanai.service: "oauth2-proxy"
+      com.lanai.tier: "1"
+
+  # ============================================================================
+  # TIER 2: APISIX API GATEWAY + OpenAppSec WAF
+  # ============================================================================
+
+  # ── etcd (required by APISIX) ─────────────────────────────────────────────────
+  etcd:
+    image: bitnami/etcd:3.5
+    container_name: lanai-etcd
+    restart: unless-stopped
+    networks: [app-net]
+    volumes:
+      - etcd_data:/bitnami/etcd
+    environment:
+      ALLOW_NONE_AUTHENTICATION: "yes"
+      ETCD_ADVERTISE_CLIENT_URLS: "http://etcd:2379"
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "2379:2379"
+
+  # ── APISIX (API Gateway with OpenAppSec WAF) ──────────────────────────────────
+  apisix:
+    image: apache/apisix:3.9.0-debian
+    container_name: lanai-apisix
+    restart: unless-stopped
+    networks: [app-net]
+    depends_on:
+      etcd:
+        condition: service_healthy
+    volumes:
+      - ./config/apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+      - ./config/openappsec/policy.yaml:/etc/openappsec/policy.yaml:ro
+      - apisix_data:/usr/local/apisix/logs
+    environment:
+      APISIX_ADMIN_KEY: ${APISIX_ADMIN_KEY:-change_me_apisix_admin_key}
+      APISIX_VIEWER_KEY: ${APISIX_VIEWER_KEY:-change_me_apisix_viewer_key}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-lanai-portal}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-change_me}
+      LANAI_DOMAIN: ${LANAI_DOMAIN:-lanai.example.com}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9080/apisix/status || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    ports:
+      - "9080:9080"   # API gateway (HTTP) — internal only in production
+      - "9180:9180"   # Admin API — internal only in production
+      - "9091:9091"   # Prometheus metrics
+    labels:
+      com.lanai.service: "apisix-api-gateway"
+      com.lanai.tier: "2"
+
+  # ── OpenAppSec (ML-based WAF) ─────────────────────────────────────────────────
+  openappsec:
+    image: openappsec/agent:latest
+    container_name: lanai-openappsec
+    restart: unless-stopped
+    networks: [app-net]
+    volumes:
+      - ./config/openappsec/policy.yaml:/etc/cp/conf/policy.yaml:ro
+    environment:
+      TUNING_MODE: "false"
+      registered_server: "Lanai Portal"
+      OPENAPPSEC_UPSTREAM: "http://apisix:9080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:80/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      com.lanai.service: "openappsec-waf"
+      com.lanai.tier: "2"
+
+  # ============================================================================
+  # AUTHENTICATION & AUTHORIZATION
+  # ============================================================================
 
   # ── PostgreSQL ───────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
+    container_name: lanai-postgres
     restart: unless-stopped
     networks: [app-net]
     volumes:
@@ -59,6 +220,7 @@ services:
   # ── Redis ────────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
+    container_name: lanai-redis
     restart: unless-stopped
     networks: [app-net]
     volumes:
@@ -75,6 +237,7 @@ services:
   # ── Keycloak (Identity & Access Management) ───────────────────────────────────
   keycloak:
     image: quay.io/keycloak/keycloak:24.0
+    container_name: lanai-keycloak
     restart: unless-stopped
     networks: [app-net]
     depends_on:
@@ -85,13 +248,19 @@ services:
       KC_DB_URL: jdbc:postgresql://postgres:5432/lanai
       KC_DB_USERNAME: lanai
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-lanai_password}
-      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:-localhost}
-      KC_HOSTNAME_PORT: 8080
+      KC_HOSTNAME: auth.${LANAI_DOMAIN:-lanai.example.com}
       KC_HOSTNAME_STRICT: "false"
       KC_HTTP_ENABLED: "true"
-      KEYCLOAK_ADMIN: admin
+      KC_PROXY: edge
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin_password}
-    command: start-dev
+      KC_FEATURES: token-exchange,admin-fine-grained-authz
+    command: start --import-realm
+    volumes:
+      - ./config/keycloak/lanai-realm.json:/opt/keycloak/data/import/lanai-realm.json:ro
+      - keycloak_data:/opt/keycloak/data
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/health/ready || exit 1"]
       interval: 30s
@@ -100,10 +269,13 @@ services:
       start_period: 60s
     ports:
       - "8080:8080"
+    labels:
+      com.lanai.service: "keycloak-iam"
 
   # ── Permify (Fine-Grained Authorization) ──────────────────────────────────────
   permify:
     image: ghcr.io/permify/permify:latest
+    container_name: lanai-permify
     restart: unless-stopped
     networks: [app-net]
     depends_on:
@@ -123,10 +295,232 @@ services:
     ports:
       - "3476:3476"
       - "3478:3478"
+    labels:
+      com.lanai.service: "permify-authz"
+
+  # ============================================================================
+  # CORE APPLICATION
+  # ============================================================================
+
+  # ── Lanai Portal (Main Application) ──────────────────────────────────────────
+  lanai-portal:
+    build:
+      context: ./lanai-portal
+      dockerfile: Dockerfile
+    container_name: lanai-portal
+    restart: unless-stopped
+    networks: [app-net]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://lanai:${POSTGRES_PASSWORD:-lanai_password}@postgres:5432/lanai
+      JWT_SECRET: ${JWT_SECRET:-change_me_to_a_long_random_secret_in_production}
+      SESSION_SECRET: ${SESSION_SECRET:-change_me_session_secret}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379
+      OAUTH_SERVER_URL: http://keycloak:8080
+      KEYCLOAK_REALM: lanai
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-lanai-portal}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-change_me}
+      PERMIFY_URL: http://permify:3476
+      VITE_APP_ID: ${VITE_APP_ID:-lanai-portal}
+      BUILT_IN_FORGE_API_URL: ${BUILT_IN_FORGE_API_URL:-}
+      BUILT_IN_FORGE_API_KEY: ${BUILT_IN_FORGE_API_KEY:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      FROM_EMAIL: ${FROM_EMAIL:-Lanai Lifestyle <hello@lanailifestyle.com>}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      TWENTY_CRM_URL: http://twenty-server:3000
+      TWENTY_CRM_API_TOKEN: ${TWENTY_CRM_API_TOKEN:-}
+      CHATWOOT_URL: http://chatwoot:3000
+      CHATWOOT_ACCESS_TOKEN: ${CHATWOOT_ACCESS_TOKEN:-}
+      CHATWOOT_ACCOUNT_ID: ${CHATWOOT_ACCOUNT_ID:-1}
+      CHATWOOT_AI_BRIDGE_URL: http://chatwoot-ai-bridge:5560
+      TEMPORAL_ADDRESS: temporal:7233
+      FLUVIO_ENDPOINT: fluvio:9003
+      TIGERBEETLE_ADDRESS: tigerbeetle:3000
+      ALLOWED_ORIGINS: https://${LANAI_DOMAIN:-lanai.example.com},https://admin.${LANAI_DOMAIN:-lanai.example.com},https://member.${LANAI_DOMAIN:-lanai.example.com}
+      PORT: 3001
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    ports:
+      - "3001:3001"   # Internal only — Caddy proxies to this
+    labels:
+      com.lanai.service: "lanai-portal"
+
+  # ── Dapr Placement Service (Service Mesh) ─────────────────────────────────────
+  dapr-placement:
+    image: daprio/dapr:1.13.0
+    container_name: lanai-dapr-placement
+    restart: unless-stopped
+    networks: [app-net]
+    command: ["./placement", "-port", "50005", "-log-level", "warn"]
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 50005 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "50005:50005"
+    labels:
+      com.lanai.service: "dapr-placement"
+
+  # ============================================================================
+  # MESSAGING & COMMUNICATION
+  # ============================================================================
+
+  # ── Chatwoot (Omnichannel Messaging) ──────────────────────────────────────────
+  chatwoot:
+    image: chatwoot/chatwoot:v3.10.0
+    container_name: lanai-chatwoot
+    restart: unless-stopped
+    networks: [app-net]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - chatwoot_storage:/app/storage
+    environment:
+      RAILS_ENV: production
+      SECRET_KEY_BASE: ${CHATWOOT_SECRET_KEY_BASE:-change_me_to_64_char_random_string_for_chatwoot}
+      FRONTEND_URL: https://inbox.${LANAI_DOMAIN:-lanai.example.com}
+      DEFAULT_LOCALE: en
+      FORCE_SSL: "false"
+      ENABLE_ACCOUNT_SIGNUP: "false"
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DATABASE: lanai
+      POSTGRES_USERNAME: lanai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lanai_password}
+    command: bundle exec rails server -p 3000 -b 0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/auth/sign_in"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    ports:
+      - "3030:3000"   # Internal only — Caddy proxies to this
+    labels:
+      com.lanai.service: "chatwoot"
+
+  # ── Chatwoot Sidekiq Worker ───────────────────────────────────────────────────
+  chatwoot-worker:
+    image: chatwoot/chatwoot:v3.10.0
+    container_name: lanai-chatwoot-worker
+    restart: unless-stopped
+    networks: [app-net]
+    depends_on:
+      - chatwoot
+      - redis
+      - postgres
+    volumes:
+      - chatwoot_storage:/app/storage
+    environment:
+      RAILS_ENV: production
+      SECRET_KEY_BASE: ${CHATWOOT_SECRET_KEY_BASE:-change_me_to_64_char_random_string_for_chatwoot}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DATABASE: lanai
+      POSTGRES_USERNAME: lanai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lanai_password}
+    command: bundle exec sidekiq -C config/sidekiq.yml
+    labels:
+      com.lanai.service: "chatwoot-worker"
+
+  # ── Chatwoot AI Bridge (Python microservice) ──────────────────────────────────
+  chatwoot-ai-bridge:
+    build:
+      context: ./lanai_ai/chatwoot_ai_bridge
+      dockerfile: Dockerfile
+    container_name: lanai-ai-bridge
+    restart: unless-stopped
+    networks: [app-net]
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      BUILT_IN_FORGE_API_URL: ${BUILT_IN_FORGE_API_URL:-}
+      BUILT_IN_FORGE_API_KEY: ${BUILT_IN_FORGE_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5560/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    ports:
+      - "5560:5560"
+    labels:
+      com.lanai.service: "chatwoot-ai-bridge"
+
+  # ============================================================================
+  # CRM
+  # ============================================================================
+
+  twenty-db:
+    image: postgres:16-alpine
+    container_name: lanai-twenty-db
+    restart: unless-stopped
+    networks: [app-net]
+    volumes:
+      - twenty_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: twenty
+      POSTGRES_PASSWORD: ${TWENTY_DB_PASSWORD:-twenty_password}
+      POSTGRES_DB: twenty
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U twenty"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  twenty-server:
+    image: twentycrm/twenty:latest
+    container_name: lanai-twenty-server
+    restart: unless-stopped
+    networks: [app-net]
+    depends_on:
+      twenty-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      PG_DATABASE_URL: postgres://twenty:${TWENTY_DB_PASSWORD:-twenty_password}@twenty-db:5432/twenty
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379
+      SERVER_URL: https://${LANAI_DOMAIN:-lanai.example.com}/crm
+      FRONT_BASE_URL: https://${LANAI_DOMAIN:-lanai.example.com}
+      SIGN_IN_PREFILLED: "true"
+      STORAGE_TYPE: local
+      MESSAGE_QUEUE_TYPE: bull-mq
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    ports:
+      - "3002:3000"
+    labels:
+      com.lanai.service: "twenty-crm"
+
+  # ============================================================================
+  # FINANCIAL LEDGER
+  # ============================================================================
 
   # ── TigerBeetle (Financial Ledger) ────────────────────────────────────────────
   tigerbeetle:
     image: ghcr.io/tigerbeetle/tigerbeetle:latest
+    container_name: lanai-tigerbeetle
     restart: unless-stopped
     networks: [app-net]
     volumes:
@@ -139,69 +533,18 @@ services:
       retries: 5
       start_period: 30s
     ports:
-      - "3000:3000"
+      - "3003:3000"   # Remapped to avoid conflict with Chatwoot
+    labels:
+      com.lanai.service: "tigerbeetle-ledger"
 
-  # ── etcd (required by APISIX) ─────────────────────────────────────────────────
-  etcd:
-    image: bitnami/etcd:3.5
-    restart: unless-stopped
-    networks: [app-net]
-    volumes:
-      - etcd_data:/bitnami/etcd
-    environment:
-      ALLOW_NONE_AUTHENTICATION: "yes"
-      ETCD_ADVERTISE_CLIENT_URLS: "http://etcd:2379"
-    healthcheck:
-      test: ["CMD", "etcdctl", "endpoint", "health"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-    ports:
-      - "2379:2379"
-
-  # ── APISIX (API Gateway) ──────────────────────────────────────────────────────
-  apisix:
-    image: apache/apisix:3.9.0-debian
-    restart: unless-stopped
-    networks: [app-net]
-    depends_on:
-      etcd:
-        condition: service_healthy
-    volumes:
-      - ./config/apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
-      - apisix_data:/usr/local/apisix/logs
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9080/ || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    ports:
-      - "9080:9080"   # API gateway (HTTP)
-      - "9443:9443"   # API gateway (HTTPS)
-      - "9180:9180"   # Admin API
-
-  # ── OpenAppSec (Web Application Firewall) ─────────────────────────────────────
-  openappsec:
-    image: openappsec/agent:latest
-    restart: unless-stopped
-    networks: [app-net]
-    environment:
-      TUNING_MODE: "true"
-      registered_server: "Lanai Portal"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:80/ || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    ports:
-      - "8082:80"
-      - "8443:443"
+  # ============================================================================
+  # WORKFLOW ORCHESTRATION
+  # ============================================================================
 
   # ── Temporal (Workflow Orchestration) ─────────────────────────────────────────
   temporal:
     image: temporalio/auto-setup:1.24
+    container_name: lanai-temporal
     restart: unless-stopped
     networks: [app-net]
     depends_on:
@@ -222,22 +565,32 @@ services:
       start_period: 60s
     ports:
       - "7233:7233"
+    labels:
+      com.lanai.service: "temporal"
 
   temporal-ui:
     image: temporalio/ui:latest
+    container_name: lanai-temporal-ui
     restart: unless-stopped
     networks: [app-net]
     depends_on:
       - temporal
     environment:
       TEMPORAL_ADDRESS: temporal:7233
-      TEMPORAL_CORS_ORIGINS: "http://localhost:3001"
+      TEMPORAL_CORS_ORIGINS: https://admin.${LANAI_DOMAIN:-lanai.example.com}
     ports:
-      - "8088:8080"
+      - "8088:8080"   # Protected by Caddy forward_auth at /temporal/*
+    labels:
+      com.lanai.service: "temporal-ui"
+
+  # ============================================================================
+  # EVENT STREAMING
+  # ============================================================================
 
   # ── Fluvio (Event Streaming) ──────────────────────────────────────────────────
   fluvio:
     image: infinyon/fluvio:latest
+    container_name: lanai-fluvio
     restart: unless-stopped
     networks: [app-net]
     volumes:
@@ -252,161 +605,64 @@ services:
     ports:
       - "9003:9003"
       - "9004:9004"
+    labels:
+      com.lanai.service: "fluvio-streaming"
 
-  # ── Dapr Placement Service (Service Mesh) ─────────────────────────────────────
-  dapr-placement:
-    image: daprio/dapr:1.13.0
+  # ============================================================================
+  # MONITORING
+  # ============================================================================
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: lanai-prometheus
     restart: unless-stopped
     networks: [app-net]
-    command: ["./placement", "-port", "50005", "-log-level", "warn"]
-    healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 50005 || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-    ports:
-      - "50005:50005"
-
-  # ── Chatwoot (Omnichannel Messaging) ──────────────────────────────────────────
-  chatwoot:
-    image: chatwoot/chatwoot:v3.10.0
-    restart: unless-stopped
-    networks: [app-net]
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-lifecycle
     volumes:
-      - chatwoot_storage:/app/storage
-    environment:
-      RAILS_ENV: production
-      SECRET_KEY_BASE: ${CHATWOOT_SECRET_KEY_BASE:-change_me_to_64_char_random_string_for_chatwoot}
-      FRONTEND_URL: ${CHATWOOT_FRONTEND_URL:-http://localhost:3030}
-      DEFAULT_LOCALE: en
-      FORCE_SSL: "false"
-      ENABLE_ACCOUNT_SIGNUP: "false"
-      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DATABASE: lanai
-      POSTGRES_USERNAME: lanai
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lanai_password}
-    command: bundle exec rails server -p 3000 -b 0.0.0.0
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/auth/sign_in"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 90s
+      - ./config/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
     ports:
-      - "3030:3000"
+      - "9090:9090"
+    labels:
+      com.lanai.service: "prometheus"
 
-  # ── Chatwoot AI Bridge (Python microservice) ──────────────────────────────────
-  chatwoot-ai-bridge:
-    build:
-      context: ./lanai_ai/chatwoot_ai_bridge
-      dockerfile: Dockerfile
+  grafana:
+    image: grafana/grafana:11.0.0
+    container_name: lanai-grafana
     restart: unless-stopped
     networks: [app-net]
     environment:
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      BUILT_IN_FORGE_API_URL: ${BUILT_IN_FORGE_API_URL:-}
-      BUILT_IN_FORGE_API_KEY: ${BUILT_IN_FORGE_API_KEY:-}
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5560/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-    ports:
-      - "5560:5560"
-
-  # ── Twenty CRM ────────────────────────────────────────────────────────────────
-  twenty-db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    networks: [app-net]
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin_password}
+      GF_SERVER_ROOT_URL: https://admin.${LANAI_DOMAIN:-lanai.example.com}/grafana
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_AUTH_GENERIC_OAUTH_ENABLED: "true"
+      GF_AUTH_GENERIC_OAUTH_NAME: "Keycloak"
+      GF_AUTH_GENERIC_OAUTH_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-lanai-portal}
+      GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-change_me}
+      GF_AUTH_GENERIC_OAUTH_SCOPES: "openid profile email groups"
+      GF_AUTH_GENERIC_OAUTH_AUTH_URL: "https://auth.${LANAI_DOMAIN:-lanai.example.com}/realms/lanai/protocol/openid-connect/auth"
+      GF_AUTH_GENERIC_OAUTH_TOKEN_URL: "http://keycloak:8080/realms/lanai/protocol/openid-connect/token"
+      GF_AUTH_GENERIC_OAUTH_API_URL: "http://keycloak:8080/realms/lanai/protocol/openid-connect/userinfo"
     volumes:
-      - twenty_db_data:/var/lib/postgresql/data
-    environment:
-      POSTGRES_USER: twenty
-      POSTGRES_PASSWORD: ${TWENTY_DB_PASSWORD:-twenty_password}
-      POSTGRES_DB: twenty
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U twenty"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3004:3000"
+    depends_on:
+      - prometheus
+    labels:
+      com.lanai.service: "grafana"
 
-  twenty-server:
-    image: twentycrm/twenty:latest
+  zipkin:
+    image: openzipkin/zipkin:3.4.0
+    container_name: lanai-zipkin
     restart: unless-stopped
     networks: [app-net]
-    depends_on:
-      twenty-db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    environment:
-      PORT: 3000
-      PG_DATABASE_URL: postgres://twenty:${TWENTY_DB_PASSWORD:-twenty_password}@twenty-db:5432/twenty
-      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379
-      SERVER_URL: ${TWENTY_SERVER_URL:-http://localhost:3002}
-      FRONT_BASE_URL: ${TWENTY_FRONT_URL:-http://localhost:3001}
-      SIGN_IN_PREFILLED: "true"
-      STORAGE_TYPE: local
-      MESSAGE_QUEUE_TYPE: bull-mq
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
     ports:
-      - "3002:3000"
-
-  # ── Lanai Portal (Main Application) ──────────────────────────────────────────
-  lanai-portal:
-    build:
-      context: ./lanai-portal
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    networks: [app-net]
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    environment:
-      NODE_ENV: production
-      DATABASE_URL: postgres://lanai:${POSTGRES_PASSWORD:-lanai_password}@postgres:5432/lanai
-      JWT_SECRET: ${JWT_SECRET:-change_me_to_a_long_random_secret_in_production}
-      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379
-      OAUTH_SERVER_URL: ${OAUTH_SERVER_URL:-http://keycloak:8080}
-      VITE_APP_ID: ${VITE_APP_ID:-lanai-portal}
-      BUILT_IN_FORGE_API_URL: ${BUILT_IN_FORGE_API_URL:-}
-      BUILT_IN_FORGE_API_KEY: ${BUILT_IN_FORGE_API_KEY:-}
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
-      FROM_EMAIL: ${FROM_EMAIL:-Lanai Lifestyle <hello@lanailifestyle.com>}
-      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
-      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
-      TWENTY_CRM_URL: http://twenty-server:3000
-      TWENTY_CRM_API_TOKEN: ${TWENTY_CRM_API_TOKEN:-}
-      CHATWOOT_URL: http://chatwoot:3000
-      CHATWOOT_ACCESS_TOKEN: ${CHATWOOT_ACCESS_TOKEN:-}
-      CHATWOOT_ACCOUNT_ID: ${CHATWOOT_ACCOUNT_ID:-1}
-      CHATWOOT_AI_BRIDGE_URL: http://chatwoot-ai-bridge:5560
-      TEMPORAL_ADDRESS: temporal:7233
-      PERMIFY_URL: http://permify:3476
-      FLUVIO_ENDPOINT: fluvio:9003
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3001}
-      PORT: 3001
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    ports:
-      - "3001:3001"
+      - "9411:9411"
+    labels:
+      com.lanai.service: "zipkin"
