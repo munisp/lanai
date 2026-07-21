@@ -14,8 +14,8 @@ export function registerStorageProxy(app: Express) {
   // ── Auth guard: any authenticated user (advisor or member) ───────────────
   app.use("/manus-storage", requireAnyAuth);
 
-  app.get("/manus-storage/*", async (req, res) => {
-    const key = (req.params as Record<string, string>)[0];
+  app.get<{ key: string[] }>("/manus-storage/*key", async (req, res) => {
+    const key = req.params.key.join("/");
 
     if (!key) {
       res.status(400).send("Missing storage key");
