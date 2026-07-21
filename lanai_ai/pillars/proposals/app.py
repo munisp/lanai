@@ -1,247 +1,106 @@
-"""
-Lanai AI — Pillar 2: Proposal Engine & Itinerary Builder
-Runs on port 5556
-Endpoints:
-  POST /api/generate-proposal        → JSON (non-streaming, structured)
-  POST /api/generate-proposal-stream → SSE streaming text (word-by-word)
-  POST /api/generate-itinerary       → JSON (non-streaming, structured)
-"""
-import json, requests, logging
-from flask import Flask, request, jsonify, Response, stream_with_context
+"""Compatibility API for proposal and itinerary generation using the shared CPU Ollama client."""
+from __future__ import annotations
+
+import json
+from typing import Any
+
+from flask import Flask, Response, jsonify, request, stream_with_context
 from flask_cors import CORS
 
-logging.basicConfig(level=logging.INFO)
+from lanai_ai.core.ollama_client import OllamaInferenceError, ask, ask_json
+
 app = Flask(__name__)
 CORS(app)
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL      = "llama3.2:3b"
 
-def ask_ollama(prompt: str, max_tokens: int = 800) -> str:
-    try:
-        r = requests.post(OLLAMA_URL, json={"model": MODEL, "prompt": prompt, "stream": False, "options": {"num_predict": max_tokens, "temperature": 0.7}}, timeout=120)
-        r.raise_for_status()
-        return r.json().get("response", "").strip()
-    except Exception as e:
-        logging.error(f"Ollama error: {e}")
-        return ""
+def error(message: str, status: int = 502):
+    return jsonify({"error": message}), status
 
-def stream_ollama(prompt: str, max_tokens: int = 1200):
-    """Generator that yields SSE-formatted chunks from Ollama streaming API."""
-    try:
-        with requests.post(
-            OLLAMA_URL,
-            json={"model": MODEL, "prompt": prompt, "stream": True, "options": {"num_predict": max_tokens, "temperature": 0.7}},
-            stream=True,
-            timeout=300
-        ) as r:
-            r.raise_for_status()
-            for line in r.iter_lines():
-                if line:
-                    try:
-                        chunk = json.loads(line)
-                        token = chunk.get("response", "")
-                        if token:
-                            # SSE format: data: <token>\n\n
-                            yield f"data: {json.dumps({'token': token})}\n\n"
-                        if chunk.get("done"):
-                            yield "data: [DONE]\n\n"
-                            return
-                    except json.JSONDecodeError:
-                        continue
-    except Exception as e:
-        logging.error(f"Ollama streaming error: {e}")
-        yield f"data: {json.dumps({'error': str(e)})}\n\n"
-        yield "data: [DONE]\n\n"
 
-def parse_json_response(text: str) -> dict:
-    try:
-        start = text.find("{")
-        end   = text.rfind("}") + 1
-        if start >= 0 and end > start:
-            return json.loads(text[start:end])
-    except Exception:
-        pass
-    return {}
+def required(data: dict[str, Any], key: str) -> str:
+    value = data.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{key} is required")
+    return value.strip()
 
-@app.route("/health")
-def health():
-    return jsonify({"status": "ok", "service": "proposal-engine"})
 
-@app.route("/api/generate-proposal", methods=["POST"])
-def generate_proposal():
-    data = request.json or {}
-    client_name  = data.get("client_name", "Valued Client")
-    destination  = data.get("destination", "")
-    travel_type  = data.get("travel_type", "luxury travel")
-    budget       = data.get("budget", "")
-    dates        = data.get("dates", "")
-    preferences  = data.get("preferences", "")
-    special_req  = data.get("special_requirements", "")
-
-    prompt = f"""You are a luxury travel advisor at Lanai Lifestyle, a world-class concierge and travel company.
-Generate a professional, personalised travel proposal for the following client.
-
+def proposal_prompt(data: dict[str, Any], structured: bool) -> str:
+    client_name = required(data, "client_name")
+    destination = required(data, "destination")
+    travel_type = str(data.get("travel_type") or "bespoke luxury travel")
+    budget = str(data.get("budget") or "not supplied")
+    dates = str(data.get("dates") or "not supplied")
+    preferences = str(data.get("preferences") or "not supplied")
+    special_requirements = str(data.get("special_requirements") or "not supplied")
+    format_instruction = (
+        "Return valid JSON only with proposal_title, executive_summary, why_this_destination, accommodation, day_by_day, included_experiences, estimated_investment, next_steps, and advisor_note."
+        if structured
+        else "Write a client-ready markdown proposal. Do not state that availability, prices, or suppliers are confirmed unless supplied."
+    )
+    return f"""You are a luxury travel advisor. Use only the supplied client facts and label assumptions.
 Client: {client_name}
 Destination: {destination}
-Travel Type: {travel_type}
+Travel type: {travel_type}
 Budget: {budget}
 Dates: {dates}
 Preferences: {preferences}
-Special Requirements: {special_req}
-
-Return a JSON object with these exact fields:
-{{
-  "proposal_title": "...",
-  "executive_summary": "...",
-  "why_this_destination": "...",
-  "accommodation": {{"name": "...", "description": "...", "why_chosen": "..."}},
-  "day_by_day": [
-    {{"day": 1, "title": "...", "description": "..."}},
-    {{"day": 2, "title": "...", "description": "..."}},
-    {{"day": 3, "title": "...", "description": "..."}}
-  ],
-  "included_experiences": ["...", "...", "..."],
-  "estimated_investment": "...",
-  "next_steps": "...",
-  "advisor_note": "..."
-}}
-
-Write in a warm, sophisticated tone befitting a luxury concierge. Be specific and evocative."""
-
-    raw = ask_ollama(prompt, 1000)
-    result = parse_json_response(raw)
-    if not result:
-        result = {
-            "proposal_title": f"A Private {destination} Experience — {client_name}",
-            "executive_summary": f"We have curated an exceptional {travel_type} experience to {destination} tailored exclusively for you.",
-            "why_this_destination": f"{destination} offers an unparalleled combination of luxury, culture, and natural beauty.",
-            "accommodation": {"name": "Private Villa / Boutique Resort", "description": "Handpicked for privacy and exceptional service.", "why_chosen": "Matches your preference for intimate, exclusive settings."},
-            "day_by_day": [
-                {"day": 1, "title": "Arrival & Welcome", "description": "Private transfer, welcome dinner."},
-                {"day": 2, "title": "Exploration", "description": "Guided private experiences."},
-                {"day": 3, "title": "Leisure & Departure", "description": "Relaxation and farewell."},
-            ],
-            "included_experiences": ["Private transfers", "Daily breakfast", "Curated excursions"],
-            "estimated_investment": budget or "To be confirmed",
-            "next_steps": "Please review and let us know if you'd like to adjust any element.",
-            "advisor_note": f"This proposal has been personally curated for you, {client_name}.",
-        }
-    return jsonify(result)
+Special requirements: {special_requirements}
+{format_instruction}"""
 
 
-@app.route("/api/generate-proposal-stream", methods=["POST"])
+@app.get("/health")
+def health():
+    return jsonify({"status": "ok", "service": "proposal-engine-compatibility-api"})
+
+
+@app.post("/api/generate-proposal")
+def generate_proposal():
+    data = request.get_json(silent=True) or {}
+    try:
+        return jsonify(ask_json(proposal_prompt(data, structured=True), system="Never fabricate confirmed travel inventory."))
+    except ValueError as exception:
+        return error(str(exception), 400)
+    except OllamaInferenceError as exception:
+        return error(str(exception), 503)
+
+
+@app.post("/api/generate-proposal-stream")
 def generate_proposal_stream():
-    """
-    Streaming SSE endpoint — returns proposal as flowing text (markdown).
-    Frontend consumes via fetch() + ReadableStream.
-    """
-    data = request.json or {}
-    client_name  = data.get("client_name", "Valued Client")
-    destination  = data.get("destination", "")
-    travel_type  = data.get("travel_type", "luxury travel")
-    budget       = data.get("budget", "")
-    dates        = data.get("dates", "")
-    preferences  = data.get("preferences", "")
-    special_req  = data.get("special_requirements", "")
-
-    prompt = f"""You are a luxury travel advisor at Lanai Lifestyle, a world-class concierge and travel company.
-Write a beautiful, personalised travel proposal in rich Markdown format for the following client.
-
-**Client:** {client_name}
-**Destination:** {destination}
-**Travel Type:** {travel_type}
-**Budget:** {budget}
-**Dates:** {dates}
-**Preferences:** {preferences}
-**Special Requirements:** {special_req}
-
-Structure your proposal with these sections:
-# [Proposal Title]
-
-## Executive Summary
-[Warm, personalised opening paragraph]
-
-## Why {destination}
-[Evocative description of why this destination is perfect]
-
-## Accommodation
-[Specific property recommendation with why it was chosen]
-
-## Your Itinerary
-[Day-by-day breakdown with specific experiences]
-
-## What's Included
-[Bullet list of key inclusions]
-
-## Investment
-[Budget summary]
-
-## Your Advisor's Note
-[Personal closing message]
-
-Write in a warm, sophisticated tone. Be specific, evocative, and luxurious. Use real place names and experiences."""
+    data = request.get_json(silent=True) or {}
+    try:
+        prompt = proposal_prompt(data, structured=False)
+    except ValueError as exception:
+        return error(str(exception), 400)
 
     def generate():
-        yield f"data: {json.dumps({'token': ''})}\n\n"  # Initial ping
-        yield from stream_ollama(prompt, 1200)
+        try:
+            output = ask(prompt, system="Never fabricate confirmed travel inventory.", max_tokens=1_500)
+            yield f"data: {json.dumps({'delta': output})}\n\n"
+            yield "event: done\ndata: {}\n\n"
+        except OllamaInferenceError as exception:
+            yield f"event: error\ndata: {json.dumps({'detail': str(exception)})}\n\n"
 
-    return Response(
-        stream_with_context(generate()),
-        mimetype="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-            "Connection": "keep-alive",
-        }
-    )
+    return Response(stream_with_context(generate()), mimetype="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
-@app.route("/api/generate-itinerary", methods=["POST"])
+@app.post("/api/generate-itinerary")
 def generate_itinerary():
-    data = request.json or {}
-    client_name = data.get("client_name", "Valued Client")
-    destination = data.get("destination", "")
-    duration    = data.get("duration_days", 7)
-    style       = data.get("style", "luxury, cultural, relaxed")
+    data = request.get_json(silent=True) or {}
+    try:
+        client_name = required(data, "client_name")
+        destination = required(data, "destination")
+        duration = int(data.get("duration_days", 0))
+        if duration < 1 or duration > 60:
+            raise ValueError("duration_days must be between 1 and 60")
+        style = str(data.get("style") or "not supplied")
+        prompt = f"""Create a {duration}-day travel itinerary for {client_name} in {destination}. Style: {style}.
+Use only supplied facts and label assumptions. Return valid JSON only with itinerary_title, overview, days, packing_suggestions, and lanai_insider_notes."""
+        return jsonify(ask_json(prompt, system="Never invent confirmed inventory, prices, or reservations."))
+    except ValueError as exception:
+        return error(str(exception), 400)
+    except OllamaInferenceError as exception:
+        return error(str(exception), 503)
 
-    prompt = f"""You are a luxury travel expert at Lanai Lifestyle.
-Create a detailed {duration}-day itinerary for {client_name} visiting {destination}.
-Style: {style}
-
-Return JSON:
-{{
-  "itinerary_title": "...",
-  "overview": "...",
-  "days": [
-    {{
-      "day": 1,
-      "date_label": "Day 1",
-      "title": "...",
-      "morning": "...",
-      "afternoon": "...",
-      "evening": "...",
-      "accommodation": "...",
-      "insider_tip": "..."
-    }}
-  ],
-  "packing_suggestions": ["...", "..."],
-  "lanai_insider_notes": "..."
-}}
-
-Create {duration} days. Be specific, evocative, and luxurious."""
-
-    raw = ask_ollama(prompt, 1200)
-    result = parse_json_response(raw)
-    if not result:
-        result = {
-            "itinerary_title": f"{duration}-Day {destination} Experience",
-            "overview": f"A curated {duration}-day journey through {destination}.",
-            "days": [{"day": i+1, "date_label": f"Day {i+1}", "title": f"Day {i+1} in {destination}", "morning": "Breakfast and exploration.", "afternoon": "Private guided experience.", "evening": "Fine dining.", "accommodation": "Luxury property.", "insider_tip": "Ask your guide for local recommendations."} for i in range(min(duration, 7))],
-            "packing_suggestions": ["Light layers", "Smart casual evening wear", "Comfortable walking shoes"],
-            "lanai_insider_notes": f"Our team has curated this itinerary with exclusive access and insider knowledge of {destination}.",
-        }
-    return jsonify(result)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5556, debug=False)

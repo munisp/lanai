@@ -34,19 +34,22 @@ function getStripe(): Stripe {
 async function setMemberStripeIds(
   memberId: number,
   customerId: string,
-  subscriptionId?: string
+  subscriptionId?: string,
 ) {
   const db = await getDb();
-  if (!db) return;
   const update: Record<string, unknown> = { stripeCustomerId: customerId };
-  if (subscriptionId !== undefined) update.stripeSubscriptionId = subscriptionId;
+  if (subscriptionId !== undefined)
+    update.stripeSubscriptionId = subscriptionId;
   await db.update(members).set(update).where(eq(members.id, memberId));
 }
 
 async function getMemberById(memberId: number) {
   const db = await getDb();
-  if (!db) return null;
-  const rows = await db.select().from(members).where(eq(members.id, memberId)).limit(1);
+  const rows = await db
+    .select()
+    .from(members)
+    .where(eq(members.id, memberId))
+    .limit(1);
   return rows[0] ?? null;
 }
 
@@ -56,7 +59,7 @@ async function ensureStripeCustomer(
   stripe: Stripe,
   memberId: number,
   email: string,
-  name: string
+  name: string,
 ): Promise<string> {
   const member = await getMemberById(memberId);
   if (member?.stripeCustomerId) return member.stripeCustomerId;
@@ -77,7 +80,7 @@ const _priceCache: Record<string, string> = {};
 
 async function ensureStripePriceId(
   stripe: Stripe,
-  tier: "platinum" | "gold" | "silver"
+  tier: "platinum" | "gold" | "silver",
 ): Promise<string> {
   if (_priceCache[tier]) return _priceCache[tier];
 
@@ -126,7 +129,7 @@ export const memberPaymentsRouter = router({
       z.object({
         tier: z.enum(["platinum", "gold", "silver"]),
         origin: z.string().url(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const stripe = getStripe();
@@ -136,7 +139,7 @@ export const memberPaymentsRouter = router({
         stripe,
         member.id,
         member.email,
-        member.name
+        member.name,
       );
 
       const priceId = await ensureStripePriceId(stripe, input.tier);
@@ -184,10 +187,10 @@ export const memberPaymentsRouter = router({
     }
 
     try {
-      const sub = await stripe.subscriptions.retrieve(
+      const sub = (await stripe.subscriptions.retrieve(
         member.stripeSubscriptionId,
-        { expand: ["default_payment_method", "items.data.price.product"] }
-      ) as unknown as Stripe.Subscription;
+        { expand: ["default_payment_method", "items.data.price.product"] },
+      )) as unknown as Stripe.Subscription;
 
       const item = sub.items.data[0];
       const price = item?.price;
@@ -198,7 +201,10 @@ export const memberPaymentsRouter = router({
         subscription: {
           id: sub.id,
           status: sub.status,
-          currentPeriodEnd: new Date((sub as unknown as { current_period_end: number }).current_period_end * 1000).toISOString(),
+          currentPeriodEnd: new Date(
+            (sub as unknown as { current_period_end: number })
+              .current_period_end * 1000,
+          ).toISOString(),
           cancelAtPeriodEnd: sub.cancel_at_period_end,
           planName: product?.name ?? "Lanai Membership",
           amount: price?.unit_amount ?? 0,
@@ -245,14 +251,17 @@ export const memberPaymentsRouter = router({
       throw new Error("No active subscription found");
     }
 
-    const sub = await stripe.subscriptions.update(
+    const sub = (await stripe.subscriptions.update(
       member.stripeSubscriptionId,
-      { cancel_at_period_end: true }
-    ) as unknown as Stripe.Subscription;
+      { cancel_at_period_end: true },
+    )) as unknown as Stripe.Subscription;
 
     return {
       cancelAtPeriodEnd: sub.cancel_at_period_end,
-      currentPeriodEnd: new Date((sub as unknown as { current_period_end: number }).current_period_end * 1000).toISOString(),
+      currentPeriodEnd: new Date(
+        (sub as unknown as { current_period_end: number }).current_period_end *
+          1000,
+      ).toISOString(),
     };
   }),
 
@@ -270,7 +279,7 @@ export const memberPaymentsRouter = router({
         stripe,
         ctx.member.id,
         ctx.member.email,
-        ctx.member.name
+        ctx.member.name,
       );
 
       const session = await stripe.billingPortal.sessions.create({
@@ -317,7 +326,7 @@ export function registerStripeWebhook(app: Express): void {
         event = stripe.webhooks.constructEvent(
           req.body as Buffer,
           sig,
-          webhookSecret ?? ""
+          webhookSecret ?? "",
         );
       } catch (err) {
         console.error("[Stripe Webhook] Signature verification failed:", err);
@@ -327,7 +336,9 @@ export function registerStripeWebhook(app: Express): void {
 
       // Test event — return verification response
       if (event.id.startsWith("evt_test_")) {
-        console.log("[Stripe Webhook] Test event detected, returning verification response");
+        console.log(
+          "[Stripe Webhook] Test event detected, returning verification response",
+        );
         res.json({ verified: true });
         return;
       }
@@ -337,7 +348,7 @@ export function registerStripeWebhook(app: Express): void {
       // Handle events asynchronously — respond 200 immediately
       void handleStripeEvent(event);
       res.json({ received: true });
-    }
+    },
   );
 
   console.log("[Stripe Webhook] Registered at POST /api/stripe/webhook");
@@ -351,11 +362,19 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
         const memberId = parseInt(session.metadata?.user_id ?? "0", 10);
         const customerId = session.customer as string;
         const subscriptionId = session.subscription as string | null;
-        const tier = session.metadata?.tier as "platinum" | "gold" | "silver" | undefined;
+        const tier = session.metadata?.tier as
+          | "platinum"
+          | "gold"
+          | "silver"
+          | undefined;
 
         if (!memberId || !customerId) break;
 
-        await setMemberStripeIds(memberId, customerId, subscriptionId ?? undefined);
+        await setMemberStripeIds(
+          memberId,
+          customerId,
+          subscriptionId ?? undefined,
+        );
 
         // Upgrade member tier if they subscribed to a higher tier
         if (tier) {
@@ -368,7 +387,9 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
           }
         }
 
-        console.log(`[Stripe Webhook] Member ${memberId} subscribed — tier: ${tier ?? "unknown"}`);
+        console.log(
+          `[Stripe Webhook] Member ${memberId} subscribed — tier: ${tier ?? "unknown"}`,
+        );
         break;
       }
 
@@ -385,13 +406,17 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
             .where(eq(members.id, memberId));
         }
 
-        console.log(`[Stripe Webhook] Subscription cancelled for member ${memberId}`);
+        console.log(
+          `[Stripe Webhook] Subscription cancelled for member ${memberId}`,
+        );
         break;
       }
 
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
-        console.warn(`[Stripe Webhook] Payment failed for customer ${invoice.customer}`);
+        console.warn(
+          `[Stripe Webhook] Payment failed for customer ${invoice.customer}`,
+        );
         break;
       }
 

@@ -85,8 +85,8 @@ const BCRYPT_ROUNDS = 12;
 async function lookupCrmPersonByEmail(email: string): Promise<string | null> {
   try {
     const crmToken = process.env.TWENTY_CRM_API_TOKEN;
-    const crmUrl = process.env.TWENTY_CRM_URL ?? "http://localhost:3000";
-    if (!crmToken) return null;
+    const crmUrl = process.env.TWENTY_CRM_URL;
+    if (!crmToken || !crmUrl) throw new Error("Twenty CRM is not configured");
 
     const query = `
       query FindPersonByEmail($email: String!) {
@@ -103,13 +103,16 @@ async function lookupCrmPersonByEmail(email: string): Promise<string | null> {
       },
       body: JSON.stringify({ query, variables: { email } }),
     });
-    if (!res.ok) return null;
+    if (!res.ok)
+      throw new Error(`Twenty CRM person lookup failed with ${res.status}`);
     const json = (await res.json()) as {
       data?: { people?: { edges?: { node?: { id?: string } }[] } };
     };
     return json.data?.people?.edges?.[0]?.node?.id ?? null;
-  } catch {
-    return null;
+  } catch (error) {
+    throw new Error(
+      `Twenty CRM person lookup failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }
 
@@ -118,8 +121,8 @@ async function lookupCrmPersonByEmail(email: string): Promise<string | null> {
 async function fetchMemberOpportunities(crmPersonId: string) {
   try {
     const crmToken = process.env.TWENTY_CRM_API_TOKEN;
-    const crmUrl = process.env.TWENTY_CRM_URL ?? "http://localhost:3000";
-    if (!crmToken) return [];
+    const crmUrl = process.env.TWENTY_CRM_URL;
+    if (!crmToken || !crmUrl) throw new Error("Twenty CRM is not configured");
 
     const query = `
       query GetPersonOpportunities($personId: ID!) {
@@ -150,7 +153,10 @@ async function fetchMemberOpportunities(crmPersonId: string) {
       },
       body: JSON.stringify({ query, variables: { personId: crmPersonId } }),
     });
-    if (!res.ok) return [];
+    if (!res.ok)
+      throw new Error(
+        `Twenty CRM opportunity lookup failed with ${res.status}`,
+      );
     const json = (await res.json()) as {
       data?: {
         opportunities?: {
@@ -171,8 +177,10 @@ async function fetchMemberOpportunities(crmPersonId: string) {
     return (json.data?.opportunities?.edges ?? [])
       .map((e) => e.node)
       .filter(Boolean);
-  } catch {
-    return [];
+  } catch (error) {
+    throw new Error(
+      `Twenty CRM opportunity lookup failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }
 
@@ -222,7 +230,7 @@ export const appRouter = router({
         z.object({
           email: z.string().email(),
           pin: z.string().min(4).max(12),
-        })
+        }),
       )
       .mutation(async ({ input, ctx }) => {
         const member = await getMemberByEmail(input.email);
@@ -297,7 +305,7 @@ export const appRouter = router({
             .min(6, "PIN must be at least 6 digits")
             .max(12)
             .regex(/^\d+$/, "PIN must contain only digits"),
-        })
+        }),
       )
       .mutation(async ({ input, ctx }) => {
         const invitation = await getInvitationByToken(input.token);
@@ -345,7 +353,12 @@ export const appRouter = router({
 
         // Sync member contact to Chatwoot (non-fatal)
         try {
-          await syncContactForMember(member.id, member.name, member.email, null);
+          await syncContactForMember(
+            member.id,
+            member.name,
+            member.email,
+            null,
+          );
         } catch (chatwootErr) {
           console.warn("[Chatwoot] Contact sync skipped:", chatwootErr);
         }
@@ -387,7 +400,7 @@ export const appRouter = router({
           budgetGBP: z.number().positive().optional(),
           notes: z.string().optional(),
           origin: z.string().url(),
-        })
+        }),
       )
       .mutation(async ({ input, ctx }) => {
         const { member } = ctx;
@@ -422,7 +435,10 @@ export const appRouter = router({
                 name: `${member.name} — ${input.destination}`,
                 stage: "NEW",
                 amount: input.budgetGBP
-                  ? { amountMicros: input.budgetGBP * 1_000_000, currencyCode: "GBP" }
+                  ? {
+                      amountMicros: input.budgetGBP * 1_000_000,
+                      currencyCode: "GBP",
+                    }
                   : undefined,
                 closeDate: input.travelDate
                   ? new Date(input.travelDate).toISOString()
@@ -434,7 +450,10 @@ export const appRouter = router({
         });
 
         if (!res.ok) {
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "CRM request failed." });
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "CRM request failed.",
+          });
         }
 
         const json = (await res.json()) as {
@@ -469,7 +488,14 @@ export const appRouter = router({
     myDocuments: platinumMemberProcedure.query(async ({ ctx }) => {
       // In production: query a documents table filtered by memberId
       // For now returns an empty list — documents are uploaded by advisors
-      return { documents: [] as { name: string; type: string; url: string; date: string }[] };
+      return {
+        documents: [] as {
+          name: string;
+          type: string;
+          url: string;
+          date: string;
+        }[],
+      };
     }),
   }),
 
@@ -504,7 +530,7 @@ export const appRouter = router({
           tier: z.enum(["platinum", "gold", "silver"]).default("gold"),
           crmPersonId: z.string().optional(),
           origin: z.string().url("Must pass window.location.origin"),
-        })
+        }),
       )
       .mutation(async ({ input, ctx }) => {
         // Auto-link CRM person if not provided
@@ -576,7 +602,7 @@ export const appRouter = router({
           tier: z.enum(["platinum", "gold", "silver"]).optional(),
           crmPersonId: z.string().optional(),
           active: z.boolean().optional(),
-        })
+        }),
       )
       .mutation(async ({ input }) => {
         const { memberId, ...data } = input;
@@ -606,7 +632,7 @@ export const appRouter = router({
         z.object({
           userId: z.number(),
           role: z.enum(["advisor", "senior_advisor", "admin"]),
-        })
+        }),
       )
       .mutation(async ({ input }) => {
         await updateUserRole(input.userId, input.role);
@@ -642,14 +668,26 @@ export const appRouter = router({
   familyMembers: familyMembersRouter,
   supplierServices: supplierServicesRouter,
   invoicing: invoicingRouter,
-  celebrations: router({ ...celebrationsRouter._def.record, ...celebrationsPatchRouter._def.record }),
+  celebrations: router({
+    ...celebrationsRouter._def.record,
+    ...celebrationsPatchRouter._def.record,
+  }),
   nps: router({ ...npsRouter._def.record, ...npsPatchRouter._def.record }),
   communicationHub: communicationHubRouter,
   taskTemplates: taskTemplatesRouter,
-  tripTimeline: router({ ...tripTimelineRouter._def.record, ...tripTimelinePatchRouter._def.record }),
-  vipAmenities: router({ ...vipAmenitiesRouter._def.record, ...vipAmenitiesPatchRouter._def.record }),
+  tripTimeline: router({
+    ...tripTimelineRouter._def.record,
+    ...tripTimelinePatchRouter._def.record,
+  }),
+  vipAmenities: router({
+    ...vipAmenitiesRouter._def.record,
+    ...vipAmenitiesPatchRouter._def.record,
+  }),
   revenueAnalytics: revenueAnalyticsRouter,
-  aiConcierge: router({ ...aiConciergeRouter._def.record, ...aiConciergePatchRouter._def.record }),
+  aiConcierge: router({
+    ...aiConciergeRouter._def.record,
+    ...aiConciergePatchRouter._def.record,
+  }),
 
   // ── Chatwoot (omnichannel communication layer) ────────────────────────────────────────────
   chatwoot: chatwootRouter,

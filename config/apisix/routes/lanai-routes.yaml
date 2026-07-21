@@ -1,346 +1,112 @@
-# =============================================================================
-# APISIX Declarative Routes — Lanai Platform
-# =============================================================================
-# Applied via: apisix admin API or adc (APISIX Declarative Configuration)
-# All routes sit behind Caddy (TLS termination, edge rate limiting, forward_auth)
-# APISIX adds: per-route JWT auth, OpenAppSec WAF, Permify authz, observability
-# =============================================================================
-
+# APISIX standalone declarative configuration.
+# Authentication and object authorization are enforced by Keycloak and Permify in
+# the portal; OpenAppSec is attached as a real reverse-proxy enforcement point.
 upstreams:
-  # Lanai Portal (Node.js/tRPC)
   - id: lanai-portal
-    name: lanai-portal
     type: roundrobin
+    scheme: http
     nodes:
-      "lanai-portal:3000": 1
+      "lanai-portal:3001": 1
     checks:
       active:
         type: http
         http_path: /api/health
         interval: 10
         timeout: 5
-        healthy:
-          successes: 2
-        unhealthy:
-          http_failures: 3
+        healthy: { successes: 2 }
+        unhealthy: { http_failures: 3 }
 
-  # Chatwoot
-  - id: chatwoot
-    name: chatwoot
+  - id: lanai-ai-gateway
     type: roundrobin
+    scheme: http
     nodes:
-      "chatwoot:3000": 1
-    checks:
-      active:
-        type: http
-        http_path: /auth/sign_in
-        interval: 15
-        timeout: 5
-        healthy:
-          successes: 2
-        unhealthy:
-          http_failures: 3
-
-  # AI Bridge (Python Flask)
-  - id: ai-bridge
-    name: ai-bridge
-    type: roundrobin
-    nodes:
-      "chatwoot-ai-bridge:5000": 1
-    checks:
-      active:
-        type: http
-        http_path: /health
-        interval: 15
-        timeout: 5
-        healthy:
-          successes: 2
-        unhealthy:
-          http_failures: 3
-
-  # Temporal gRPC gateway
-  - id: temporal
-    name: temporal
-    type: roundrobin
-    nodes:
-      "temporal:7233": 1
-
-  # Permify authorization service
-  - id: permify
-    name: permify
-    type: roundrobin
-    nodes:
-      "permify:3476": 1
-
-consumers:
-  # Internal service-to-service consumer (uses key-auth)
-  - username: lanai-internal
-    plugins:
-      key-auth:
-        key: "${APISIX_INTERNAL_API_KEY}"
-
-  # Chatwoot webhook consumer
-  - username: chatwoot-webhook
-    plugins:
-      key-auth:
-        key: "${CHATWOOT_WEBHOOK_API_KEY}"
+      "lanai-ai-gateway:8100": 1
 
 routes:
-  # ===========================================================================
-  # tRPC API Routes — Lanai Portal
-  # ===========================================================================
-  - id: trpc-public
-    name: "tRPC Public Routes (auth, member portal)"
-    uri: /api/trpc/*
-    methods: [GET, POST, OPTIONS]
+  - id: health
+    name: health
+    uri: /api/health
+    methods: [GET]
+    priority: 100
     upstream_id: lanai-portal
     plugins:
-      # OpenAppSec WAF pre-check
-      ext-plugin-pre-req:
-        conf:
-          - name: openappsec
-            value: '{"mode":"prevent","asset":"lanai-api"}'
-
-      # CORS
-      cors:
-        allow_origins: "https://${LANAI_DOMAIN},https://member.${LANAI_DOMAIN}"
-        allow_methods: "GET,POST,OPTIONS"
-        allow_headers: "Content-Type,Authorization,X-Trpc-Source"
-        allow_credential: true
-        max_age: 3600
-
-      # Request ID for tracing
       request-id:
         header_name: X-Request-Id
         include_in_response: true
 
-      # Rate limiting — per IP
-      limit-count:
-        count: 300
-        time_window: 900
-        key: remote_addr
-        rejected_code: 429
-        rejected_msg: '{"error":"Rate limit exceeded"}'
-
-      # Prometheus metrics
-      prometheus:
-        prefer_name: true
-
-  - id: trpc-advisor
-    name: "tRPC Advisor Routes (requires JWT)"
-    uri: /api/trpc/advisor.*
-    methods: [GET, POST, OPTIONS]
+  - id: oauth
+    name: keycloak-oidc-entry-and-callback
+    uri: /api/oauth/*
+    methods: [GET]
+    priority: 90
     upstream_id: lanai-portal
     plugins:
-      # JWT validation against Keycloak JWKS
-      jwt-auth:
-        header: Authorization
-        query: token
-        cookie: lanai_token
-
-      # OpenAppSec WAF
-      ext-plugin-pre-req:
-        conf:
-          - name: openappsec
-            value: '{"mode":"prevent","asset":"lanai-advisor-api"}'
-
-      # Permify authorization check
-      ext-plugin-post-req:
-        conf:
-          - name: permify-authz
-            value: '{"entity":"advisor","permission":"access"}'
-
-      cors:
-        allow_origins: "https://${LANAI_DOMAIN},https://admin.${LANAI_DOMAIN}"
-        allow_methods: "GET,POST,OPTIONS"
-        allow_headers: "Content-Type,Authorization"
-        allow_credential: true
-
-      limit-count:
-        count: 500
-        time_window: 900
-        key: consumer_name
-        rejected_code: 429
-
       request-id:
         header_name: X-Request-Id
         include_in_response: true
-
-      prometheus:
-        prefer_name: true
-
-  - id: trpc-admin
-    name: "tRPC Admin Routes (requires admin JWT)"
-    uri: /api/trpc/admin.*
-    methods: [GET, POST, OPTIONS]
-    upstream_id: lanai-portal
-    plugins:
-      jwt-auth:
-        header: Authorization
-
-      # Strict IP restriction for admin routes (optional — remove if advisors use dynamic IPs)
-      # ip-restriction:
-      #   whitelist:
-      #     - "10.0.0.0/8"
-
-      ext-plugin-pre-req:
-        conf:
-          - name: openappsec
-            value: '{"mode":"prevent","asset":"lanai-admin-api"}'
-
-      ext-plugin-post-req:
-        conf:
-          - name: permify-authz
-            value: '{"entity":"admin","permission":"access"}'
-
-      cors:
-        allow_origins: "https://admin.${LANAI_DOMAIN}"
-        allow_methods: "GET,POST,OPTIONS"
-        allow_headers: "Content-Type,Authorization"
-        allow_credential: true
-
       limit-count:
-        count: 1000
+        count: 30
         time_window: 900
-        key: consumer_name
-        rejected_code: 429
-
-      request-id:
-        header_name: X-Request-Id
-        include_in_response: true
-
-      prometheus:
-        prefer_name: true
-
-  # ===========================================================================
-  # Chatwoot API Routes
-  # ===========================================================================
-  - id: chatwoot-api
-    name: "Chatwoot API"
-    uri: /api/chatwoot/*
-    methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
-    upstream_id: chatwoot
-    plugins:
-      proxy-rewrite:
-        regex_uri: ["^/api/chatwoot/(.*)", "/$1"]
-
-      jwt-auth:
-        header: api_access_token
-        query: api_access_token
-
-      ext-plugin-pre-req:
-        conf:
-          - name: openappsec
-            value: '{"mode":"prevent","asset":"chatwoot-api"}'
-
-      cors:
-        allow_origins: "https://${LANAI_DOMAIN},https://inbox.${LANAI_DOMAIN}"
-        allow_methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
-        allow_headers: "Content-Type,api_access_token,Authorization"
-        allow_credential: true
-
-      limit-count:
-        count: 200
-        time_window: 60
+        key_type: var
         key: remote_addr
         rejected_code: 429
 
-      request-id:
-        header_name: X-Request-Id
-        include_in_response: true
-
-  # ===========================================================================
-  # AI Bridge Routes
-  # ===========================================================================
-  - id: ai-bridge-api
-    name: "AI Bridge API"
-    uri: /api/ai/*
-    methods: [POST, OPTIONS]
-    upstream_id: ai-bridge
-    plugins:
-      proxy-rewrite:
-        regex_uri: ["^/api/ai/(.*)", "/$1"]
-
-      key-auth: {}
-
-      ext-plugin-pre-req:
-        conf:
-          - name: openappsec
-            value: '{"mode":"prevent","asset":"ai-bridge-api"}'
-
-      cors:
-        allow_origins: "https://${LANAI_DOMAIN}"
-        allow_methods: "POST,OPTIONS"
-        allow_headers: "Content-Type,Authorization,X-API-Key"
-        allow_credential: true
-
-      limit-count:
-        count: 60
-        time_window: 60
-        key: consumer_name
-        rejected_code: 429
-        rejected_msg: '{"error":"AI rate limit exceeded. Please wait before sending more requests."}'
-
-      request-id:
-        header_name: X-Request-Id
-        include_in_response: true
-
-  # ===========================================================================
-  # Webhook Routes (Stripe, Chatwoot, Temporal)
-  # ===========================================================================
   - id: stripe-webhook
-    name: "Stripe Webhook"
+    name: stripe-webhook
     uri: /api/webhooks/stripe
     methods: [POST]
+    priority: 90
     upstream_id: lanai-portal
     plugins:
-      # Stripe webhooks use HMAC signature — no JWT needed
-      # OpenAppSec still inspects the payload
-      ext-plugin-pre-req:
-        conf:
-          - name: openappsec
-            value: '{"mode":"detect","asset":"stripe-webhook"}'
-
+      request-id:
+        header_name: X-Request-Id
+        include_in_response: true
       limit-count:
         count: 100
         time_window: 60
+        key_type: var
         key: remote_addr
         rejected_code: 429
 
+  - id: chatwoot-webhook
+    name: chatwoot-webhook
+    uri: /api/webhooks/chatwoot
+    methods: [POST]
+    priority: 90
+    upstream_id: lanai-portal
+    plugins:
       request-id:
         header_name: X-Request-Id
         include_in_response: true
 
-  - id: chatwoot-webhook
-    name: "Chatwoot Webhook (internal)"
-    uri: /api/webhooks/chatwoot
+  - id: ai-gateway-internal
+    name: ai-gateway-internal
+    uri: /internal/ai/*
     methods: [POST]
+    priority: 80
+    upstream_id: lanai-ai-gateway
+    plugins:
+      proxy-rewrite:
+        regex_uri: ["^/internal/ai/(.*)", "/$1"]
+      request-id:
+        header_name: X-Request-Id
+        include_in_response: true
+
+  - id: portal-api
+    name: portal-api
+    uri: /api/*
+    methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+    priority: 10
     upstream_id: lanai-portal
     plugins:
-      key-auth: {}
-
-      ext-plugin-pre-req:
-        conf:
-          - name: openappsec
-            value: '{"mode":"prevent","asset":"chatwoot-webhook"}'
-
+      request-id:
+        header_name: X-Request-Id
+        include_in_response: true
       limit-count:
-        count: 200
-        time_window: 60
-        key: consumer_name
+        count: 300
+        time_window: 900
+        key_type: var
+        key: remote_addr
         rejected_code: 429
-
-  # ===========================================================================
-  # Health Check Route (public, no auth)
-  # ===========================================================================
-  - id: health-check
-    name: "Health Check"
-    uri: /api/health
-    methods: [GET]
-    upstream_id: lanai-portal
-    plugins:
-      response-rewrite:
-        status_code: 200
-        body: '{"status":"ok","service":"lanai-api-gateway"}'
-        headers:
-          Content-Type: "application/json"
+      prometheus:
+        prefer_name: true

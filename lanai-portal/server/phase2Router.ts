@@ -17,7 +17,17 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { eq, and, desc, asc, gte, lte, sql, isNull, isNotNull } from "drizzle-orm";
+import {
+  eq,
+  and,
+  desc,
+  asc,
+  gte,
+  lte,
+  sql,
+  isNull,
+  isNotNull,
+} from "drizzle-orm";
 import {
   router,
   publicProcedure,
@@ -67,9 +77,7 @@ export const memberProfileRouter = router({
     .input(z.object({ memberId: z.number().int().positive() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) {
-        return { memberId: input.memberId, frequentFlyerNumbers: [], hotelLoyaltyNumbers: [] };
-      }
+
       const [profile] = await db
         .select()
         .from(memberProfiles)
@@ -82,9 +90,21 @@ export const memberProfileRouter = router({
     .input(
       z.object({
         memberId: z.number().int().positive(),
-        frequentFlyerNumbers: z.array(z.object({ airline: z.string(), number: z.string() })).optional(),
-        hotelLoyaltyNumbers: z.array(z.object({ chain: z.string(), number: z.string(), tier: z.string().optional() })).optional(),
-        visaExpiry: z.array(z.object({ country: z.string(), expiry: z.string() })).optional(),
+        frequentFlyerNumbers: z
+          .array(z.object({ airline: z.string(), number: z.string() }))
+          .optional(),
+        hotelLoyaltyNumbers: z
+          .array(
+            z.object({
+              chain: z.string(),
+              number: z.string(),
+              tier: z.string().optional(),
+            }),
+          )
+          .optional(),
+        visaExpiry: z
+          .array(z.object({ country: z.string(), expiry: z.string() }))
+          .optional(),
         preferredPaymentMethod: z.string().optional(),
         preferredCurrency: z.string().optional(),
         preferredHotelBrands: z.array(z.string()).optional(),
@@ -109,11 +129,10 @@ export const memberProfileRouter = router({
         privacyNotes: z.string().optional(),
         nda: z.boolean().optional(),
         conciergeNotes: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: true, memberId: input.memberId };
       const { memberId, ...data } = input;
       const existing = await db
         .select({ id: memberProfiles.id })
@@ -135,7 +154,6 @@ export const memberProfileRouter = router({
   /** Member: view their own extended profile */
   myProfile: memberProcedure.query(async ({ ctx }) => {
     const db = await getDb();
-    if (!db) return null;
     const [profile] = await db
       .select()
       .from(memberProfiles)
@@ -153,11 +171,10 @@ export const memberProfileRouter = router({
         membershipFeesPaid: z.string().optional(),
         satisfactionScore: z.string().optional(),
         lastNpsScore: z.number().int().min(0).max(10).optional(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: true };
       const { memberId, ...data } = input;
       await db
         .update(memberProfiles)
@@ -174,7 +191,6 @@ export const familyMembersRouter = router({
     .input(z.object({ memberId: z.number().int().positive() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return [];
       return db
         .select()
         .from(memberFamilyMembers)
@@ -194,17 +210,20 @@ export const familyMembersRouter = router({
         nationality: z.string().optional(),
         dietaryRequirements: z.string().optional(),
         notes: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { id: 1, ...input };
       const [created] = await db
         .insert(memberFamilyMembers)
         .values({
           ...input,
-          dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : undefined,
-          passportExpiry: input.passportExpiry ? new Date(input.passportExpiry) : undefined,
+          dateOfBirth: input.dateOfBirth
+            ? new Date(input.dateOfBirth)
+            : undefined,
+          passportExpiry: input.passportExpiry
+            ? new Date(input.passportExpiry)
+            : undefined,
         })
         .returning();
       return created;
@@ -218,11 +237,10 @@ export const familyMembersRouter = router({
         relationship: z.string().optional(),
         dateOfBirth: z.string().optional(),
         notes: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: true };
       const { id, ...data } = input;
       await db
         .update(memberFamilyMembers)
@@ -236,15 +254,15 @@ export const familyMembersRouter = router({
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: true };
-      await db.delete(memberFamilyMembers).where(eq(memberFamilyMembers.id, input.id));
+      await db
+        .delete(memberFamilyMembers)
+        .where(eq(memberFamilyMembers.id, input.id));
       return { success: true };
     }),
 
   /** Member: view their own family members */
   myFamily: memberProcedure.query(async ({ ctx }) => {
     const db = await getDb();
-    if (!db) return [];
     return db
       .select()
       .from(memberFamilyMembers)
@@ -260,11 +278,15 @@ export const supplierServicesRouter = router({
     .input(z.object({ supplierId: z.number().int().positive() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return [];
       return db
         .select()
         .from(supplierServices)
-        .where(and(eq(supplierServices.supplierId, input.supplierId), eq(supplierServices.isActive, true)))
+        .where(
+          and(
+            eq(supplierServices.supplierId, input.supplierId),
+            eq(supplierServices.isActive, true),
+          ),
+        )
         .orderBy(asc(supplierServices.serviceType));
     }),
 
@@ -278,12 +300,14 @@ export const supplierServicesRouter = router({
         currency: z.string().default("GBP"),
         commissionRate: z.string().optional(),
         availability: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { id: 1, ...input };
-      const [created] = await db.insert(supplierServices).values(input).returning();
+      const [created] = await db
+        .insert(supplierServices)
+        .values(input)
+        .returning();
       return created;
     }),
 
@@ -300,18 +324,21 @@ export const supplierServicesRouter = router({
         guestCount: z.number().int().positive().optional(),
         budget: z.string().optional(),
         currency: z.string().default("GBP"),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
-      if (!db) return { id: 1, status: "pending", ...input };
       const [created] = await db
         .insert(pricingInquiries)
         .values({
           ...input,
           requestedByUserId: ctx.user.id,
-          checkInDate: input.checkInDate ? new Date(input.checkInDate) : undefined,
-          checkOutDate: input.checkOutDate ? new Date(input.checkOutDate) : undefined,
+          checkInDate: input.checkInDate
+            ? new Date(input.checkInDate)
+            : undefined,
+          checkOutDate: input.checkOutDate
+            ? new Date(input.checkOutDate)
+            : undefined,
         })
         .returning();
       return created;
@@ -321,15 +348,18 @@ export const supplierServicesRouter = router({
     .input(
       z.object({
         supplierId: z.number().int().positive().optional(),
-        status: z.enum(["pending", "responded", "accepted", "declined", "expired"]).optional(),
-      })
+        status: z
+          .enum(["pending", "responded", "accepted", "declined", "expired"])
+          .optional(),
+      }),
     )
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return [];
       const conditions = [];
-      if (input.supplierId) conditions.push(eq(pricingInquiries.supplierId, input.supplierId));
-      if (input.status) conditions.push(eq(pricingInquiries.status, input.status));
+      if (input.supplierId)
+        conditions.push(eq(pricingInquiries.supplierId, input.supplierId));
+      if (input.status)
+        conditions.push(eq(pricingInquiries.status, input.status));
       return db
         .select()
         .from(pricingInquiries)
@@ -344,11 +374,10 @@ export const supplierServicesRouter = router({
         responseDetails: z.string().min(1),
         quotedPrice: z.string().optional(),
         status: z.enum(["responded", "declined"]),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: true };
       await db
         .update(pricingInquiries)
         .set({
@@ -373,47 +402,51 @@ export const invoicingRouter = router({
         memberId: z.number().int().positive(),
         bookingId: z.number().int().positive().optional(),
         travelRequestId: z.number().int().positive().optional(),
-        lineItems: z.array(
-          z.object({
-            itemType: z.enum([
-              "hotel", "flight", "villa", "apartment", "yacht", "jet",
-              "transfer", "restaurant", "event", "experience", "membership_fee",
-              "ancillary", "other",
-            ]),
-            description: z.string().min(1),
-            quantity: z.string().default("1"),
-            unitPrice: z.string(),
-            commissionRate: z.string().optional(),
-            supplierId: z.number().int().positive().optional(),
-          })
-        ).min(1),
+        lineItems: z
+          .array(
+            z.object({
+              itemType: z.enum([
+                "hotel",
+                "flight",
+                "villa",
+                "apartment",
+                "yacht",
+                "jet",
+                "transfer",
+                "restaurant",
+                "event",
+                "experience",
+                "membership_fee",
+                "ancillary",
+                "other",
+              ]),
+              description: z.string().min(1),
+              quantity: z.string().default("1"),
+              unitPrice: z.string(),
+              commissionRate: z.string().optional(),
+              supplierId: z.number().int().positive().optional(),
+            }),
+          )
+          .min(1),
         currency: z.string().default("GBP"),
         taxAmount: z.string().default("0"),
         discountAmount: z.string().default("0"),
         notes: z.string().optional(),
         dueDate: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       const invoiceNumber = generateInvoiceNumber();
       const subtotal = input.lineItems.reduce(
-        (sum, item) => sum + parseFloat(item.unitPrice) * parseFloat(item.quantity),
-        0
+        (sum, item) =>
+          sum + parseFloat(item.unitPrice) * parseFloat(item.quantity),
+        0,
       );
-      const totalAmount = subtotal + parseFloat(input.taxAmount) - parseFloat(input.discountAmount);
-
-      if (!db) {
-        return {
-          id: 1,
-          invoiceNumber,
-          invoiceType: "client_service" as const,
-          status: "draft" as const,
-          memberId: input.memberId,
-          subtotal: String(subtotal),
-          totalAmount: String(totalAmount),
-        };
-      }
+      const totalAmount =
+        subtotal +
+        parseFloat(input.taxAmount) -
+        parseFloat(input.discountAmount);
 
       const [invoice] = await db
         .insert(invoices)
@@ -442,10 +475,17 @@ export const invoicingRouter = router({
         description: item.description,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
-        totalPrice: String(parseFloat(item.unitPrice) * parseFloat(item.quantity)),
+        totalPrice: String(
+          parseFloat(item.unitPrice) * parseFloat(item.quantity),
+        ),
         commissionRate: item.commissionRate,
         commissionAmount: item.commissionRate
-          ? String(parseFloat(item.unitPrice) * parseFloat(item.quantity) * parseFloat(item.commissionRate) / 100)
+          ? String(
+              (parseFloat(item.unitPrice) *
+                parseFloat(item.quantity) *
+                parseFloat(item.commissionRate)) /
+                100,
+            )
           : undefined,
         supplierId: item.supplierId,
         sortOrder: idx,
@@ -460,40 +500,34 @@ export const invoicingRouter = router({
     .input(
       z.object({
         supplierId: z.number().int().positive(),
-        lineItems: z.array(
-          z.object({
-            description: z.string().min(1),
-            quantity: z.string().default("1"),
-            unitPrice: z.string(),
-            commissionRate: z.string(),
-            bookingId: z.number().int().positive().optional(),
-          })
-        ).min(1),
+        lineItems: z
+          .array(
+            z.object({
+              description: z.string().min(1),
+              quantity: z.string().default("1"),
+              unitPrice: z.string(),
+              commissionRate: z.string(),
+              bookingId: z.number().int().positive().optional(),
+            }),
+          )
+          .min(1),
         currency: z.string().default("GBP"),
         notes: z.string().optional(),
         dueDate: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       const invoiceNumber = generateInvoiceNumber();
       const subtotal = input.lineItems.reduce(
         (sum, item) =>
-          sum + parseFloat(item.unitPrice) * parseFloat(item.quantity) * parseFloat(item.commissionRate) / 100,
-        0
+          sum +
+          (parseFloat(item.unitPrice) *
+            parseFloat(item.quantity) *
+            parseFloat(item.commissionRate)) /
+            100,
+        0,
       );
-
-      if (!db) {
-        return {
-          id: 1,
-          invoiceNumber,
-          invoiceType: "commission" as const,
-          status: "draft" as const,
-          supplierId: input.supplierId,
-          subtotal: String(subtotal),
-          totalAmount: String(subtotal),
-        };
-      }
 
       const [invoice] = await db
         .insert(invoices)
@@ -519,10 +553,15 @@ export const invoicingRouter = router({
         description: item.description,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
-        totalPrice: String(parseFloat(item.unitPrice) * parseFloat(item.quantity)),
+        totalPrice: String(
+          parseFloat(item.unitPrice) * parseFloat(item.quantity),
+        ),
         commissionRate: item.commissionRate,
         commissionAmount: String(
-          parseFloat(item.unitPrice) * parseFloat(item.quantity) * parseFloat(item.commissionRate) / 100
+          (parseFloat(item.unitPrice) *
+            parseFloat(item.quantity) *
+            parseFloat(item.commissionRate)) /
+            100,
         ),
         bookingId: item.bookingId,
         sortOrder: idx,
@@ -536,19 +575,23 @@ export const invoicingRouter = router({
     .input(
       z.object({
         invoiceType: z.enum(["client_service", "commission"]).optional(),
-        status: z.enum(["draft", "sent", "paid", "overdue", "voided", "disputed"]).optional(),
+        status: z
+          .enum(["draft", "sent", "paid", "overdue", "voided", "disputed"])
+          .optional(),
         memberId: z.number().int().positive().optional(),
         supplierId: z.number().int().positive().optional(),
-      })
+      }),
     )
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return [];
       const conditions = [];
-      if (input.invoiceType) conditions.push(eq(invoices.invoiceType, input.invoiceType));
+      if (input.invoiceType)
+        conditions.push(eq(invoices.invoiceType, input.invoiceType));
       if (input.status) conditions.push(eq(invoices.status, input.status));
-      if (input.memberId) conditions.push(eq(invoices.memberId, input.memberId));
-      if (input.supplierId) conditions.push(eq(invoices.supplierId, input.supplierId));
+      if (input.memberId)
+        conditions.push(eq(invoices.memberId, input.memberId));
+      if (input.supplierId)
+        conditions.push(eq(invoices.supplierId, input.supplierId));
       return db
         .select()
         .from(invoices)
@@ -560,7 +603,6 @@ export const invoicingRouter = router({
     .input(z.object({ invoiceId: z.number().int().positive() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return null;
       const [invoice] = await db
         .select()
         .from(invoices)
@@ -578,14 +620,20 @@ export const invoicingRouter = router({
     .input(
       z.object({
         invoiceId: z.number().int().positive(),
-        status: z.enum(["draft", "sent", "paid", "overdue", "voided", "disputed"]),
+        status: z.enum([
+          "draft",
+          "sent",
+          "paid",
+          "overdue",
+          "voided",
+          "disputed",
+        ]),
         paidAt: z.string().optional(),
         issuedAt: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: true };
       await db
         .update(invoices)
         .set({
@@ -601,11 +649,15 @@ export const invoicingRouter = router({
   /** Member: view their own invoices */
   myInvoices: memberProcedure.query(async ({ ctx }) => {
     const db = await getDb();
-    if (!db) return [];
     return db
       .select()
       .from(invoices)
-      .where(and(eq(invoices.memberId, ctx.member.id), eq(invoices.invoiceType, "client_service")))
+      .where(
+        and(
+          eq(invoices.memberId, ctx.member.id),
+          eq(invoices.invoiceType, "client_service"),
+        ),
+      )
       .orderBy(desc(invoices.createdAt));
   }),
 });
@@ -617,7 +669,6 @@ export const celebrationsRouter = router({
     .input(z.object({ memberId: z.number().int().positive() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return [];
       return db
         .select()
         .from(celebrations)
@@ -630,7 +681,6 @@ export const celebrationsRouter = router({
     .input(z.object({ daysAhead: z.number().int().positive().default(30) }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return [];
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() + input.daysAhead);
       return db
@@ -645,8 +695,13 @@ export const celebrationsRouter = router({
       z.object({
         memberId: z.number().int().positive(),
         celebrationType: z.enum([
-          "birthday", "anniversary", "graduation", "honeymoon",
-          "retirement", "promotion", "other",
+          "birthday",
+          "anniversary",
+          "graduation",
+          "honeymoon",
+          "retirement",
+          "promotion",
+          "other",
         ]),
         title: z.string().min(1),
         celebrationDate: z.string(),
@@ -655,11 +710,10 @@ export const celebrationsRouter = router({
         reminderDaysBefore: z.number().int().positive().default(30),
         notes: z.string().optional(),
         giftSuggestions: z.array(z.string()).optional(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { id: 1, ...input };
       const [created] = await db
         .insert(celebrations)
         .values({
@@ -673,7 +727,6 @@ export const celebrationsRouter = router({
   /** Member: view their own celebrations */
   myCelebrations: memberProcedure.query(async ({ ctx }) => {
     const db = await getDb();
-    if (!db) return [];
     return db
       .select()
       .from(celebrations)
@@ -692,12 +745,16 @@ export const npsRouter = router({
         bookingId: z.number().int().positive().optional(),
         travelRequestId: z.number().int().positive().optional(),
         feedback: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
-      const category = input.score >= 9 ? "promoter" : input.score >= 7 ? "passive" : "detractor";
-      if (!db) return { id: 1, category, followUpRequired: category === "detractor", ...input };
+      const category =
+        input.score >= 9
+          ? "promoter"
+          : input.score >= 7
+            ? "passive"
+            : "detractor";
       const [created] = await db
         .insert(npsResponses)
         .values({
@@ -719,16 +776,19 @@ export const npsRouter = router({
         memberId: z.number().int().positive().optional(),
         category: z.enum(["promoter", "passive", "detractor"]).optional(),
         followUpRequired: z.boolean().optional(),
-      })
+      }),
     )
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return [];
       const conditions = [];
-      if (input.memberId) conditions.push(eq(npsResponses.memberId, input.memberId));
-      if (input.category) conditions.push(eq(npsResponses.category, input.category));
+      if (input.memberId)
+        conditions.push(eq(npsResponses.memberId, input.memberId));
+      if (input.category)
+        conditions.push(eq(npsResponses.category, input.category));
       if (input.followUpRequired !== undefined)
-        conditions.push(eq(npsResponses.followUpRequired, input.followUpRequired));
+        conditions.push(
+          eq(npsResponses.followUpRequired, input.followUpRequired),
+        );
       return db
         .select()
         .from(npsResponses)
@@ -740,7 +800,6 @@ export const npsRouter = router({
     .input(z.object({ npsId: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
-      if (!db) return { success: true };
       await db
         .update(npsResponses)
         .set({
@@ -755,15 +814,16 @@ export const npsRouter = router({
   /** Admin: get NPS summary statistics */
   summary: adminProcedure.query(async () => {
     const db = await getDb();
-    if (!db) {
-      return { promoters: 0, passives: 0, detractors: 0, npsScore: 0, total: 0 };
-    }
-    const all = await db.select({ category: npsResponses.category }).from(npsResponses);
+
+    const all = await db
+      .select({ category: npsResponses.category })
+      .from(npsResponses);
     const promoters = all.filter((r) => r.category === "promoter").length;
     const passives = all.filter((r) => r.category === "passive").length;
     const detractors = all.filter((r) => r.category === "detractor").length;
     const total = all.length;
-    const npsScore = total > 0 ? Math.round(((promoters - detractors) / total) * 100) : 0;
+    const npsScore =
+      total > 0 ? Math.round(((promoters - detractors) / total) * 100) : 0;
     return { promoters, passives, detractors, npsScore, total };
   }),
 });
@@ -776,31 +836,41 @@ export const communicationHubRouter = router({
     .input(
       z.object({
         memberId: z.number().int().positive(),
-        communicationType: z.enum(["email", "whatsapp", "phone_call", "portal_message", "internal_note", "sms"]),
+        communicationType: z.enum([
+          "email",
+          "whatsapp",
+          "phone_call",
+          "portal_message",
+          "internal_note",
+          "sms",
+        ]),
         channel: z.enum(["whatsapp", "email", "portal", "sms"]).optional(),
         direction: z.enum(["inbound", "outbound"]),
         subject: z.string().optional(),
         body: z.string().optional(),
         summary: z.string().optional(),
         transcription: z.string().optional(),
-        sentiment: z.enum(["positive", "neutral", "negative", "urgent"]).optional(),
+        sentiment: z
+          .enum(["positive", "neutral", "negative", "urgent"])
+          .optional(),
         durationSeconds: z.number().int().positive().optional(),
         travelRequestId: z.number().int().positive().optional(),
         bookingId: z.number().int().positive().optional(),
         followUpRequired: z.boolean().default(false),
         followUpDueAt: z.string().optional(),
         responseTimeMinutes: z.number().int().positive().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
-      if (!db) return { id: 1, ...input };
       const [created] = await db
         .insert(communicationTimeline)
         .values({
           ...input,
           advisorUserId: ctx.user.id,
-          followUpDueAt: input.followUpDueAt ? new Date(input.followUpDueAt) : undefined,
+          followUpDueAt: input.followUpDueAt
+            ? new Date(input.followUpDueAt)
+            : undefined,
         })
         .returning();
       return created;
@@ -811,16 +881,26 @@ export const communicationHubRouter = router({
     .input(
       z.object({
         memberId: z.number().int().positive(),
-        communicationType: z.enum(["email", "whatsapp", "phone_call", "portal_message", "internal_note", "sms"]).optional(),
+        communicationType: z
+          .enum([
+            "email",
+            "whatsapp",
+            "phone_call",
+            "portal_message",
+            "internal_note",
+            "sms",
+          ])
+          .optional(),
         limit: z.number().int().positive().default(50),
-      })
+      }),
     )
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return [];
       const conditions = [eq(communicationTimeline.memberId, input.memberId)];
       if (input.communicationType)
-        conditions.push(eq(communicationTimeline.communicationType, input.communicationType));
+        conditions.push(
+          eq(communicationTimeline.communicationType, input.communicationType),
+        );
       return db
         .select()
         .from(communicationTimeline)
@@ -834,7 +914,6 @@ export const communicationHubRouter = router({
     .input(z.object({ daysAhead: z.number().int().positive().default(7) }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return [];
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() + input.daysAhead);
       return db
@@ -844,8 +923,8 @@ export const communicationHubRouter = router({
           and(
             eq(communicationTimeline.followUpRequired, true),
             isNull(communicationTimeline.followUpCompletedAt),
-            lte(communicationTimeline.followUpDueAt, cutoff)
-          )
+            lte(communicationTimeline.followUpDueAt, cutoff),
+          ),
         )
         .orderBy(asc(communicationTimeline.followUpDueAt));
     }),
@@ -855,7 +934,6 @@ export const communicationHubRouter = router({
     .input(z.object({ entryId: z.number().int().positive() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: true };
       await db
         .update(communicationTimeline)
         .set({ followUpCompletedAt: new Date(), updatedAt: new Date() })
@@ -866,13 +944,17 @@ export const communicationHubRouter = router({
   /** Get response time analytics */
   responseTimeStats: adminProcedure.query(async () => {
     const db = await getDb();
-    if (!db) return { avgResponseMinutes: 0, slaBreaches: 0 };
     const entries = await db
-      .select({ responseTimeMinutes: communicationTimeline.responseTimeMinutes })
+      .select({
+        responseTimeMinutes: communicationTimeline.responseTimeMinutes,
+      })
       .from(communicationTimeline)
       .where(isNotNull(communicationTimeline.responseTimeMinutes));
-    const times = entries.map((e) => e.responseTimeMinutes ?? 0).filter((t) => t > 0);
-    const avg = times.length > 0 ? times.reduce((a, b) => a + b, 0) / times.length : 0;
+    const times = entries
+      .map((e) => e.responseTimeMinutes ?? 0)
+      .filter((t) => t > 0);
+    const avg =
+      times.length > 0 ? times.reduce((a, b) => a + b, 0) / times.length : 0;
     const slaBreaches = times.filter((t) => t > 60).length; // SLA: respond within 60 minutes
     return { avgResponseMinutes: Math.round(avg), slaBreaches };
   }),
@@ -883,38 +965,47 @@ export const communicationHubRouter = router({
 export const taskTemplatesRouter = router({
   list: protectedProcedure.query(async () => {
     const db = await getDb();
-    if (!db) {
-      return [
-        { id: 1, templateType: "airport_fast_track", name: "Airport Fast-Track Arrangement", defaultPriority: "high" },
-        { id: 2, templateType: "villa_provisioning", name: "Villa Provisioning Checklist", defaultPriority: "medium" },
-        { id: 3, templateType: "restaurant_reservation", name: "Restaurant Reservation", defaultPriority: "medium" },
-        { id: 4, templateType: "celebration_planning", name: "Celebration Planning", defaultPriority: "high" },
-        { id: 5, templateType: "visa_check", name: "Visa Requirements Check", defaultPriority: "urgent" },
-      ];
-    }
-    return db.select().from(taskTemplates).where(eq(taskTemplates.isActive, true));
+
+    return db
+      .select()
+      .from(taskTemplates)
+      .where(eq(taskTemplates.isActive, true));
   }),
 
   create: adminProcedure
     .input(
       z.object({
         templateType: z.enum([
-          "airport_fast_track", "villa_provisioning", "yacht_charter",
-          "restaurant_reservation", "celebration_planning", "visa_check",
-          "welcome_gift", "vip_amenity", "jet_charter", "transfer_arrangement", "custom",
+          "airport_fast_track",
+          "villa_provisioning",
+          "yacht_charter",
+          "restaurant_reservation",
+          "celebration_planning",
+          "visa_check",
+          "welcome_gift",
+          "vip_amenity",
+          "jet_charter",
+          "transfer_arrangement",
+          "custom",
         ]),
         name: z.string().min(1),
         description: z.string().optional(),
-        defaultPriority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
+        defaultPriority: z
+          .enum(["low", "medium", "high", "urgent"])
+          .default("medium"),
         defaultDueDaysFromTrigger: z.number().int().positive().default(1),
-        checklistItems: z.array(z.object({ item: z.string(), required: z.boolean() })).optional(),
+        checklistItems: z
+          .array(z.object({ item: z.string(), required: z.boolean() }))
+          .optional(),
         triggerOnBookingStatus: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { id: 1, ...input };
-      const [created] = await db.insert(taskTemplates).values(input).returning();
+      const [created] = await db
+        .insert(taskTemplates)
+        .values(input)
+        .returning();
       return created;
     }),
 
@@ -929,16 +1020,19 @@ export const taskTemplatesRouter = router({
         bookingId: z.number().int().positive().optional(),
         dueDate: z.string().optional(),
         additionalNotes: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
-      if (!db) return { id: 1, status: "open", ...input };
       const [template] = await db
         .select()
         .from(taskTemplates)
         .where(eq(taskTemplates.id, input.templateId));
-      if (!template) throw new TRPCError({ code: "NOT_FOUND", message: "Template not found" });
+      if (!template)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Template not found",
+        });
 
       const dueDate = input.dueDate
         ? new Date(input.dueDate)
@@ -957,7 +1051,9 @@ export const taskTemplatesRouter = router({
           travelRequestId: input.travelRequestId,
           bookingId: input.bookingId,
           title: template.name,
-          description: [template.description, input.additionalNotes].filter(Boolean).join("\n\n"),
+          description: [template.description, input.additionalNotes]
+            .filter(Boolean)
+            .join("\n\n"),
           status: "open",
           priority: template.defaultPriority,
           dueDate,
@@ -974,7 +1070,6 @@ export const tripTimelineRouter = router({
     .input(z.object({ memberId: z.number().int().positive() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return [];
       return db
         .select()
         .from(tripTimeline)
@@ -997,16 +1092,17 @@ export const tripTimelineRouter = router({
         satisfactionScore: z.number().int().min(1).max(5).optional(),
         highlights: z.array(z.string()).optional(),
         memberFeedback: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { id: 1, ...input };
       const [created] = await db
         .insert(tripTimeline)
         .values({
           ...input,
-          departureDate: input.departureDate ? new Date(input.departureDate) : undefined,
+          departureDate: input.departureDate
+            ? new Date(input.departureDate)
+            : undefined,
           returnDate: input.returnDate ? new Date(input.returnDate) : undefined,
         })
         .returning();
@@ -1016,7 +1112,6 @@ export const tripTimelineRouter = router({
   /** Member: view their own trip history */
   myTrips: memberProcedure.query(async ({ ctx }) => {
     const db = await getDb();
-    if (!db) return [];
     return db
       .select()
       .from(tripTimeline)
@@ -1033,14 +1128,15 @@ export const vipAmenitiesRouter = router({
       z.object({
         memberId: z.number().int().positive().optional(),
         bookingId: z.number().int().positive().optional(),
-      })
+      }),
     )
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return [];
       const conditions = [];
-      if (input.memberId) conditions.push(eq(vipAmenities.memberId, input.memberId));
-      if (input.bookingId) conditions.push(eq(vipAmenities.bookingId, input.bookingId));
+      if (input.memberId)
+        conditions.push(eq(vipAmenities.memberId, input.memberId));
+      if (input.bookingId)
+        conditions.push(eq(vipAmenities.bookingId, input.bookingId));
       return db
         .select()
         .from(vipAmenities)
@@ -1060,11 +1156,10 @@ export const vipAmenitiesRouter = router({
         cost: z.string().optional(),
         currency: z.string().default("GBP"),
         notes: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
-      if (!db) return { id: 1, ...input };
       const [created] = await db
         .insert(vipAmenities)
         .values({ ...input, requestedByUserId: ctx.user.id })
@@ -1076,7 +1171,6 @@ export const vipAmenitiesRouter = router({
     .input(z.object({ amenityId: z.number().int().positive() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: true };
       await db
         .update(vipAmenities)
         .set({ confirmedAt: new Date() })
@@ -1088,7 +1182,6 @@ export const vipAmenitiesRouter = router({
     .input(z.object({ amenityId: z.number().int().positive() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: true };
       await db
         .update(vipAmenities)
         .set({ deliveredAt: new Date() })
@@ -1104,32 +1197,29 @@ export const revenueAnalyticsRouter = router({
   todaySnapshot: adminProcedure.query(async () => {
     const db = await getDb();
     const today = new Date().toISOString().split("T")[0];
-    if (!db) {
-      return {
-        snapshotDate: today,
-        totalDailyRevenue: "0",
-        averageBookingValue: "0",
-        membershipFeesCollected: "0",
-        revenueByCategory: { hotels: 0, ancillary: 0, transport: 0, villas: 0, apartments: 0 },
-        bookingsCount: 0,
-        newMembersCount: 0,
-        activeRequestsCount: 0,
-      };
-    }
+
     const [snapshot] = await db
       .select()
       .from(revenueSnapshots)
       .where(eq(revenueSnapshots.snapshotDate, today));
-    return snapshot ?? {
-      snapshotDate: today,
-      totalDailyRevenue: "0",
-      averageBookingValue: "0",
-      membershipFeesCollected: "0",
-      revenueByCategory: { hotels: 0, ancillary: 0, transport: 0, villas: 0, apartments: 0 },
-      bookingsCount: 0,
-      newMembersCount: 0,
-      activeRequestsCount: 0,
-    };
+    return (
+      snapshot ?? {
+        snapshotDate: today,
+        totalDailyRevenue: "0",
+        averageBookingValue: "0",
+        membershipFeesCollected: "0",
+        revenueByCategory: {
+          hotels: 0,
+          ancillary: 0,
+          transport: 0,
+          villas: 0,
+          apartments: 0,
+        },
+        bookingsCount: 0,
+        newMembersCount: 0,
+        activeRequestsCount: 0,
+      }
+    );
   }),
 
   /** Admin: get revenue breakdown by category */
@@ -1137,16 +1227,26 @@ export const revenueAnalyticsRouter = router({
     .input(z.object({ days: z.number().int().positive().default(30) }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) {
-        return { hotels: 0, ancillary: 0, transport: 0, villas: 0, apartments: 0, total: 0 };
-      }
+
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - input.days);
       const snapshots = await db
         .select({ revenueByCategory: revenueSnapshots.revenueByCategory })
         .from(revenueSnapshots)
-        .where(gte(revenueSnapshots.snapshotDate, cutoff.toISOString().split("T")[0]));
-      const totals = { hotels: 0, ancillary: 0, transport: 0, villas: 0, apartments: 0, total: 0 };
+        .where(
+          gte(
+            revenueSnapshots.snapshotDate,
+            cutoff.toISOString().split("T")[0],
+          ),
+        );
+      const totals = {
+        hotels: 0,
+        ancillary: 0,
+        transport: 0,
+        villas: 0,
+        apartments: 0,
+        total: 0,
+      };
       for (const s of snapshots) {
         const cat = s.revenueByCategory as Record<string, number> | null;
         if (cat) {
@@ -1157,7 +1257,8 @@ export const revenueAnalyticsRouter = router({
           totals.apartments += cat.apartments ?? 0;
         }
       }
-      totals.total = Object.values(totals).reduce((a, b) => a + b, 0) - totals.total;
+      totals.total =
+        Object.values(totals).reduce((a, b) => a + b, 0) - totals.total;
       return totals;
     }),
 
@@ -1179,11 +1280,10 @@ export const revenueAnalyticsRouter = router({
         bookingsCount: z.number().int(),
         newMembersCount: z.number().int(),
         activeRequestsCount: z.number().int(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: true };
       const existing = await db
         .select({ id: revenueSnapshots.id })
         .from(revenueSnapshots)
@@ -1202,7 +1302,6 @@ export const revenueAnalyticsRouter = router({
   /** Admin: get membership fees collected to date */
   membershipFeesSummary: adminProcedure.query(async () => {
     const db = await getDb();
-    if (!db) return { total: "0", platinum: "0", gold: "0", silver: "0" };
     const profiles = await db
       .select({
         tier: members.tier,
@@ -1238,7 +1337,7 @@ export const aiConciergeRouter = router({
         budget: z.string().optional(),
         travelMonth: z.string().optional(),
         partySize: z.number().int().positive().default(2),
-      })
+      }),
     )
     .query(async ({ ctx, input }) => {
       // In production: calls LLM with member profile context
@@ -1246,19 +1345,29 @@ export const aiConciergeRouter = router({
       const recommendations = [
         {
           destination: "Amalfi Coast, Italy",
-          reason: "Matches your preference for coastal luxury and Mediterranean cuisine",
+          reason:
+            "Matches your preference for coastal luxury and Mediterranean cuisine",
           bestTime: "May–September",
           estimatedBudget: "£8,000–£15,000",
           suggestedSuppliers: ["Villa San Michele", "Capri Palace"],
-          experiences: ["Private boat charter", "Michelin-star dining", "Limoncello tasting tour"],
+          experiences: [
+            "Private boat charter",
+            "Michelin-star dining",
+            "Limoncello tasting tour",
+          ],
         },
         {
           destination: "Maldives",
-          reason: "Perfect for couples seeking seclusion and underwater experiences",
+          reason:
+            "Perfect for couples seeking seclusion and underwater experiences",
           bestTime: "November–April",
           estimatedBudget: "£12,000–£25,000",
           suggestedSuppliers: ["One&Only Reethi Rah", "Soneva Fushi"],
-          experiences: ["Private snorkelling", "Sunset dolphin cruise", "Underwater dining"],
+          experiences: [
+            "Private snorkelling",
+            "Sunset dolphin cruise",
+            "Underwater dining",
+          ],
         },
         {
           destination: "Japan (Tokyo + Kyoto)",
@@ -1266,10 +1375,18 @@ export const aiConciergeRouter = router({
           bestTime: "March–April (Cherry Blossom) or October–November",
           estimatedBudget: "£10,000–£20,000",
           suggestedSuppliers: ["Aman Tokyo", "Amanjiwo Kyoto"],
-          experiences: ["Private tea ceremony", "Bullet train in first class", "Kaiseki dinner"],
+          experiences: [
+            "Private tea ceremony",
+            "Bullet train in first class",
+            "Kaiseki dinner",
+          ],
         },
       ];
-      return { memberId: ctx.member.id, tier: ctx.member.tier, recommendations };
+      return {
+        memberId: ctx.member.id,
+        tier: ctx.member.tier,
+        recommendations,
+      };
     }),
 
   /** Generate upgrade suggestions for an existing proposal */
@@ -1278,7 +1395,7 @@ export const aiConciergeRouter = router({
       z.object({
         proposalId: z.number().int().positive(),
         memberId: z.number().int().positive(),
-      })
+      }),
     )
     .query(async ({ input }) => {
       // In production: calls LLM with proposal details and member preferences
@@ -1290,21 +1407,24 @@ export const aiConciergeRouter = router({
             current: "Deluxe Room",
             suggested: "Ocean Suite",
             additionalCost: "£850/night",
-            reason: "Member has previously booked suites at comparable properties",
+            reason:
+              "Member has previously booked suites at comparable properties",
           },
           {
             category: "flight",
             current: "Business Class",
             suggested: "First Class",
             additionalCost: "£2,400 per person",
-            reason: "Member's tier qualifies for first-class upgrade incentives",
+            reason:
+              "Member's tier qualifies for first-class upgrade incentives",
           },
           {
             category: "experience",
             current: null,
             suggested: "Private helicopter transfer from airport",
             additionalCost: "£1,200",
-            reason: "Matches member's preference for seamless, time-efficient travel",
+            reason:
+              "Matches member's preference for seamless, time-efficient travel",
           },
         ],
       };
@@ -1315,17 +1435,28 @@ export const aiConciergeRouter = router({
     .input(
       z.object({
         memberId: z.number().int().positive(),
-        context: z.enum(["post_trip", "birthday", "anniversary", "re_engagement", "upsell"]),
+        context: z.enum([
+          "post_trip",
+          "birthday",
+          "anniversary",
+          "re_engagement",
+          "upsell",
+        ]),
         tripId: z.number().int().positive().optional(),
-      })
+      }),
     )
     .query(async ({ input }) => {
       const templates: Record<string, string> = {
-        post_trip: "We hope you had a wonderful experience. We'd love to hear your thoughts and start planning your next adventure.",
-        birthday: "Wishing you a very happy birthday! As a valued Lanai member, we'd love to make your special day extraordinary.",
-        anniversary: "Congratulations on your anniversary! Allow us to help you celebrate in style.",
-        re_engagement: "We've been thinking about you and have some exciting destinations that match your travel style.",
-        upsell: "Based on your recent travels, we think you'd love these exclusive experiences we've curated just for you.",
+        post_trip:
+          "We hope you had a wonderful experience. We'd love to hear your thoughts and start planning your next adventure.",
+        birthday:
+          "Wishing you a very happy birthday! As a valued Lanai member, we'd love to make your special day extraordinary.",
+        anniversary:
+          "Congratulations on your anniversary! Allow us to help you celebrate in style.",
+        re_engagement:
+          "We've been thinking about you and have some exciting destinations that match your travel style.",
+        upsell:
+          "Based on your recent travels, we think you'd love these exclusive experiences we've curated just for you.",
       };
       return {
         memberId: input.memberId,
@@ -1343,27 +1474,32 @@ export const celebrationsPatchRouter = router({
     .input(z.object({ celebrationId: z.number().int().positive() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: true };
-      await db.delete(celebrations).where(eq(celebrations.id, input.celebrationId));
+      await db
+        .delete(celebrations)
+        .where(eq(celebrations.id, input.celebrationId));
       return { success: true };
     }),
 });
 
 export const vipAmenitiesPatchRouter = router({
   updateStatus: protectedProcedure
-    .input(z.object({
-      amenityId: z.number().int().positive(),
-      status: z.enum(["pending", "confirmed", "delivered", "cancelled"]),
-    }))
+    .input(
+      z.object({
+        amenityId: z.number().int().positive(),
+        status: z.enum(["pending", "confirmed", "delivered", "cancelled"]),
+      }),
+    )
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: true };
       const updateData: Record<string, unknown> = {};
       if (input.status === "confirmed") updateData.confirmedAt = new Date();
       if (input.status === "delivered") updateData.deliveredAt = new Date();
       if (Object.keys(updateData).length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await db.update(vipAmenities).set(updateData as any).where(eq(vipAmenities.id, input.amenityId));
+        await db
+          .update(vipAmenities)
+          .set(updateData as any)
+          .where(eq(vipAmenities.id, input.amenityId));
       }
       return { success: true };
     }),
@@ -1374,58 +1510,103 @@ export const tripTimelinePatchRouter = router({
     .input(z.object({ memberId: z.number().int().positive() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { totalTrips: 0, totalSpend: "0", avgSatisfaction: "0", topDestination: null };
       const trips = await db
         .select()
         .from(tripTimeline)
         .where(eq(tripTimeline.memberId, input.memberId));
-      const totalSpend = trips.reduce((sum, t) => sum + parseFloat(t.totalSpend ?? "0"), 0);
-      const withScores = trips.filter(t => t.satisfactionScore != null);
-      const avgSatisfaction = withScores.length > 0
-        ? (withScores.reduce((sum, t) => sum + (t.satisfactionScore ?? 0), 0) / withScores.length).toFixed(1)
-        : "0";
+      const totalSpend = trips.reduce(
+        (sum, t) => sum + parseFloat(t.totalSpend ?? "0"),
+        0,
+      );
+      const withScores = trips.filter((t) => t.satisfactionScore != null);
+      const avgSatisfaction =
+        withScores.length > 0
+          ? (
+              withScores.reduce(
+                (sum, t) => sum + (t.satisfactionScore ?? 0),
+                0,
+              ) / withScores.length
+            ).toFixed(1)
+          : "0";
       const destCounts: Record<string, number> = {};
       for (const t of trips) {
-        if (t.destination) destCounts[t.destination] = (destCounts[t.destination] ?? 0) + 1;
+        if (t.destination)
+          destCounts[t.destination] = (destCounts[t.destination] ?? 0) + 1;
       }
-      const topDestination = Object.entries(destCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-      return { totalTrips: trips.length, totalSpend: totalSpend.toFixed(2), avgSatisfaction, topDestination };
+      const topDestination =
+        Object.entries(destCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+      return {
+        totalTrips: trips.length,
+        totalSpend: totalSpend.toFixed(2),
+        avgSatisfaction,
+        topDestination,
+      };
     }),
 });
 
 export const npsPatchRouter = router({
   detractors: protectedProcedure.query(async () => {
     const db = await getDb();
-    if (!db) return [];
     return db
       .select()
       .from(npsResponses)
-      .where(and(eq(npsResponses.category, "detractor"), eq(npsResponses.followUpRequired, true)))
+      .where(
+        and(
+          eq(npsResponses.category, "detractor"),
+          eq(npsResponses.followUpRequired, true),
+        ),
+      )
       .orderBy(desc(npsResponses.createdAt));
   }),
 });
 
 export const aiConciergePatchRouter = router({
   chat: memberProcedure
-    .input(z.object({
-      message: z.string().min(1),
-      history: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string() })).optional(),
-    }))
+    .input(
+      z.object({
+        message: z.string().min(1),
+        history: z
+          .array(
+            z.object({
+              role: z.enum(["user", "assistant"]),
+              content: z.string(),
+            }),
+          )
+          .optional(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const responses: Record<string, string> = {
-        default: "Thank you for your message. I'm your Lanai AI Concierge. How can I help you plan your next extraordinary experience?",
-        hotel: "I'd be delighted to recommend some exceptional hotels. Based on your preferences, I suggest the Aman Tokyo or Four Seasons Bali.",
-        flight: "For your travel, I recommend booking first class with British Airways or Emirates for the finest in-flight experience.",
-        restaurant: "I can arrange reservations at some of the world's finest restaurants. Shall I book Alain Ducasse or Nobu for your visit?",
-        villa: "Our curated villa collection includes stunning properties in Tuscany, Mykonos, and the Maldives. Which destination interests you?",
+        default:
+          "Thank you for your message. I'm your Lanai AI Concierge. How can I help you plan your next extraordinary experience?",
+        hotel:
+          "I'd be delighted to recommend some exceptional hotels. Based on your preferences, I suggest the Aman Tokyo or Four Seasons Bali.",
+        flight:
+          "For your travel, I recommend booking first class with British Airways or Emirates for the finest in-flight experience.",
+        restaurant:
+          "I can arrange reservations at some of the world's finest restaurants. Shall I book Alain Ducasse or Nobu for your visit?",
+        villa:
+          "Our curated villa collection includes stunning properties in Tuscany, Mykonos, and the Maldives. Which destination interests you?",
       };
       const msg = input.message.toLowerCase();
-      const reply = msg.includes("hotel") ? responses.hotel
-        : msg.includes("flight") ? responses.flight
-        : msg.includes("restaurant") ? responses.restaurant
-        : msg.includes("villa") ? responses.villa
-        : responses.default;
-      return { memberId: ctx.member.id, reply, suggestedActions: ["Browse destinations", "View proposals", "Contact advisor"] };
+      const reply = msg.includes("hotel")
+        ? responses.hotel
+        : msg.includes("flight")
+          ? responses.flight
+          : msg.includes("restaurant")
+            ? responses.restaurant
+            : msg.includes("villa")
+              ? responses.villa
+              : responses.default;
+      return {
+        memberId: ctx.member.id,
+        reply,
+        suggestedActions: [
+          "Browse destinations",
+          "View proposals",
+          "Contact advisor",
+        ],
+      };
     }),
   generateFollowUpCampaigns: protectedProcedure
     .input(z.object({ memberId: z.number().int().positive() }))
@@ -1433,9 +1614,23 @@ export const aiConciergePatchRouter = router({
       return {
         memberId: input.memberId,
         campaigns: [
-          { context: "post_trip", message: "We hope you had a wonderful experience. Ready to plan your next adventure?", channel: "whatsapp" },
-          { context: "birthday", message: "Wishing you a very happy birthday! Let us make your day extraordinary.", channel: "email" },
-          { context: "re_engagement", message: "We've curated some exclusive experiences just for you.", channel: "whatsapp" },
+          {
+            context: "post_trip",
+            message:
+              "We hope you had a wonderful experience. Ready to plan your next adventure?",
+            channel: "whatsapp",
+          },
+          {
+            context: "birthday",
+            message:
+              "Wishing you a very happy birthday! Let us make your day extraordinary.",
+            channel: "email",
+          },
+          {
+            context: "re_engagement",
+            message: "We've curated some exclusive experiences just for you.",
+            channel: "whatsapp",
+          },
         ],
       };
     }),

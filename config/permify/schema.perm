@@ -1,79 +1,84 @@
-// Lanai Lifestyle Platform — Permify Authorization Schema
-// Roles: admin, senior_advisor, advisor, member (platinum, gold, silver)
-
 entity user {}
 
-entity organization {
+entity member {}
+
+entity platform {
   relation admin @user
-  relation senior_advisor @user
   relation advisor @user
-  relation member @user
 
-  // Admin permissions
-  action manage_members = admin
-  action manage_advisors = admin
-  action view_all_members = admin or senior_advisor
-  action manage_invoices = admin
-  action view_analytics = admin or senior_advisor
-  action manage_suppliers = admin or senior_advisor
-  action manage_system = admin
-
-  // Advisor permissions
-  action view_assigned_members = admin or senior_advisor or advisor
-  action create_travel_request = admin or senior_advisor or advisor
-  action manage_proposals = admin or senior_advisor or advisor
-  action manage_bookings = admin or senior_advisor or advisor
-  action send_communications = admin or senior_advisor or advisor
-  action manage_tasks = admin or senior_advisor or advisor
-  action view_commissions = admin or senior_advisor or advisor
-
-  // Member permissions
-  action view_own_profile = admin or senior_advisor or advisor or member
-  action submit_travel_request = member
-  action view_own_invoices = member
-  action view_own_bookings = member
+  action manage = admin or advisor
+  action administer = admin
 }
 
-entity member_profile {
-  relation owner @user
-  relation advisor @user
-  relation admin @user
+entity member_record {
+  relation owner @member
+  relation assigned_advisor @user
+  relation platform @platform
 
-  action view = admin or advisor or owner
-  action edit = admin or advisor
-  action delete = admin
+  action view = owner or assigned_advisor or platform.admin
+  action manage = assigned_advisor or platform.admin
 }
 
 entity travel_request {
-  relation requester @user
+  relation owner @member
   relation assigned_advisor @user
-  relation admin @user
+  relation platform @platform
 
-  action view = admin or assigned_advisor or requester
-  action edit = admin or assigned_advisor
-  action approve = admin or assigned_advisor
-  action delete = admin
+  action view = owner or assigned_advisor or platform.admin
+  action manage = assigned_advisor or platform.admin
 }
 
 entity proposal {
-  relation creator @user
-  relation member @user
-  relation admin @user
+  relation owner @member
+  relation advisor @user
+  relation platform @platform
 
-  action view = admin or creator or member
-  action edit = admin or creator
-  action approve = member
-  action delete = admin or creator
+  action view = owner or advisor or platform.admin
+  action respond = owner
+  action manage = advisor or platform.admin
+}
+
+entity booking {
+  relation owner @member
+  relation advisor @user
+  relation platform @platform
+
+  action view = owner or advisor or platform.admin
+  action manage = advisor or platform.admin
+}
+
+entity document {
+  relation owner @member
+  relation advisor @user
+  relation platform @platform
+
+  action view = owner or advisor or platform.admin
+  action manage = advisor or platform.admin
+}
+
+entity conversation {
+  relation member @member
+  relation advisor @user
+  relation platform @platform
+
+  action view = member or advisor or platform.admin
+  action reply = member or advisor or platform.admin
+  action manage = advisor or platform.admin
 }
 
 entity invoice {
-  relation member @user
+  relation member @member
   relation advisor @user
-  relation admin @user
+  relation platform @platform
 
-  action view = admin or advisor or member
-  action edit = admin or advisor
-  action send = admin or advisor
-  action pay = member
-  action delete = admin
+  action view = member or advisor or platform.admin
+  action manage = advisor or platform.admin
+}
+
+entity ledger_entry {
+  relation advisor @user
+  relation platform @platform
+
+  action view = advisor or platform.admin
+  action manage = platform.admin
 }

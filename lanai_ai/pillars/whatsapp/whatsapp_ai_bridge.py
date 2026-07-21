@@ -5,6 +5,7 @@ and writes structured notes + tasks back to the Twenty CRM.
 """
 import sys
 import os
+from pathlib import Path
 import json
 import logging
 import hashlib
@@ -12,14 +13,15 @@ import hmac
 from datetime import datetime
 from flask import Flask, request, jsonify
 
-sys.path.insert(0, '/home/ubuntu/lanai_ai')
-from core.ollama_client import ask_json, health_check
-from core.crm_connector import (find_person_by_phone, create_person,
-                                  create_note, create_task, get_people)
-from core.prompts import whatsapp_triage_prompt, WHATSAPP_TRIAGE_SYSTEM
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPOSITORY_ROOT))
+from lanai_ai.core.ollama_client import DEFAULT_MODEL, OllamaInferenceError, ask_json, health_check
+from lanai_ai.core.crm_connector import (find_person_by_phone, create_person,
+                                          create_note, create_task, get_people)
+from lanai_ai.core.prompts import whatsapp_triage_prompt, WHATSAPP_TRIAGE_SYSTEM
 
 # ─── CONFIG ──────────────────────────────────────────────────────────────────
-WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "lanai_verify_2024")
+WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN")
 WHATSAPP_APP_SECRET   = os.getenv("WHATSAPP_APP_SECRET", "")
 WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
 WHATSAPP_PHONE_ID     = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
@@ -28,10 +30,7 @@ PORT = int(os.getenv("PORT", 5555))
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[
-        logging.FileHandler("/home/ubuntu/lanai_ai/logs/whatsapp.log"),
-        logging.StreamHandler()
-    ]
+    handlers=[logging.StreamHandler()]
 )
 logger = logging.getLogger("lanai.whatsapp")
 
@@ -45,6 +44,8 @@ def verify_webhook():
     mode      = request.args.get("hub.mode")
     token     = request.args.get("hub.verify_token")
     challenge = request.args.get("hub.challenge")
+    if not WHATSAPP_VERIFY_TOKEN:
+        return "Webhook verification is not configured", 503
     if mode == "subscribe" and token == WHATSAPP_VERIFY_TOKEN:
         logger.info("WhatsApp webhook verified successfully")
         return challenge, 200
@@ -183,9 +184,7 @@ def send_whatsapp():
         return jsonify({"error": "Missing 'to' or 'message'"}), 400
 
     if not WHATSAPP_ACCESS_TOKEN or not WHATSAPP_PHONE_ID:
-        # Demo mode — log only
-        logger.info(f"[DEMO] Would send WhatsApp to {to}: {message}")
-        return jsonify({"status": "demo", "message": "WhatsApp credentials not configured. Message logged."}), 200
+        return jsonify({"error": "WhatsApp provider credentials are not configured"}), 503
 
     import requests as req
     resp = req.post(
@@ -203,16 +202,19 @@ def ai_draft_reply():
     """Generate an AI draft reply for a given message and client."""
     data        = request.get_json() or {}
     message     = data.get("message", "")
-    client_name = data.get("client_name", "Client")
+    client_name = data.get("client_name")
     context     = data.get("context", "")
 
-    if not message:
-        return jsonify({"error": "Missing message"}), 400
+    if not isinstance(message, str) or not message.strip() or not isinstance(client_name, str) or not client_name.strip():
+        return jsonify({"error": "message and client_name are required"}), 400
 
-    triage = ask_json(
-        whatsapp_triage_prompt(message, client_name, context),
-        system=WHATSAPP_TRIAGE_SYSTEM
-    )
+    try:
+        triage = ask_json(
+            whatsapp_triage_prompt(message, client_name, context),
+            system=WHATSAPP_TRIAGE_SYSTEM
+        )
+    except OllamaInferenceError as exception:
+        return jsonify({"error": str(exception)}), 503
     return jsonify(triage), 200
 
 
@@ -225,20 +227,9 @@ def health():
         "status": "ok",
         "service": "lanai-whatsapp-ai-bridge",
         "ollama": "connected" if ollama_ok else "disconnected",
-        "model": "llama3.2:3b"
+        "model": DEFAULT_MODEL
     }), 200
 
-
-# ─── TEST ENDPOINT ───────────────────────────────────────────────────────────
-
-@app.route("/test/triage", methods=["POST"])
-def test_triage():
-    """Test the AI triage with a sample message."""
-    data    = request.get_json() or {}
-    message = data.get("message", "Hi, I'd like to plan a honeymoon trip to the Maldives in March for 2 people. Budget around £15,000.")
-    client  = data.get("client_name", "Test Client")
-    result  = ask_json(whatsapp_triage_prompt(message, client), system=WHATSAPP_TRIAGE_SYSTEM)
-    return jsonify(result), 200
 
 
 if __name__ == "__main__":

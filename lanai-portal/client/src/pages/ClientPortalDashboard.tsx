@@ -11,20 +11,36 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import {
-  Crown, Plane, MapPin, Calendar, Plus, Send, LogOut,
-  FileText, MessageCircle, ChevronRight, Loader2, CheckCircle,
-  Lock, ExternalLink, CreditCard,
+  Crown,
+  Plane,
+  MapPin,
+  Calendar,
+  Plus,
+  Send,
+  LogOut,
+  FileText,
+  MessageCircle,
+  ChevronRight,
+  Loader2,
+  CheckCircle,
+  Lock,
+  ExternalLink,
+  CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
-import { stageLabel, stageColor, formatCurrency, type CRMOpportunity } from "@/lib/crmApi";
+import {
+  stageLabel,
+  stageColor,
+  formatCurrency,
+  type CRMOpportunity,
+} from "@/lib/crmApi";
 import MemberBillingPage from "./MemberBillingPage";
 
 type Tab = "trips" | "request" | "documents" | "messages" | "billing";
-type ChatMsg = { id: string; from: "advisor" | "client"; text: string; time: string };
 
 export default function ClientPortalDashboard() {
   const [, navigate] = useLocation();
@@ -32,9 +48,9 @@ export default function ClientPortalDashboard() {
   const [chatInput, setChatInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-
   // ── Auth ──────────────────────────────────────────────────────────────────
-  const { data: member, isLoading: loadingMember } = trpc.memberAuth.me.useQuery();
+  const { data: member, isLoading: loadingMember } =
+    trpc.memberAuth.me.useQuery();
   const utils = trpc.useUtils();
 
   const logoutMutation = trpc.memberAuth.logout.useMutation({
@@ -45,10 +61,8 @@ export default function ClientPortalDashboard() {
   });
 
   // ── Trips (member-scoped) ─────────────────────────────────────────────────
-  const { data: tripsData, isLoading: loadingTrips } = trpc.memberPortal.myTrips.useQuery(
-    undefined,
-    { enabled: !!member }
-  );
+  const { data: tripsData, isLoading: loadingTrips } =
+    trpc.memberPortal.myTrips.useQuery(undefined, { enabled: !!member });
   const trips: CRMOpportunity[] = (tripsData?.trips ?? []) as CRMOpportunity[];
 
   // ── Travel request ────────────────────────────────────────────────────────
@@ -61,35 +75,49 @@ export default function ClientPortalDashboard() {
   const submitRequestMutation = trpc.memberPortal.submitRequest.useMutation({
     onSuccess: () => {
       setSubmitted(true);
-      setReqDestination(""); setReqDates(""); setReqBudget(""); setReqNotes("");
+      setReqDestination("");
+      setReqDates("");
+      setReqBudget("");
+      setReqNotes("");
       utils.memberPortal.myTrips.invalidate();
     },
   });
 
   // ── Documents (Platinum only) ─────────────────────────────────────────────
   const isPlatinum = member?.tier === "platinum";
-  const { data: docsData, isLoading: loadingDocs } = trpc.memberPortal.myDocuments.useQuery(
-    undefined,
-    { enabled: !!member && isPlatinum }
-  );
+  const { data: docsData, isLoading: loadingDocs } =
+    trpc.memberPortal.myDocuments.useQuery(undefined, {
+      enabled: !!member && isPlatinum,
+    });
 
-  // ── Chat (in-memory for now — WhatsApp deep-link is the real channel) ─────
-  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([
-    { id: "1", from: "advisor", text: "Good morning! Your advisor is here to help. Send a message and we'll respond shortly.", time: "9:00 AM" },
-  ]);
+  // ── Chat (persisted Chatwoot conversation, member-scoped) ─────────────────
+  const {
+    data: memberConversations = [],
+    refetch: refetchMemberConversations,
+  } = trpc.chatwoot.myConversations.useQuery(undefined, { enabled: !!member });
+  const activeConversation =
+    memberConversations.find(
+      (conversation) => conversation.status === "open",
+    ) ?? memberConversations[0];
+  const { data: persistedMessages = [], refetch: refetchMessages } =
+    trpc.chatwoot.getMessages.useQuery(
+      { conversationId: activeConversation?.id ?? 0 },
+      { enabled: !!activeConversation },
+    );
+  const memberSendMessage = trpc.chatwoot.memberSendMessage.useMutation({
+    onSuccess: async () => {
+      setChatInput("");
+      await Promise.all([refetchMemberConversations(), refetchMessages()]);
+    },
+  });
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages]);
+  }, [persistedMessages]);
 
   const sendMessage = () => {
     if (!chatInput.trim()) return;
-    const now = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-    setChatMessages((prev) => [
-      ...prev,
-      { id: Date.now().toString(), from: "client", text: chatInput.trim(), time: now },
-    ]);
-    setChatInput("");
+    memberSendMessage.mutate({ content: chatInput.trim() });
   };
 
   const handleSubmitRequest = (e: React.FormEvent) => {
@@ -106,7 +134,10 @@ export default function ClientPortalDashboard() {
   // ── Loading / unauthenticated ─────────────────────────────────────────────
   if (loadingMember) {
     return (
-      <div className="flex items-center justify-center min-h-screen" style={{ background: "oklch(0.97 0.015 80)" }}>
+      <div
+        className="flex items-center justify-center min-h-screen"
+        style={{ background: "oklch(0.97 0.015 80)" }}
+      >
         <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
       </div>
     );
@@ -126,11 +157,14 @@ export default function ClientPortalDashboard() {
     member.tier === "platinum"
       ? "oklch(0.55 0.18 300)"
       : member.tier === "gold"
-      ? "oklch(0.72 0.12 75)"
-      : "oklch(0.6 0 0)";
+        ? "oklch(0.72 0.12 75)"
+        : "oklch(0.6 0 0)";
 
   return (
-    <div className="min-h-screen" style={{ background: "oklch(0.97 0.015 80)" }}>
+    <div
+      className="min-h-screen"
+      style={{ background: "oklch(0.97 0.015 80)" }}
+    >
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/90 backdrop-blur-sm">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -142,8 +176,12 @@ export default function ClientPortalDashboard() {
               <Crown className="w-4 h-4 text-white" />
             </div>
             <div>
-              <p className="text-xs text-gray-500 leading-none">Lanai Lifestyle</p>
-              <p className="text-sm font-semibold text-gray-900 leading-none mt-0.5">{member.name}</p>
+              <p className="text-xs text-gray-500 leading-none">
+                Lanai Lifestyle
+              </p>
+              <p className="text-sm font-semibold text-gray-900 leading-none mt-0.5">
+                {member.name}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -176,7 +214,9 @@ export default function ClientPortalDashboard() {
           >
             Welcome back, {member.name.split(" ")[0]}
           </h1>
-          <p className="text-gray-500 mt-1">Your personal travel concierge is ready to assist you.</p>
+          <p className="text-gray-500 mt-1">
+            Your personal travel concierge is ready to assist you.
+          </p>
         </div>
 
         {/* Tabs */}
@@ -187,9 +227,15 @@ export default function ClientPortalDashboard() {
               onClick={() => setActiveTab(tab.id)}
               className={cn(
                 "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
-                activeTab === tab.id ? "text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
+                activeTab === tab.id
+                  ? "text-white shadow-sm"
+                  : "text-gray-500 hover:text-gray-700",
               )}
-              style={activeTab === tab.id ? { background: "oklch(0.25 0.06 145)" } : {}}
+              style={
+                activeTab === tab.id
+                  ? { background: "oklch(0.25 0.06 145)" }
+                  : {}
+              }
             >
               <tab.icon className="w-4 h-4" />
               <span className="hidden sm:inline">{tab.label}</span>
@@ -213,7 +259,9 @@ export default function ClientPortalDashboard() {
             ) : trips.length === 0 ? (
               <div className="text-center py-16 text-gray-400">
                 <Plane className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                <p>No trips found. Submit a new travel request to get started.</p>
+                <p>
+                  No trips found. Submit a new travel request to get started.
+                </p>
               </div>
             ) : (
               <div className="grid gap-4">
@@ -228,19 +276,27 @@ export default function ClientPortalDashboard() {
                           className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
                           style={{ background: "oklch(0.25 0.06 145)20" }}
                         >
-                          <Plane className="w-5 h-5" style={{ color: "oklch(0.25 0.06 145)" }} />
+                          <Plane
+                            className="w-5 h-5"
+                            style={{ color: "oklch(0.25 0.06 145)" }}
+                          />
                         </div>
                         <div>
-                          <h3 className="font-semibold text-gray-900">{trip.name}</h3>
+                          <h3 className="font-semibold text-gray-900">
+                            {trip.name}
+                          </h3>
                           <div className="flex items-center gap-3 mt-1">
                             {trip.closeDate && (
                               <span className="flex items-center gap-1 text-xs text-gray-500">
                                 <Calendar className="w-3 h-3" />
-                                {new Date(trip.closeDate).toLocaleDateString("en-GB", {
-                                  day: "numeric",
-                                  month: "long",
-                                  year: "numeric",
-                                })}
+                                {new Date(trip.closeDate).toLocaleDateString(
+                                  "en-GB",
+                                  {
+                                    day: "numeric",
+                                    month: "long",
+                                    year: "numeric",
+                                  },
+                                )}
                               </span>
                             )}
                             {trip.amount?.amountMicros ? (
@@ -248,7 +304,10 @@ export default function ClientPortalDashboard() {
                                 className="text-xs font-mono font-medium"
                                 style={{ color: "oklch(0.35 0.09 145)" }}
                               >
-                                {formatCurrency(trip.amount.amountMicros, trip.amount.currencyCode)}
+                                {formatCurrency(
+                                  trip.amount.amountMicros,
+                                  trip.amount.currencyCode,
+                                )}
                               </span>
                             ) : null}
                           </div>
@@ -257,7 +316,7 @@ export default function ClientPortalDashboard() {
                       <span
                         className={cn(
                           "text-xs px-2 py-0.5 rounded-full font-medium shrink-0",
-                          stageColor(trip.stage)
+                          stageColor(trip.stage),
                         )}
                       >
                         {stageLabel(trip.stage)}
@@ -288,12 +347,16 @@ export default function ClientPortalDashboard() {
               Submit a Travel Request
             </h2>
             <p className="text-sm text-gray-500 mb-6">
-              Tell us about your dream trip and your advisor will craft a bespoke itinerary for you.
+              Tell us about your dream trip and your advisor will craft a
+              bespoke itinerary for you.
             </p>
 
             {submitted ? (
               <div className="bg-white rounded-xl border border-green-200 p-8 text-center">
-                <CheckCircle className="w-12 h-12 mx-auto mb-4" style={{ color: "oklch(0.55 0.15 145)" }} />
+                <CheckCircle
+                  className="w-12 h-12 mx-auto mb-4"
+                  style={{ color: "oklch(0.55 0.15 145)" }}
+                />
                 <h3
                   className="text-lg font-semibold text-gray-900 mb-2"
                   style={{ fontFamily: "'Playfair Display', serif" }}
@@ -301,12 +364,16 @@ export default function ClientPortalDashboard() {
                   Request Submitted
                 </h3>
                 <p className="text-gray-500 text-sm mb-4">
-                  Your advisor will be in touch within 2 hours with initial ideas and questions.
+                  Your advisor will be in touch within 2 hours with initial
+                  ideas and questions.
                 </p>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => { setSubmitted(false); setActiveTab("trips"); }}
+                  onClick={() => {
+                    setSubmitted(false);
+                    setActiveTab("trips");
+                  }}
                 >
                   View My Trips
                 </Button>
@@ -370,7 +437,9 @@ export default function ClientPortalDashboard() {
                 </div>
 
                 {submitRequestMutation.error && (
-                  <p className="text-red-600 text-sm">{submitRequestMutation.error.message}</p>
+                  <p className="text-red-600 text-sm">
+                    {submitRequestMutation.error.message}
+                  </p>
                 )}
 
                 <Button
@@ -380,9 +449,15 @@ export default function ClientPortalDashboard() {
                   style={{ background: "oklch(0.25 0.06 145)" }}
                 >
                   {submitRequestMutation.isPending ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" />Submitting…</>
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Submitting…
+                    </>
                   ) : (
-                    <><Send className="w-4 h-4" />Submit Request</>
+                    <>
+                      <Send className="w-4 h-4" />
+                      Submit Request
+                    </>
                   )}
                 </Button>
               </form>
@@ -403,10 +478,12 @@ export default function ClientPortalDashboard() {
             {!isPlatinum ? (
               <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
                 <Lock className="w-10 h-10 mx-auto mb-4 text-gray-300" />
-                <h3 className="font-semibold text-gray-700 mb-1">Platinum Feature</h3>
+                <h3 className="font-semibold text-gray-700 mb-1">
+                  Platinum Feature
+                </h3>
                 <p className="text-sm text-gray-400">
-                  The document vault is available exclusively to Platinum members.
-                  Contact your advisor to upgrade your membership.
+                  The document vault is available exclusively to Platinum
+                  members. Contact your advisor to upgrade your membership.
                 </p>
               </div>
             ) : loadingDocs ? (
@@ -429,18 +506,25 @@ export default function ClientPortalDashboard() {
                       <FileText className="w-5 h-5 text-gray-400" />
                     </div>
                     <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 truncate">{(doc as {name: string}).name}</p>
-                    <p className="text-xs text-gray-400">
-                      {(doc as {type: string}).type} · Added {(doc as {date: string}).date}
-                    </p>
+                      <p className="font-medium text-gray-900 truncate">
+                        {(doc as { name: string }).name}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {(doc as { type: string }).type} · Added{" "}
+                        {(doc as { date: string }).date}
+                      </p>
                     </div>
                     <a
-                      href={(doc as {url: string}).url}
+                      href={(doc as { url: string }).url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="shrink-0"
                     >
-                      <Button variant="ghost" size="sm" className="text-gray-400 hover:text-gray-600">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-gray-400 hover:text-gray-600"
+                      >
                         <ExternalLink className="w-4 h-4" />
                       </Button>
                     </a>
@@ -477,46 +561,66 @@ export default function ClientPortalDashboard() {
                     L
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-900">Lanai Concierge Team</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      Lanai Concierge Team
+                    </p>
                     <p className="text-xs text-green-500">● Available</p>
                   </div>
                 </div>
-                {/* WhatsApp deep-link — real channel */}
-                <a
-                  href="https://wa.me/447700000000"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-                    <MessageCircle className="w-3.5 h-3.5 text-green-500" />
-                    WhatsApp
-                  </Button>
-                </a>
+                <span className="text-xs text-gray-500">
+                  {activeConversation
+                    ? `Conversation ${activeConversation.status}`
+                    : "A conversation is created when you send your first message."}
+                </span>
               </div>
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {chatMessages.map((msg) => (
+                {persistedMessages.length === 0 && (
+                  <p className="py-8 text-center text-sm text-gray-400">
+                    No persisted messages yet. Send a message to start a
+                    Chatwoot conversation with your advisor.
+                  </p>
+                )}
+                {persistedMessages.map((message) => (
                   <div
-                    key={msg.id}
-                    className={cn("flex", msg.from === "client" ? "justify-end" : "justify-start")}
+                    key={message.id}
+                    className={cn(
+                      "flex",
+                      message.messageType === "inbound"
+                        ? "justify-end"
+                        : "justify-start",
+                    )}
                   >
                     <div
                       className="max-w-xs lg:max-w-sm px-4 py-2.5 rounded-2xl text-sm"
                       style={
-                        msg.from === "client"
-                          ? { background: "oklch(0.25 0.06 145)", color: "white", borderBottomRightRadius: "4px" }
-                          : { background: "oklch(0.96 0.01 80)", color: "oklch(0.2 0 0)", borderBottomLeftRadius: "4px" }
+                        message.messageType === "inbound"
+                          ? {
+                              background: "oklch(0.25 0.06 145)",
+                              color: "white",
+                              borderBottomRightRadius: "4px",
+                            }
+                          : {
+                              background: "oklch(0.96 0.01 80)",
+                              color: "oklch(0.2 0 0)",
+                              borderBottomLeftRadius: "4px",
+                            }
                       }
                     >
-                      <p>{msg.text}</p>
+                      <p>{message.content}</p>
                       <p
                         className={cn(
                           "text-xs mt-1",
-                          msg.from === "client" ? "text-white/60" : "text-gray-400"
+                          message.messageType === "inbound"
+                            ? "text-white/60"
+                            : "text-gray-400",
                         )}
                       >
-                        {msg.time}
+                        {new Intl.DateTimeFormat("en-GB", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        }).format(new Date(message.createdAt))}
                       </p>
                     </div>
                   </div>
@@ -530,14 +634,16 @@ export default function ClientPortalDashboard() {
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) =>
-                    e.key === "Enter" && !e.shiftKey && (e.preventDefault(), sendMessage())
+                    e.key === "Enter" &&
+                    !e.shiftKey &&
+                    (e.preventDefault(), sendMessage())
                   }
                   placeholder="Message your advisor…"
                   className="border-gray-200 flex-1"
                 />
                 <Button
                   onClick={sendMessage}
-                  disabled={!chatInput.trim()}
+                  disabled={!chatInput.trim() || memberSendMessage.isPending}
                   size="sm"
                   className="text-white shrink-0"
                   style={{ background: "oklch(0.25 0.06 145)" }}

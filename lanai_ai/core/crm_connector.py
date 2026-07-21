@@ -3,24 +3,31 @@ Lanai AI Core — Twenty CRM Connector
 Provides read/write access to the Twenty CRM GraphQL API.
 All pillars import from here.
 """
+import os
 import requests
 import json
 import logging
 from typing import Optional, List, Dict, Any
 
-CRM_URL = "http://localhost:3000/graphql"
-TOKEN_FILE = "/home/ubuntu/twenty/api_token.txt"
+CRM_BASE_URL = os.getenv("TWENTY_CRM_URL", "").rstrip("/")
+CRM_URL = CRM_BASE_URL if CRM_BASE_URL.endswith("/graphql") else f"{CRM_BASE_URL}/graphql"
+CRM_TOKEN = os.getenv("TWENTY_CRM_API_TOKEN", "")
 
 logger = logging.getLogger("lanai.crm")
 
 
+class CRMConnectorError(RuntimeError):
+    """Raised when the configured CRM cannot satisfy a required request."""
+
+
 def _get_token() -> str:
-    with open(TOKEN_FILE) as f:
-        return f.read().strip()
+    if not CRM_TOKEN or not CRM_BASE_URL:
+        raise CRMConnectorError("Twenty CRM URL and API token must be configured")
+    return CRM_TOKEN
 
 
-def gql(query: str, variables: dict = None) -> dict:
-    """Execute a GraphQL query/mutation against the Twenty CRM."""
+def gql(query: str, variables: dict | None = None) -> dict:
+    """Execute a GraphQL query/mutation against the configured Twenty CRM."""
     token = _get_token()
     payload = {"query": query}
     if variables:
@@ -32,11 +39,11 @@ def gql(query: str, variables: dict = None) -> dict:
         resp.raise_for_status()
         data = resp.json()
         if "errors" in data:
-            logger.error(f"GraphQL errors: {data['errors']}")
+            raise CRMConnectorError("Twenty CRM returned GraphQL errors")
         return data
-    except Exception as e:
-        logger.error(f"CRM request failed: {e}")
-        return {"errors": [{"message": str(e)}]}
+    except requests.RequestException as error:
+        logger.error("CRM request failed: %s", error)
+        raise CRMConnectorError("Twenty CRM request failed") from error
 
 
 def get_people(limit: int = 50) -> List[Dict]:

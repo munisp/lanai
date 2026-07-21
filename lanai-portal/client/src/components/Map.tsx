@@ -76,7 +76,7 @@
 
 /// <reference types="@types/google.maps" />
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePersistFn } from "@/hooks/usePersistFn";
 import { cn } from "@/lib/utils";
 
@@ -87,23 +87,25 @@ declare global {
 }
 
 const API_KEY = import.meta.env.VITE_FRONTEND_FORGE_API_KEY;
-const FORGE_BASE_URL =
-  import.meta.env.VITE_FRONTEND_FORGE_API_URL ||
-  "https://forge.butterfly-effect.dev";
-const MAPS_PROXY_URL = `${FORGE_BASE_URL}/v1/maps/proxy`;
+const FORGE_BASE_URL = import.meta.env.VITE_FRONTEND_FORGE_API_URL;
+const MAP_ID = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID;
+const MAPS_PROXY_URL = FORGE_BASE_URL ? `${FORGE_BASE_URL}/v1/maps/proxy` : "";
 
-function loadMapScript() {
-  return new Promise(resolve => {
+function loadMapScript(): Promise<void> {
+  if (!API_KEY || !MAPS_PROXY_URL)
+    return Promise.reject(new Error("Map integration is not configured"));
+  return new Promise((resolve, reject) => {
     const script = document.createElement("script");
     script.src = `${MAPS_PROXY_URL}/maps/api/js?key=${API_KEY}&v=weekly&libraries=marker,places,geocoding,geometry`;
     script.async = true;
     script.crossOrigin = "anonymous";
     script.onload = () => {
-      resolve(null);
-      script.remove(); // Clean up immediately
+      resolve();
+      script.remove();
     };
     script.onerror = () => {
-      console.error("Failed to load Google Maps script");
+      script.remove();
+      reject(new Error("Failed to load the map integration"));
     };
     document.head.appendChild(script);
   });
@@ -124,6 +126,7 @@ export function MapView({
 }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<google.maps.Map | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const init = usePersistFn(async () => {
     await loadMapScript();
@@ -138,7 +141,7 @@ export function MapView({
       fullscreenControl: true,
       zoomControl: true,
       streetViewControl: true,
-      mapId: "DEMO_MAP_ID",
+      ...(MAP_ID ? { mapId: MAP_ID } : {}),
     });
     if (onMapReady) {
       onMapReady(map.current);
@@ -146,9 +149,26 @@ export function MapView({
   });
 
   useEffect(() => {
-    init();
+    init().catch((loadError: unknown) =>
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Map integration is unavailable",
+      ),
+    );
   }, [init]);
 
+  if (error)
+    return (
+      <div
+        className={cn(
+          "w-full h-[500px] rounded-md border border-dashed p-4 text-sm text-muted-foreground",
+          className,
+        )}
+      >
+        {error}
+      </div>
+    );
   return (
     <div ref={mapContainer} className={cn("w-full h-[500px]", className)} />
   );

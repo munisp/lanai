@@ -2,6 +2,7 @@ import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from "@shared/const";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
+import { Permify } from "./infrastructure";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -15,6 +16,24 @@ export const publicProcedure = t.procedure;
 const requireUser = t.middleware(async ({ ctx, next }) => {
   if (!ctx.user) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+  }
+  try {
+    const allowed = await Permify.check(
+      `user:${ctx.user.id}`,
+      "manage",
+      "platform:lanai",
+    );
+    if (!allowed)
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Platform permission denied",
+      });
+  } catch (error) {
+    if (error instanceof TRPCError) throw error;
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Authorization service denied the request",
+    });
   }
   return next({ ctx: { ...ctx, user: ctx.user } });
 });
@@ -32,7 +51,7 @@ export const seniorAdvisorProcedure = t.procedure.use(
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     }
     return next({ ctx: { ...ctx, user: ctx.user } });
-  })
+  }),
 );
 
 /** admin only — for role promotion and system-level operations. */
@@ -42,7 +61,7 @@ export const adminProcedure = t.procedure.use(
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     }
     return next({ ctx: { ...ctx, user: ctx.user } });
-  })
+  }),
 );
 
 // ─── Member auth middleware ───────────────────────────────────────────────────
@@ -70,5 +89,5 @@ export const platinumMemberProcedure = t.procedure.use(
       });
     }
     return next({ ctx: { ...ctx, member: ctx.member } });
-  })
+  }),
 );

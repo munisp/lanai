@@ -12,9 +12,12 @@ import {
   updateChatwootConfigService,
   getChatwootConfigService,
   getConversationsForContact,
+  createConversation,
+  syncConversations as syncChatwootConversations,
 } from "./chatwootService";
 import {
   createChatwootConversation,
+  createChatwootMessage,
   listChatwootConversations,
   listChatwootMessages,
   updateChatwootConversation,
@@ -39,7 +42,7 @@ export const chatwootRouter = router({
         accountId: z.number().optional(),
         enabled: z.boolean().optional(),
         defaultInboxId: z.number().optional(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       await updateChatwootConfigService(input);
@@ -69,18 +72,25 @@ export const chatwootRouter = router({
     .input(
       z.object({
         memberId: z.number(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const member = await getMemberById(input.memberId);
       if (!member) throw new Error("Member not found");
-      return syncContactForMember(member.id, member.name, member.email, null);
+      return syncContactForMember(
+        member.id,
+        member.name,
+        member.email,
+        null,
+        member.tier,
+      );
     }),
 
   // ── Conversations ──────────────────────────────────────────────────────
 
   /** Lists conversations for the current advisor (or all if admin). */
   listConversations: protectedProcedure.query(async ({ ctx }) => {
+    await syncChatwootConversations();
     return listChatwootConversations(ctx.user.id);
   }),
 
@@ -89,7 +99,7 @@ export const chatwootRouter = router({
     .input(
       z.object({
         memberId: z.number(),
-      })
+      }),
     )
     .query(async ({ input }) => {
       // Get all conversations and filter by memberId
@@ -105,16 +115,21 @@ export const chatwootRouter = router({
       z.object({
         chatwootConversationId: z.string(),
         content: z.string().min(1),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       // Resolve local conversation to get Chatwoot conversation ID
-      const localConv = await getChatwootConversationByChatwootId(input.chatwootConversationId);
+      const localConv = await getChatwootConversationByChatwootId(
+        input.chatwootConversationId,
+      );
       if (!localConv) throw new Error("Conversation not found");
 
       // In production: call Chatwoot API to send the message
       // For now, create a local outbound message record
-      const chatwootConvId = parseInt(input.chatwootConversationId.replace("conv_", ""), 10);
+      const chatwootConvId = parseInt(
+        input.chatwootConversationId.replace("conv_", ""),
+        10,
+      );
 
       await sendMessage(chatwootConvId, input.content, "outgoing");
 
@@ -141,15 +156,63 @@ export const chatwootRouter = router({
     .input(
       z.object({
         content: z.string().min(1),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
-      // Find or create the member's Chatwoot contact
-      const contactResult = await syncContactForMember(ctx.member.id, ctx.member.name, ctx.member.email, null);
+      const existing = (await listChatwootConversations()).find(
+        (conversation) =>
+          conversation.memberId === ctx.member.id &&
+          conversation.status === "open",
+      );
+      if (existing) {
+        const remoteConversationId = Number(
+          existing.chatwootId.replace(/^conv_/, ""),
+        );
+        if (!Number.isInteger(remoteConversationId))
+          throw new Error(
+            "Persisted Chatwoot conversation identifier is invalid",
+          );
+        const remote = await sendMessage(
+          remoteConversationId,
+          input.content,
+          "incoming",
+        );
+        await createChatwootMessage({
+          chatwootId: `msg_${remote.messageId}`,
+          conversationId: existing.id,
+          messageType: "inbound",
+          content: input.content,
+          attachmentUrl: null,
+          isTemplate: false,
+        });
+        await updateChatwootConversation(existing.chatwootId, {
+          lastMessage: input.content,
+          updatedAt: new Date(),
+        });
+        return {
+          conversationId: existing.id,
+          chatwootConversationId: existing.chatwootId,
+        };
+      }
 
-      // Create a new conversation
-      const result = await createChatwootConversation({
-        chatwootId: `conv_${Date.now()}`,
+      const contact = await syncContactForMember(
+        ctx.member.id,
+        ctx.member.name,
+        ctx.member.email,
+        null,
+        ctx.member.tier,
+      );
+      const config = await getChatwootConfigService();
+      if (!config?.defaultInboxId)
+        throw new Error("Chatwoot default inbox is not configured");
+      const remote = await createConversation(
+        contact.contactId,
+        config.defaultInboxId,
+        input.content,
+        "incoming",
+      );
+      const localId = await createChatwootConversation({
+        chatwootId: `conv_${remote.conversationId}`,
         memberId: ctx.member.id,
         contactIdentifier: ctx.member.email ?? "",
         contactName: ctx.member.name,
@@ -158,8 +221,18 @@ export const chatwootRouter = router({
         status: "open",
         lastMessage: input.content,
       });
-
-      return { conversationId: result };
+      await createChatwootMessage({
+        chatwootId: `msg_${remote.messageId}`,
+        conversationId: localId,
+        messageType: "inbound",
+        content: input.content,
+        attachmentUrl: null,
+        isTemplate: false,
+      });
+      return {
+        conversationId: localId,
+        chatwootConversationId: `conv_${remote.conversationId}`,
+      };
     }),
 
   /** Gets messages for a conversation (member portal). */
@@ -167,7 +240,7 @@ export const chatwootRouter = router({
     .input(
       z.object({
         conversationId: z.number(),
-      })
+      }),
     )
     .query(async ({ input }) => {
       return listChatwootMessages(input.conversationId);
@@ -191,7 +264,7 @@ export const chatwootRouter = router({
         conversationId: z.number(),
         lastMessage: z.string(),
         memberName: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       // In production: call LLM with conversation context
@@ -212,7 +285,9 @@ export const chatwootRouter = router({
     const open = convs.filter((c) => c.status === "open").length;
     const resolved = convs.filter((c) => c.status === "resolved").length;
     const pending = convs.filter((c) => c.status === "pending").length;
-    const unresponded = convs.filter((c) => !c.advisorResponded && c.status === "open").length;
+    const unresponded = convs.filter(
+      (c) => !c.advisorResponded && c.status === "open",
+    ).length;
     return { open, resolved, pending, unresponded, total: convs.length };
   }),
 });

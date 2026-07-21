@@ -1,68 +1,40 @@
 # ==============================================================================
-# Lanai Portal — Dockerfile
+# Lanai Portal — Production image
+# A Debian/glibc base is mandatory for the Temporal and Fluvio native Node clients.
 # ==============================================================================
-# Multi-stage build:
-#   Stage 1 (build): Install deps, build frontend + bundle server
-#   Stage 2 (runtime): Node 22 Alpine with only production artifacts
-# ==============================================================================
+FROM node:22-bookworm-slim AS build
 
-# ── Stage 1: Build ──────────────────────────────────────────────────────────
-
-FROM node:22-alpine AS build
-
-# Install build dependencies for native modules
-RUN apk add --no-cache python3 make g++ git
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 make g++ git ca-certificates \
+  && rm -rf /var/lib/apt/lists/* \
+  && npm install --global pnpm@10.4.1
 
 WORKDIR /app
-
-# Copy package files for dependency caching
 COPY package.json pnpm-lock.yaml ./
-RUN corepack enable && pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile
 
-# Copy source code
 COPY . .
-
-# Pass VITE_ env vars at build time (required for frontend URL construction)
-ARG VITE_OAUTH_PORTAL_URL=http://keycloak:8080
 ARG VITE_APP_ID=lanai-portal
-ARG VITE_FRONTEND_FORGE_API_URL=http://dapr:3500
-ARG VITE_FRONTEND_FORGE_API_KEY=CHANGE_ME
+RUN VITE_APP_ID=$VITE_APP_ID pnpm build
 
-# Build frontend + bundle server in one step
-RUN VITE_OAUTH_PORTAL_URL=$VITE_OAUTH_PORTAL_URL \
-    VITE_APP_ID=$VITE_APP_ID \
-    VITE_FRONTEND_FORGE_API_URL=$VITE_FRONTEND_FORGE_API_URL \
-    VITE_FRONTEND_FORGE_API_KEY=$VITE_FRONTEND_FORGE_API_KEY \
-    pnpm build
-
-# ── Stage 2: Runtime ────────────────────────────────────────────────────────
-
-FROM node:22-alpine AS runtime
-
-# Install runtime utilities: dumb-init (proper signal handling), curl (health check)
-RUN apk add --no-cache dumb-init curl
-
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S lanai -u 1001
+FROM node:22-bookworm-slim AS runtime
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends dumb-init curl ca-certificates \
+  && rm -rf /var/lib/apt/lists/* \
+  && groupadd --gid 1001 nodejs \
+  && useradd --uid 1001 --gid nodejs --create-home lanai
 
 WORKDIR /app
-
-# Copy built artifacts from build stage
 COPY --from=build --chown=lanai:nodejs /app/dist ./dist
 COPY --from=build --chown=lanai:nodejs /app/node_modules ./node_modules
 COPY --from=build --chown=lanai:nodejs /app/package.json ./
+COPY --from=build --chown=lanai:nodejs /app/drizzle ./drizzle
 
-# Expose port (default 3001, matches lanai.newfire.app tunnel target)
+ENV NODE_ENV=production
 EXPOSE 3001
-
-# Health check — use the dedicated /api/health endpoint
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD curl -f http://localhost:3001/api/health || exit 1
+  CMD curl --fail http://localhost:3001/api/health || exit 1
 
-# Switch to non-root user
 USER lanai
-
-# Use dumb-init as PID 1 for proper signal handling (SIGTERM → graceful shutdown)
 ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "dist/index.js"]

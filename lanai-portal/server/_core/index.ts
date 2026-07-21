@@ -16,9 +16,13 @@ import { registerCrmProxy } from "./crmProxy";
 import { registerStripeWebhook } from "../stripeRouter";
 import { registerChatwootProxy } from "./chatwootProxy";
 import { ENV } from "./env";
+import { registerAiRoutes } from "./aiRoutes";
+import { assertDatabaseReady, closeDatabase } from "../db";
+import { dispatchOutboxBatch } from "./outbox";
+import { shutdownInfrastructure } from "./infrastructure";
 
 function isPortAvailable(port: number): Promise<boolean> {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     const server = net.createServer();
     server.listen(port, () => {
       server.close(() => resolve(true));
@@ -59,15 +63,20 @@ async function startServer() {
           }
         : false, // Disable CSP in development to allow Vite HMR
       crossOriginEmbedderPolicy: false, // Allow embedding maps, etc.
-    })
+    }),
   );
 
   // ── CORS ──────────────────────────────────────────────────────────────────
-  const allowedOrigins = ENV.allowedOrigins.length > 0
-    ? ENV.allowedOrigins
-    : ENV.isProduction
-      ? [] // No wildcard in production — must set ALLOWED_ORIGINS
-      : ["http://localhost:3000", "http://localhost:5173", "http://localhost:3001"];
+  const allowedOrigins =
+    ENV.allowedOrigins.length > 0
+      ? ENV.allowedOrigins
+      : ENV.isProduction
+        ? [] // No wildcard in production — must set ALLOWED_ORIGINS
+        : [
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://localhost:3001",
+          ];
 
   app.use(
     cors({
@@ -80,7 +89,7 @@ async function startServer() {
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-    })
+    }),
   );
 
   // ── Compression ───────────────────────────────────────────────────────────
@@ -103,20 +112,27 @@ async function startServer() {
     max: ENV.authRateLimitMax,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: "Too many authentication attempts, please try again later." },
+    message: {
+      error: "Too many authentication attempts, please try again later.",
+    },
   });
   app.use("/api/trpc/memberAuth", authLimiter);
   app.use("/api/trpc/auth", authLimiter);
-  app.use("/oauth", authLimiter);
+  app.use("/api/oauth", authLimiter);
 
   // ── Health check (before auth middleware) ─────────────────────────────────
-  app.get("/api/health", (_req, res) => {
-    res.json({
-      status: "ok",
-      timestamp: new Date().toISOString(),
-      version: process.env.npm_package_version ?? "1.0.0",
-      env: ENV.isProduction ? "production" : "development",
-    });
+  app.get("/api/health", async (_req, res) => {
+    try {
+      await assertDatabaseReady();
+      res.json({
+        status: "ok",
+        timestamp: new Date().toISOString(),
+        version: process.env.npm_package_version ?? "1.0.0",
+        env: ENV.isProduction ? "production" : "development",
+      });
+    } catch (error) {
+      res.status(503).json({ status: "unavailable", detail: String(error) });
+    }
   });
 
   // ── Stripe webhook MUST be registered with raw body BEFORE express.json() ─
@@ -132,6 +148,7 @@ async function startServer() {
   registerOAuthRoutes(app);
   registerCrmProxy(app);
   registerChatwootProxy(app);
+  registerAiRoutes(app);
 
   // ── tRPC API ──────────────────────────────────────────────────────────────
   app.use(
@@ -145,16 +162,23 @@ async function startServer() {
           console.error(`[tRPC] Internal error on ${path}:`, error);
         }
       },
-    })
+    }),
   );
 
   // ── Global error handler ──────────────────────────────────────────────────
-  app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    console.error("[Express] Unhandled error:", err);
-    res.status(500).json({
-      error: ENV.isProduction ? "Internal server error" : err.message,
-    });
-  });
+  app.use(
+    (
+      err: Error,
+      _req: express.Request,
+      res: express.Response,
+      _next: express.NextFunction,
+    ) => {
+      console.error("[Express] Unhandled error:", err);
+      res.status(500).json({
+        error: ENV.isProduction ? "Internal server error" : err.message,
+      });
+    },
+  );
 
   // ── Static files / Vite ───────────────────────────────────────────────────
   if (process.env.NODE_ENV === "development") {
@@ -163,32 +187,47 @@ async function startServer() {
     serveStatic(app);
   }
 
-  // ── Port selection ────────────────────────────────────────────────────────
+  // Production containers must bind their declared port. Development keeps a
+  // convenience fallback for local parallel sessions only.
   const preferredPort = ENV.port;
-  const port = await findAvailablePort(preferredPort);
-
-  if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+  const port = ENV.isProduction
+    ? preferredPort
+    : await findAvailablePort(preferredPort);
+  if (ENV.isProduction) {
+    await assertDatabaseReady();
   }
+  const outboxTimer = setInterval(() => {
+    void dispatchOutboxBatch().catch((error) =>
+      console.error("[outbox] scheduled dispatch failed", error),
+    );
+  }, 15_000);
+  outboxTimer.unref();
+  void dispatchOutboxBatch().catch((error) =>
+    console.error("[outbox] initial dispatch failed", error),
+  );
 
   server.listen(port, () => {
-    console.log(`🚀 Lanai Portal running on http://localhost:${port}/`);
-    console.log(`   Environment: ${ENV.isProduction ? "production" : "development"}`);
-    console.log(`   Health check: http://localhost:${port}/api/health`);
+    console.log(`Lanai Portal running on http://localhost:${port}/`);
+    console.log(
+      `Environment: ${ENV.isProduction ? "production" : "development"}`,
+    );
+    console.log(`Health check: http://localhost:${port}/api/health`);
   });
 
   // ── Graceful shutdown ─────────────────────────────────────────────────────
   const shutdown = (signal: string) => {
     console.log(`\n[Server] Received ${signal}. Shutting down gracefully...`);
-    server.close(() => {
+    clearInterval(outboxTimer);
+    server.close(async () => {
+      await closeDatabase();
+      shutdownInfrastructure();
       console.log("[Server] HTTP server closed.");
       process.exit(0);
     });
-    // Force exit after 10 seconds
     setTimeout(() => {
       console.error("[Server] Forced shutdown after timeout.");
       process.exit(1);
-    }, 10_000);
+    }, 10_000).unref();
   };
 
   process.on("SIGTERM", () => shutdown("SIGTERM"));

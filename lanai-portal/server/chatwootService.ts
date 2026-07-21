@@ -17,7 +17,11 @@ import {
   listChatwootMessages,
   getMemberByEmail,
 } from "./db";
-import type { ChatwootConfig, ChatwootConversation, ChatwootMessage } from "../drizzle/schema";
+import type {
+  ChatwootConfig,
+  ChatwootConversation,
+  ChatwootMessage,
+} from "../drizzle/schema";
 
 // ── Chatwoot API types ──────────────────────────────────────────────────────
 
@@ -50,7 +54,17 @@ interface ChatwootApiMessage {
   id: number;
   content: string;
   message_type: "incoming" | "outgoing";
-  content_type: "text" | "input_email" | "input_select" | "cards" | "image" | "audio" | "file" | "video" | "location" | "template";
+  content_type:
+    | "text"
+    | "input_email"
+    | "input_select"
+    | "cards"
+    | "image"
+    | "audio"
+    | "file"
+    | "video"
+    | "location"
+    | "template";
   content_attributes: Record<string, unknown> | null;
   attachments: { id: number; attachment_type: string; file_url: string }[];
   created_at: string;
@@ -106,11 +120,14 @@ function getChatwootHeaders(): Record<string, string> {
   if (!ENV.chatwootToken) throw new Error("CHATWOOT_TOKEN is not configured");
   return {
     "Content-Type": "application/json",
-    "api_access_token": ENV.chatwootToken,
+    api_access_token: ENV.chatwootToken,
   };
 }
 
-async function chatwootRequest(path: string, options: RequestInit = {}): Promise<Response> {
+async function chatwootRequest(
+  path: string,
+  options: RequestInit = {},
+): Promise<Response> {
   const baseUrl = getChatwootBaseUrl();
   const url = `${baseUrl}/api/v1/accounts/${ENV.chatwootAccountId}${path}`;
   const headers = { ...getChatwootHeaders(), ...options.headers };
@@ -132,7 +149,8 @@ export async function syncContactForMember(
   memberId: number,
   name: string,
   email: string | null,
-  phone: string | null
+  phone: string | null,
+  tier?: string,
 ): Promise<ChatwootContactSyncResult> {
   const sourceId = `lanai_member_${memberId}`;
   const firstName = name.split(" ")[0] ?? "";
@@ -143,7 +161,9 @@ export async function syncContactForMember(
   let created = false;
 
   try {
-    const res = await chatwootRequest(`/contacts?inbox_id=${ENV.chatwootAccountId}&identifier=${sourceId}`);
+    const res = await chatwootRequest(
+      `/contacts?inbox_id=${ENV.chatwootAccountId}&identifier=${sourceId}`,
+    );
     const data = (await res.json()) as { payload: ChatwootContact[] };
     if (data.payload.length > 0) {
       // Contact exists — update it
@@ -155,7 +175,10 @@ export async function syncContactForMember(
           last_name: lastName,
           email,
           phone_number: phone,
-          additional_attributes: { lanai_member_id: memberId, tier: "gold" },
+          additional_attributes: {
+            lanai_member_id: String(memberId),
+            tier: tier ?? "unspecified",
+          },
         }),
       });
     } else {
@@ -168,7 +191,10 @@ export async function syncContactForMember(
           last_name: lastName,
           email,
           phone_number: phone,
-          additional_attributes: { lanai_member_id: memberId, tier: "gold" },
+          additional_attributes: {
+            lanai_member_id: String(memberId),
+            tier: tier ?? "unspecified",
+          },
           source_id: sourceId,
         }),
       });
@@ -204,9 +230,9 @@ export async function createConversation(
   contactId: number,
   inboxId: number,
   content: string,
-  messageType: "incoming" | "outgoing" = "incoming"
+  messageType: "incoming" | "outgoing" = "incoming",
 ): Promise<{ conversationId: number; messageId: number }> {
-  const res = await chatwootRequest("/accounts/{account_id}/contacts/{contact_id}/conversations", {
+  const res = await chatwootRequest(`/contacts/${contactId}/conversations`, {
     method: "POST",
     body: JSON.stringify({
       inbox_id: inboxId,
@@ -215,7 +241,6 @@ export async function createConversation(
       private: false,
     }),
   });
-  // Note: path needs template substitution — handled by the API
   const data = (await res.json()) as { id: number; messages: { id: number }[] };
   return { conversationId: data.id, messageId: data.messages[0]?.id ?? 0 };
 }
@@ -223,7 +248,9 @@ export async function createConversation(
 /**
  * Fetches conversations for a specific contact.
  */
-export async function getConversationsForContact(contactId: number): Promise<ChatwootConversation[]> {
+export async function getConversationsForContact(
+  contactId: number,
+): Promise<ChatwootConversation[]> {
   const res = await chatwootRequest(`/contacts/${contactId}/conversations`);
   const data = (await res.json()) as { payload: ChatwootConversation[] };
   return data.payload ?? [];
@@ -235,25 +262,34 @@ export async function getConversationsForContact(contactId: number): Promise<Cha
 export async function syncConversations(): Promise<number> {
   // Fetch all contacts first
   const contactsRes = await chatwootRequest("/contacts");
-  const contactsData = (await contactsRes.json()) as { payload: ChatwootContact[] };
+  const contactsData = (await contactsRes.json()) as {
+    payload: ChatwootContact[];
+  };
   const contacts = contactsData.payload ?? [];
 
   let synced = 0;
   for (const contact of contacts) {
-    const sourceId = contact.additional_attributes?.lanai_member_id as string | undefined;
+    const sourceId = contact.additional_attributes?.lanai_member_id as
+      | string
+      | undefined;
     if (!sourceId) continue;
 
     const memberId = parseInt(sourceId, 10);
     const member = await getMemberByEmail(contact.email ?? "");
     if (!member) continue;
 
-    const convRes = await chatwootRequest(`/contacts/${contact.id}/conversations`);
-    const convData = (await convRes.json()) as { payload: ChatwootApiConversation[] };
+    const convRes = await chatwootRequest(
+      `/contacts/${contact.id}/conversations`,
+    );
+    const convData = (await convRes.json()) as {
+      payload: ChatwootApiConversation[];
+    };
     const conversations = convData.payload ?? [];
 
     for (const conv of conversations) {
       const localChatwootId = `conv_${conv.id}`;
-      const existing = await getChatwootConversationByChatwootId(localChatwootId);
+      const existing =
+        await getChatwootConversationByChatwootId(localChatwootId);
       const lastMsg = conv.messages?.[conv.messages.length - 1];
 
       if (existing) {
@@ -279,8 +315,12 @@ export async function syncConversations(): Promise<number> {
       if (lastMsg) {
         await createChatwootMessage({
           chatwootId: `msg_${lastMsg.id}`,
-          conversationId: existing?.id ?? (await getChatwootConversationByChatwootId(localChatwootId))?.id ?? 0,
-          messageType: lastMsg.message_type === "incoming" ? "inbound" : "outbound",
+          conversationId:
+            existing?.id ??
+            (await getChatwootConversationByChatwootId(localChatwootId))?.id ??
+            0,
+          messageType:
+            lastMsg.message_type === "incoming" ? "inbound" : "outbound",
           content: lastMsg.content,
           attachmentUrl: lastMsg.attachments?.[0]?.file_url ?? null,
           isTemplate: lastMsg.content_type === "template",
@@ -303,12 +343,19 @@ export async function sendMessage(
   conversationId: number,
   content: string,
   messageType: "outgoing" | "incoming" = "outgoing",
-  isPrivate: boolean = false
+  isPrivate: boolean = false,
 ): Promise<{ messageId: number }> {
-  const res = await chatwootRequest(`/conversations/${conversationId}/messages`, {
-    method: "POST",
-    body: JSON.stringify({ content, message_type: messageType, private: isPrivate }),
-  });
+  const res = await chatwootRequest(
+    `/conversations/${conversationId}/messages`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        content,
+        message_type: messageType,
+        private: isPrivate,
+      }),
+    },
+  );
   const data = (await res.json()) as { id: number };
   return { messageId: data.id };
 }
@@ -343,7 +390,7 @@ export async function getChatwootConfigService(): Promise<ChatwootConfig | null>
  * Updates Chatwoot configuration.
  */
 export async function updateChatwootConfigService(
-  data: Partial<ChatwootConfig>
+  data: Partial<ChatwootConfig>,
 ): Promise<ChatwootConfig | null> {
   const existing = await getChatwootConfig();
   if (!existing) {

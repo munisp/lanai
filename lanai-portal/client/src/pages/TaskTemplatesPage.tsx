@@ -1,14 +1,39 @@
 import {
-  CheckSquare, Plus, Clock, User, AlertCircle, CheckCircle,
-  Plane, Anchor, Home, Utensils, Globe, Gift, Trash2, Play
+  CheckSquare,
+  Plus,
+  Clock,
+  User,
+  AlertCircle,
+  CheckCircle,
+  Plane,
+  Anchor,
+  Home,
+  Utensils,
+  Globe,
+  Gift,
+  Trash2,
+  Play,
 } from "lucide-react";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -44,17 +69,29 @@ function PriorityBadge({ priority }: { priority: string }) {
     urgent: "bg-red-50 text-red-700",
   };
   return (
-    <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium capitalize", map[priority] ?? "bg-gray-100 text-gray-600")}>
+    <span
+      className={cn(
+        "text-xs px-2 py-0.5 rounded-full font-medium capitalize",
+        map[priority] ?? "bg-gray-100 text-gray-600",
+      )}
+    >
       {priority}
     </span>
   );
 }
 
 // ─── Template Card ────────────────────────────────────────────────────────────
-function TemplateCard({ template, onInstantiate }: {
+function TemplateCard({
+  template,
+  onInstantiate,
+}: {
   template: {
-    id: number; templateName: string; templateCategory: string; description?: string | null;
-    defaultPriority: string; estimatedHours?: string | null;
+    id: number;
+    templateName: string;
+    templateCategory: string;
+    description?: string | null;
+    defaultPriority: string;
+    estimatedHours?: string | null;
     checklistItems?: string[] | null;
   };
   onInstantiate: (id: number) => void;
@@ -67,11 +104,18 @@ function TemplateCard({ template, onInstantiate }: {
       <div className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0", CAT_COLORS[template.templateCategory])}>
+            <div
+              className={cn(
+                "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0",
+                CAT_COLORS[template.templateCategory],
+              )}
+            >
               <Icon className="w-5 h-5" />
             </div>
             <div>
-              <div className="font-semibold text-foreground">{template.templateName}</div>
+              <div className="font-semibold text-foreground">
+                {template.templateName}
+              </div>
               <div className="text-xs text-muted-foreground capitalize mt-0.5">
                 {template.templateCategory.replace("_", " ")}
               </div>
@@ -89,7 +133,9 @@ function TemplateCard({ template, onInstantiate }: {
         </div>
 
         {template.description && (
-          <p className="text-sm text-muted-foreground mt-3">{template.description}</p>
+          <p className="text-sm text-muted-foreground mt-3">
+            {template.description}
+          </p>
         )}
 
         {template.checklistItems && template.checklistItems.length > 0 && (
@@ -98,12 +144,16 @@ function TemplateCard({ template, onInstantiate }: {
               onClick={() => setExpanded(!expanded)}
               className="text-xs text-primary font-medium hover:underline"
             >
-              {expanded ? "Hide" : "Show"} checklist ({template.checklistItems.length} items)
+              {expanded ? "Hide" : "Show"} checklist (
+              {template.checklistItems.length} items)
             </button>
             {expanded && (
               <ul className="mt-2 space-y-1">
                 {template.checklistItems.map((item, i) => (
-                  <li key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <li
+                    key={i}
+                    className="flex items-center gap-2 text-xs text-muted-foreground"
+                  >
                     <CheckCircle className="w-3 h-3 text-muted-foreground/50 flex-shrink-0" />
                     {item}
                   </li>
@@ -130,39 +180,54 @@ function TemplateCard({ template, onInstantiate }: {
 }
 
 // ─── Active Task Row ──────────────────────────────────────────────────────────
-function ActiveTaskRow({ task }: {
+function ActiveTaskRow({
+  task,
+}: {
   task: {
-    id: number; title: string; status: string; priority: string;
-    dueAt?: Date | null; assigneeName?: string | null; completedAt?: Date | null;
+    id: number;
+    title: string;
+    status: string;
+    priority: string;
+    dueDate?: Date | null;
+    completedAt?: Date | null;
   };
 }) {
   const statusColors: Record<string, string> = {
-    pending: "bg-gray-100 text-gray-600",
+    open: "bg-gray-100 text-gray-600",
     in_progress: "bg-blue-50 text-blue-700",
-    completed: "bg-emerald-50 text-emerald-700",
+    done: "bg-emerald-50 text-emerald-700",
     cancelled: "bg-red-50 text-red-500",
   };
-  const StatusIcon = task.status === "completed" ? CheckCircle : task.status === "in_progress" ? Clock : AlertCircle;
+  const StatusIcon =
+    task.status === "done"
+      ? CheckCircle
+      : task.status === "in_progress"
+        ? Clock
+        : AlertCircle;
 
   return (
     <div className="flex items-center justify-between p-4 border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors">
       <div className="flex items-center gap-3">
-        <StatusIcon className={cn("w-4 h-4 flex-shrink-0",
-          task.status === "completed" ? "text-emerald-500" :
-          task.status === "in_progress" ? "text-blue-500" : "text-muted-foreground"
-        )} />
+        <StatusIcon
+          className={cn(
+            "w-4 h-4 flex-shrink-0",
+            task.status === "done"
+              ? "text-emerald-500"
+              : task.status === "in_progress"
+                ? "text-blue-500"
+                : "text-muted-foreground",
+          )}
+        />
         <div>
           <div className="text-sm font-medium">{task.title}</div>
           <div className="flex items-center gap-2 mt-0.5">
-            {task.assigneeName && (
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <User className="w-3 h-3" /> {task.assigneeName}
-              </span>
-            )}
-            {task.dueAt && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <User className="w-3 h-3" /> Assigned to you
+            </span>
+            {task.dueDate && (
               <span className="text-xs text-muted-foreground flex items-center gap-1">
                 <Clock className="w-3 h-3" />
-                {new Date(task.dueAt).toLocaleDateString("en-GB")}
+                {new Date(task.dueDate).toLocaleDateString("en-GB")}
               </span>
             )}
           </div>
@@ -170,7 +235,12 @@ function ActiveTaskRow({ task }: {
       </div>
       <div className="flex items-center gap-2">
         <PriorityBadge priority={task.priority} />
-        <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium capitalize", statusColors[task.status] ?? "bg-gray-100 text-gray-600")}>
+        <span
+          className={cn(
+            "text-xs px-2 py-0.5 rounded-full font-medium capitalize",
+            statusColors[task.status] ?? "bg-gray-100 text-gray-600",
+          )}
+        >
           {task.status.replace("_", " ")}
         </span>
       </div>
@@ -189,46 +259,77 @@ function CreateTemplateDialog({ onCreated }: { onCreated: () => void }) {
   const [checklistText, setChecklistText] = useState("");
 
   const createTemplate = trpc.taskTemplates.create.useMutation({
-    onSuccess: () => { toast.success("Template created"); setOpen(false); onCreated(); },
+    onSuccess: () => {
+      toast.success("Template created");
+      setOpen(false);
+      onCreated();
+    },
     onError: () => toast.error("Failed to create template"),
   });
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="gap-2 text-white" style={{ background: "oklch(0.35 0.09 145)" }}>
+        <Button
+          className="gap-2 text-white"
+          style={{ background: "oklch(0.35 0.09 145)" }}
+        >
           <Plus className="w-4 h-4" /> Create Template
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle style={{ fontFamily: "'Playfair Display', serif" }}>Create Task Template</DialogTitle>
+          <DialogTitle style={{ fontFamily: "'Playfair Display', serif" }}>
+            Create Task Template
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 pt-2">
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Template Name</label>
-            <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Airport Fast-Track VIP" />
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+              Template Name
+            </label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Airport Fast-Track VIP"
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Category</label>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                Category
+              </label>
               <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="airport_fasttrack">Airport Fast-Track</SelectItem>
-                  <SelectItem value="villa_provisioning">Villa Provisioning</SelectItem>
+                  <SelectItem value="airport_fasttrack">
+                    Airport Fast-Track
+                  </SelectItem>
+                  <SelectItem value="villa_provisioning">
+                    Villa Provisioning
+                  </SelectItem>
                   <SelectItem value="yacht_charter">Yacht Charter</SelectItem>
-                  <SelectItem value="restaurant_reservation">Restaurant Reservation</SelectItem>
-                  <SelectItem value="celebration_planning">Celebration Planning</SelectItem>
+                  <SelectItem value="restaurant_reservation">
+                    Restaurant Reservation
+                  </SelectItem>
+                  <SelectItem value="celebration_planning">
+                    Celebration Planning
+                  </SelectItem>
                   <SelectItem value="visa_check">Visa Check</SelectItem>
                   <SelectItem value="general">General</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Default Priority</label>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                Default Priority
+              </label>
               <Select value={priority} onValueChange={setPriority}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="low">Low</SelectItem>
                   <SelectItem value="medium">Medium</SelectItem>
@@ -239,12 +340,26 @@ function CreateTemplateDialog({ onCreated }: { onCreated: () => void }) {
             </div>
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Description</label>
-            <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Template description..." className="min-h-16" />
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+              Description
+            </label>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Template description..."
+              className="min-h-16"
+            />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Estimated Hours</label>
-            <Input type="number" value={estimatedHours} onChange={e => setEstimatedHours(e.target.value)} placeholder="e.g. 2" />
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+              Estimated Hours
+            </label>
+            <Input
+              type="number"
+              value={estimatedHours}
+              onChange={(e) => setEstimatedHours(e.target.value)}
+              placeholder="e.g. 2"
+            />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
@@ -252,23 +367,50 @@ function CreateTemplateDialog({ onCreated }: { onCreated: () => void }) {
             </label>
             <Textarea
               value={checklistText}
-              onChange={e => setChecklistText(e.target.value)}
-              placeholder={"Contact airport lounge\nArrange meet & greet\nConfirm baggage handling\nNotify driver"}
+              onChange={(e) => setChecklistText(e.target.value)}
+              placeholder={
+                "Contact airport lounge\nArrange meet & greet\nConfirm baggage handling\nNotify driver"
+              }
               className="min-h-24 font-mono text-xs"
             />
           </div>
           <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
             <Button
-              onClick={() => createTemplate.mutate({
-                templateType: category as "airport_fast_track" | "villa_provisioning" | "yacht_charter" | "restaurant_reservation" | "celebration_planning" | "visa_check" | "welcome_gift" | "vip_amenity" | "jet_charter" | "transfer_arrangement" | "custom",
-                name,
-                description: description || undefined,
-                defaultPriority: priority as "low" | "medium" | "high" | "urgent",
-                checklistItems: checklistText ? checklistText.split("\n").filter(Boolean).map(item => ({ item, required: true })) : undefined,
-              })}
+              onClick={() =>
+                createTemplate.mutate({
+                  templateType: category as
+                    | "airport_fast_track"
+                    | "villa_provisioning"
+                    | "yacht_charter"
+                    | "restaurant_reservation"
+                    | "celebration_planning"
+                    | "visa_check"
+                    | "welcome_gift"
+                    | "vip_amenity"
+                    | "jet_charter"
+                    | "transfer_arrangement"
+                    | "custom",
+                  name,
+                  description: description || undefined,
+                  defaultPriority: priority as
+                    | "low"
+                    | "medium"
+                    | "high"
+                    | "urgent",
+                  checklistItems: checklistText
+                    ? checklistText
+                        .split("\n")
+                        .filter(Boolean)
+                        .map((item) => ({ item, required: true }))
+                    : undefined,
+                })
+              }
               disabled={!name || createTemplate.isPending}
-              className="text-white" style={{ background: "oklch(0.35 0.09 145)" }}
+              className="text-white"
+              style={{ background: "oklch(0.35 0.09 145)" }}
             >
               {createTemplate.isPending ? "Creating..." : "Create Template"}
             </Button>
@@ -281,15 +423,26 @@ function CreateTemplateDialog({ onCreated }: { onCreated: () => void }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function TaskTemplatesPage() {
-  const { data: templates, isLoading: templatesLoading, refetch: refetchTemplates } =
-    trpc.taskTemplates.list.useQuery();
-
-  // Active tasks shown from platform tasks
-  const activeTasks: { id: number; title: string; status: string; priority: string; dueAt?: Date | null; assigneeName?: string | null; completedAt?: Date | null }[] = [];
-  const tasksLoading = false;
+  const { user } = useAuth();
+  const [selectedMemberId, setSelectedMemberId] = useState("");
+  const selectedMember = Number(selectedMemberId);
+  const {
+    data: templates,
+    isLoading: templatesLoading,
+    refetch: refetchTemplates,
+  } = trpc.taskTemplates.list.useQuery();
+  const { data: members = [] } = trpc.members.list.useQuery();
+  const {
+    data: activeTasks = [],
+    isLoading: tasksLoading,
+    refetch: refetchTasks,
+  } = trpc.tasks.myTasks.useQuery({});
 
   const instantiate = trpc.taskTemplates.instantiateFromTemplate.useMutation({
-    onSuccess: () => toast.success("Task created from template"),
+    onSuccess: () => {
+      toast.success("Task created from template");
+      refetchTasks();
+    },
     onError: () => toast.error("Failed to instantiate template"),
   });
 
@@ -298,17 +451,40 @@ export default function TaskTemplatesPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <div className="flex items-center gap-2 mb-1"><CheckSquare className="w-5 h-5 text-primary" /></div>
-          <h1 className="text-3xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <div className="flex items-center gap-2 mb-1">
+            <CheckSquare className="w-5 h-5 text-primary" />
+          </div>
+          <h1
+            className="text-3xl font-bold"
+            style={{ fontFamily: "'Playfair Display', serif" }}
+          >
             Task & Workflow Management
           </h1>
           <p className="text-muted-foreground mt-1">
-            Concierge-specific task templates with automated creation linked to booking stages
+            Concierge-specific task templates with automated creation linked to
+            booking stages
           </p>
         </div>
         <CreateTemplateDialog onCreated={refetchTemplates} />
       </div>
       <hr className="lanai-divider" />
+      <div className="max-w-md rounded-lg border bg-card p-4">
+        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+          Member context for instantiated task
+        </label>
+        <Select value={selectedMemberId} onValueChange={setSelectedMemberId}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select a persisted member" />
+          </SelectTrigger>
+          <SelectContent>
+            {members.map((member) => (
+              <SelectItem key={member.id} value={String(member.id)}>
+                {member.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       <Tabs defaultValue="templates">
         <TabsList className="grid w-full max-w-sm grid-cols-2">
@@ -320,19 +496,43 @@ export default function TaskTemplatesPage() {
         <TabsContent value="templates" className="mt-4">
           {templatesLoading ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-48 rounded-lg" />)}
+              {[...Array(6)].map((_, i) => (
+                <Skeleton key={i} className="h-48 rounded-lg" />
+              ))}
             </div>
           ) : templates && templates.length > 0 ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {templates.map(t => (
+              {templates.map((t) => (
                 <TemplateCard
                   key={t.id}
-                  template={t as unknown as {
-                    id: number; templateName: string; templateCategory: string; description?: string | null;
-                    defaultPriority: string; estimatedHours?: string | null;
-                    checklistItems?: string[] | null;
+                  template={
+                    t as unknown as {
+                      id: number;
+                      templateName: string;
+                      templateCategory: string;
+                      description?: string | null;
+                      defaultPriority: string;
+                      estimatedHours?: string | null;
+                      checklistItems?: string[] | null;
+                    }
+                  }
+                  onInstantiate={(id) => {
+                    if (
+                      !user?.id ||
+                      !Number.isSafeInteger(selectedMember) ||
+                      selectedMember <= 0
+                    ) {
+                      toast.error(
+                        "Select a member before instantiating a task.",
+                      );
+                      return;
+                    }
+                    instantiate.mutate({
+                      templateId: id,
+                      assignedToUserId: user.id,
+                      memberId: selectedMember,
+                    });
                   }}
-                  onInstantiate={id => instantiate.mutate({ templateId: id, assignedToUserId: 1, memberId: 1 })}
                 />
               ))}
             </div>
@@ -340,7 +540,10 @@ export default function TaskTemplatesPage() {
             <div className="lanai-card p-12 text-center text-muted-foreground">
               <CheckSquare className="w-8 h-8 mx-auto mb-3 opacity-30" />
               <p className="text-sm">No templates created yet</p>
-              <p className="text-xs mt-1">Create templates for airport fast-track, villa provisioning, and more</p>
+              <p className="text-xs mt-1">
+                Create templates for airport fast-track, villa provisioning, and
+                more
+              </p>
             </div>
           )}
         </TabsContent>
@@ -350,14 +553,25 @@ export default function TaskTemplatesPage() {
           <div className="lanai-card overflow-hidden">
             {tasksLoading ? (
               <div className="p-4 space-y-3">
-                {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16" />)}
+                {[...Array(5)].map((_, i) => (
+                  <Skeleton key={i} className="h-16" />
+                ))}
               </div>
             ) : activeTasks && activeTasks.length > 0 ? (
-              activeTasks.map(task => (
-                <ActiveTaskRow key={task.id} task={task as {
-                  id: number; title: string; status: string; priority: string;
-                  dueAt?: Date | null; assigneeName?: string | null; completedAt?: Date | null;
-                }} />
+              activeTasks.map((task) => (
+                <ActiveTaskRow
+                  key={task.id}
+                  task={
+                    task as {
+                      id: number;
+                      title: string;
+                      status: string;
+                      priority: string;
+                      dueDate?: Date | null;
+                      completedAt?: Date | null;
+                    }
+                  }
+                />
               ))
             ) : (
               <div className="p-12 text-center text-muted-foreground">

@@ -150,7 +150,13 @@ function vitePluginManusDebugCollector(): Plugin {
   };
 }
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector()];
+const plugins = [
+  react(),
+  tailwindcss(),
+  jsxLocPlugin(),
+  vitePluginManusRuntime(),
+  vitePluginManusDebugCollector(),
+];
 
 export default defineConfig({
   plugins,
@@ -167,24 +173,59 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+          if (
+            id.includes("/react/") ||
+            id.includes("/react-dom/") ||
+            id.includes("/wouter/")
+          )
+            return "react-core";
+          if (id.includes("/@radix-ui/") || id.includes("/lucide-react/"))
+            return "ui-vendor";
+          if (id.includes("/@trpc/") || id.includes("/@tanstack/"))
+            return "data-vendor";
+          return undefined;
+        },
+      },
+    },
   },
-    server: {
+  server: {
     port: 3001,
     strictPort: true, // Port 3000 is used by Twenty CRM
     host: true,
     proxy: {
-      '/api/proposals': { target: 'http://localhost:5556', changeOrigin: true, rewrite: (p) => p.replace(/^\/api\/proposals/, '/api') },
-      '/api/intelligence': { target: 'http://localhost:5557', changeOrigin: true, rewrite: (p) => p.replace(/^\/api\/intelligence/, '/api') },
-      '/api/briefing': { target: 'http://localhost:5558', changeOrigin: true, rewrite: (p) => p.replace(/^\/api\/briefing/, '/api') },
-      '/api/whatsapp': { target: 'http://localhost:5555', changeOrigin: true, rewrite: (p) => p.replace(/^\/api\/whatsapp/, '') },
-      '/crm': {
-        target: process.env.TWENTY_CRM_URL ?? 'http://localhost:3000',
+      "/api/proposals": {
+        target: "http://localhost:5556",
         changeOrigin: true,
-        rewrite: (p) => p.replace(/^\/crm/, ''),
+        rewrite: (p) => p.replace(/^\/api\/proposals/, "/api"),
+      },
+      "/api/intelligence": {
+        target: "http://localhost:5557",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/intelligence/, "/api"),
+      },
+      "/api/briefing": {
+        target: "http://localhost:5558",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/briefing/, "/api"),
+      },
+      "/api/whatsapp": {
+        target: "http://localhost:5555",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/whatsapp/, ""),
+      },
+      "/crm": {
+        target: process.env.TWENTY_CRM_URL ?? "http://localhost:3000",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/crm/, ""),
         configure: (proxy) => {
-          const CRM_TOKEN = process.env.TWENTY_CRM_API_TOKEN ?? '';
-          proxy.on('proxyReq', (proxyReq) => {
-            if (CRM_TOKEN) proxyReq.setHeader('Authorization', `Bearer ${CRM_TOKEN}`);
+          const CRM_TOKEN = process.env.TWENTY_CRM_API_TOKEN ?? "";
+          proxy.on("proxyReq", (proxyReq) => {
+            if (CRM_TOKEN)
+              proxyReq.setHeader("Authorization", `Bearer ${CRM_TOKEN}`);
           });
         },
       },

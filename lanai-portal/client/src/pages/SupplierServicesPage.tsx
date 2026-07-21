@@ -1,24 +1,53 @@
 import {
-  Building2, Plus, Search, Star, Globe, DollarSign,
-  Send, Clock, CheckCircle, XCircle, Filter, ChevronDown
+  Building2,
+  Plus,
+  Search,
+  Star,
+  Globe,
+  DollarSign,
+  Send,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Filter,
+  ChevronDown,
 } from "lucide-react";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 // ─── Service Card ─────────────────────────────────────────────────────────────
-function ServiceCard({ service }: {
+function ServiceCard({
+  service,
+}: {
   service: {
-    id: number; serviceName: string; serviceCategory: string; description?: string | null;
-    basePrice?: string | null; currency?: string | null; isAvailable?: boolean | null;
+    id: number;
+    serviceName: string;
+    serviceCategory: string;
+    description?: string | null;
+    basePrice?: string | null;
+    currency?: string | null;
+    isAvailable?: boolean | null;
     supplierName?: string | null;
   };
 }) {
@@ -38,28 +67,48 @@ function ServiceCard({ service }: {
     <div className="lanai-card p-5 space-y-3">
       <div className="flex items-start justify-between">
         <div>
-          <div className="font-semibold text-foreground">{service.serviceName}</div>
+          <div className="font-semibold text-foreground">
+            {service.serviceName}
+          </div>
           {service.supplierName && (
-            <div className="text-xs text-muted-foreground mt-0.5">{service.supplierName}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              {service.supplierName}
+            </div>
           )}
         </div>
         <div className="flex flex-col items-end gap-1">
-          <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium capitalize", catColors[service.serviceCategory] ?? "bg-gray-100 text-gray-600")}>
+          <span
+            className={cn(
+              "text-xs px-2 py-0.5 rounded-full font-medium capitalize",
+              catColors[service.serviceCategory] ?? "bg-gray-100 text-gray-600",
+            )}
+          >
             {service.serviceCategory.replace("_", " ")}
           </span>
           {service.isAvailable !== null && (
-            <span className={cn("text-xs", service.isAvailable ? "text-emerald-600" : "text-red-500")}>
+            <span
+              className={cn(
+                "text-xs",
+                service.isAvailable ? "text-emerald-600" : "text-red-500",
+              )}
+            >
               {service.isAvailable ? "● Available" : "● Unavailable"}
             </span>
           )}
         </div>
       </div>
       {service.description && (
-        <p className="text-xs text-muted-foreground line-clamp-2">{service.description}</p>
+        <p className="text-xs text-muted-foreground line-clamp-2">
+          {service.description}
+        </p>
       )}
       {service.basePrice && (
-        <div className="text-sm font-semibold" style={{ color: "oklch(0.35 0.09 145)" }}>
-          From {service.currency ?? "£"}{parseFloat(service.basePrice).toLocaleString()}
+        <div
+          className="text-sm font-semibold"
+          style={{ color: "oklch(0.35 0.09 145)" }}
+        >
+          From {service.currency ?? "£"}
+          {parseFloat(service.basePrice).toLocaleString()}
         </div>
       )}
     </div>
@@ -67,36 +116,65 @@ function ServiceCard({ service }: {
 }
 
 // ─── Inquiry Row ──────────────────────────────────────────────────────────────
-function InquiryRow({ inquiry }: {
+function InquiryRow({
+  inquiry,
+}: {
   inquiry: {
-    id: number; requestDetails: string; status: string; quotedPrice?: string | null;
-    currency?: string | null; responseNotes?: string | null; createdAt: Date;
-    supplierName?: string | null; serviceName?: string | null;
+    id: number;
+    requestDetails: string;
+    status: string;
+    quotedPrice?: string | null;
+    currency?: string | null;
+    responseNotes?: string | null;
+    createdAt: Date;
+    supplierName?: string | null;
+    serviceName?: string | null;
   };
 }) {
-  const statusMap: Record<string, { color: string; icon: React.ElementType }> = {
-    pending: { color: "bg-amber-50 text-amber-700", icon: Clock },
-    responded: { color: "bg-blue-50 text-blue-700", icon: CheckCircle },
-    accepted: { color: "bg-emerald-50 text-emerald-700", icon: CheckCircle },
-    declined: { color: "bg-red-50 text-red-500", icon: XCircle },
-    expired: { color: "bg-gray-50 text-gray-500", icon: XCircle },
+  const statusMap: Record<string, { color: string; icon: React.ElementType }> =
+    {
+      pending: { color: "bg-amber-50 text-amber-700", icon: Clock },
+      responded: { color: "bg-blue-50 text-blue-700", icon: CheckCircle },
+      accepted: { color: "bg-emerald-50 text-emerald-700", icon: CheckCircle },
+      declined: { color: "bg-red-50 text-red-500", icon: XCircle },
+      expired: { color: "bg-gray-50 text-gray-500", icon: XCircle },
+    };
+  const { color, icon: StatusIcon } = statusMap[inquiry.status] ?? {
+    color: "bg-gray-100 text-gray-600",
+    icon: Clock,
   };
-  const { color, icon: StatusIcon } = statusMap[inquiry.status] ?? { color: "bg-gray-100 text-gray-600", icon: Clock };
 
   return (
     <div className="flex items-start gap-4 p-4 border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          {inquiry.supplierName && <span className="text-sm font-semibold">{inquiry.supplierName}</span>}
-          {inquiry.serviceName && <span className="text-xs text-muted-foreground">· {inquiry.serviceName}</span>}
-          <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium", color)}>
+          {inquiry.supplierName && (
+            <span className="text-sm font-semibold">
+              {inquiry.supplierName}
+            </span>
+          )}
+          {inquiry.serviceName && (
+            <span className="text-xs text-muted-foreground">
+              · {inquiry.serviceName}
+            </span>
+          )}
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium",
+              color,
+            )}
+          >
             <StatusIcon className="w-3 h-3" />
             {inquiry.status.charAt(0).toUpperCase() + inquiry.status.slice(1)}
           </span>
         </div>
-        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{inquiry.requestDetails}</p>
+        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+          {inquiry.requestDetails}
+        </p>
         {inquiry.responseNotes && (
-          <p className="text-xs text-foreground mt-1 bg-muted/30 rounded p-2">{inquiry.responseNotes}</p>
+          <p className="text-xs text-foreground mt-1 bg-muted/30 rounded p-2">
+            {inquiry.responseNotes}
+          </p>
         )}
         <div className="text-xs text-muted-foreground mt-1">
           {new Date(inquiry.createdAt).toLocaleDateString("en-GB")}
@@ -104,8 +182,15 @@ function InquiryRow({ inquiry }: {
       </div>
       {inquiry.quotedPrice && (
         <div className="text-right flex-shrink-0">
-          <div className="text-sm font-bold" style={{ fontFamily: "'Playfair Display', serif", color: "oklch(0.35 0.09 145)" }}>
-            {inquiry.currency ?? "£"}{parseFloat(inquiry.quotedPrice).toLocaleString()}
+          <div
+            className="text-sm font-bold"
+            style={{
+              fontFamily: "'Playfair Display', serif",
+              color: "oklch(0.35 0.09 145)",
+            }}
+          >
+            {inquiry.currency ?? "£"}
+            {parseFloat(inquiry.quotedPrice).toLocaleString()}
           </div>
           <div className="text-xs text-muted-foreground">Quoted</div>
         </div>
@@ -115,7 +200,13 @@ function InquiryRow({ inquiry }: {
 }
 
 // ─── Add Service Dialog ───────────────────────────────────────────────────────
-function AddServiceDialog({ supplierId, onAdded }: { supplierId: number; onAdded: () => void }) {
+function AddServiceDialog({
+  supplierId,
+  onAdded,
+}: {
+  supplierId: number;
+  onAdded: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [category, setCategory] = useState("hotel_room");
@@ -124,7 +215,11 @@ function AddServiceDialog({ supplierId, onAdded }: { supplierId: number; onAdded
   const [currency, setCurrency] = useState("GBP");
 
   const addService = trpc.supplierServices.addService.useMutation({
-    onSuccess: () => { toast.success("Service added"); setOpen(false); onAdded(); },
+    onSuccess: () => {
+      toast.success("Service added");
+      setOpen(false);
+      onAdded();
+    },
     onError: () => toast.error("Failed to add service"),
   });
 
@@ -137,17 +232,29 @@ function AddServiceDialog({ supplierId, onAdded }: { supplierId: number; onAdded
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle style={{ fontFamily: "'Playfair Display', serif" }}>Add Supplier Service</DialogTitle>
+          <DialogTitle style={{ fontFamily: "'Playfair Display', serif" }}>
+            Add Supplier Service
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 pt-2">
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Service Name</label>
-            <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Deluxe Ocean Suite" />
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+              Service Name
+            </label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Deluxe Ocean Suite"
+            />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Category</label>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+              Category
+            </label>
             <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="hotel_room">Hotel Room</SelectItem>
                 <SelectItem value="villa_rental">Villa Rental</SelectItem>
@@ -162,18 +269,36 @@ function AddServiceDialog({ supplierId, onAdded }: { supplierId: number; onAdded
             </Select>
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Description</label>
-            <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Service details..." className="min-h-16" />
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+              Description
+            </label>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Service details..."
+              className="min-h-16"
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Base Price</label>
-              <Input type="number" value={basePrice} onChange={e => setBasePrice(e.target.value)} placeholder="0.00" />
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                Base Price
+              </label>
+              <Input
+                type="number"
+                value={basePrice}
+                onChange={(e) => setBasePrice(e.target.value)}
+                placeholder="0.00"
+              />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Currency</label>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                Currency
+              </label>
               <Select value={currency} onValueChange={setCurrency}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="GBP">GBP</SelectItem>
                   <SelectItem value="EUR">EUR</SelectItem>
@@ -183,17 +308,22 @@ function AddServiceDialog({ supplierId, onAdded }: { supplierId: number; onAdded
             </div>
           </div>
           <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
             <Button
-              onClick={() => addService.mutate({
-                supplierId,
-                serviceType: `${category}: ${name}`,
-                description: description || undefined,
-                basePrice: basePrice || undefined,
-                currency,
-              })}
+              onClick={() =>
+                addService.mutate({
+                  supplierId,
+                  serviceType: `${category}: ${name}`,
+                  description: description || undefined,
+                  basePrice: basePrice || undefined,
+                  currency,
+                })
+              }
               disabled={!name || addService.isPending}
-              className="text-white" style={{ background: "oklch(0.35 0.09 145)" }}
+              className="text-white"
+              style={{ background: "oklch(0.35 0.09 145)" }}
             >
               {addService.isPending ? "Adding..." : "Add Service"}
             </Button>
@@ -205,67 +335,132 @@ function AddServiceDialog({ supplierId, onAdded }: { supplierId: number; onAdded
 }
 
 // ─── Submit Inquiry Dialog ────────────────────────────────────────────────────
-function SubmitInquiryDialog({ memberId, onSubmitted }: { memberId: number; onSubmitted: () => void }) {
+function SubmitInquiryDialog({
+  memberId,
+  supplierId,
+  services,
+  onSubmitted,
+}: {
+  memberId: number;
+  supplierId: number;
+  services: Array<{
+    id: number;
+    serviceType: string;
+    description?: string | null;
+  }>;
+  onSubmitted: () => void;
+}) {
   const [open, setOpen] = useState(false);
-  const [supplierId, setSupplierId] = useState("");
   const [serviceId, setServiceId] = useState("");
   const [details, setDetails] = useState("");
   const [requestedDate, setRequestedDate] = useState("");
   const [budget, setBudget] = useState("");
 
+  const selectedService = services.find(
+    (service) => service.id === Number(serviceId),
+  );
   const submitInquiry = trpc.supplierServices.submitPricingInquiry.useMutation({
-    onSuccess: () => { toast.success("Pricing inquiry submitted"); setOpen(false); onSubmitted(); },
+    onSuccess: () => {
+      toast.success("Pricing inquiry submitted");
+      setOpen(false);
+      setServiceId("");
+      onSubmitted();
+    },
     onError: () => toast.error("Failed to submit inquiry"),
   });
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="gap-2 text-white" style={{ background: "oklch(0.35 0.09 145)" }}>
+        <Button
+          className="gap-2 text-white"
+          style={{ background: "oklch(0.35 0.09 145)" }}
+        >
           <Send className="w-4 h-4" /> Submit Inquiry
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle style={{ fontFamily: "'Playfair Display', serif" }}>Submit Pricing Inquiry</DialogTitle>
+          <DialogTitle style={{ fontFamily: "'Playfair Display', serif" }}>
+            Submit Pricing Inquiry
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 pt-2">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Supplier ID</label>
-              <Input type="number" value={supplierId} onChange={e => setSupplierId(e.target.value)} placeholder="Supplier ID" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Service ID (optional)</label>
-              <Input type="number" value={serviceId} onChange={e => setServiceId(e.target.value)} placeholder="Service ID" />
-            </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+              Supplier Service
+            </label>
+            <Select value={serviceId} onValueChange={setServiceId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a persisted service" />
+              </SelectTrigger>
+              <SelectContent>
+                {services.map((service) => (
+                  <SelectItem key={service.id} value={String(service.id)}>
+                    {service.serviceType}
+                    {service.description ? ` — ${service.description}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Request Details</label>
-            <Textarea value={details} onChange={e => setDetails(e.target.value)} placeholder="Describe the specific requirements..." className="min-h-24" />
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+              Request Details
+            </label>
+            <Textarea
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              placeholder="Describe the specific requirements..."
+              className="min-h-24"
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Requested Date</label>
-              <Input type="date" value={requestedDate} onChange={e => setRequestedDate(e.target.value)} />
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                Requested Date
+              </label>
+              <Input
+                type="date"
+                value={requestedDate}
+                onChange={(e) => setRequestedDate(e.target.value)}
+              />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Budget (£)</label>
-              <Input type="number" value={budget} onChange={e => setBudget(e.target.value)} placeholder="0.00" />
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                Budget (£)
+              </label>
+              <Input
+                type="number"
+                value={budget}
+                onChange={(e) => setBudget(e.target.value)}
+                placeholder="0.00"
+              />
             </div>
           </div>
           <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
             <Button
-              onClick={() => submitInquiry.mutate({
-                supplierId: parseInt(supplierId),
-                serviceType: "general",
-                requestDetails: details,
-                checkInDate: requestedDate || undefined,
-                budget: budget || undefined,
-              })}
-              disabled={!supplierId || !details || submitInquiry.isPending}
-              className="text-white" style={{ background: "oklch(0.35 0.09 145)" }}
+              onClick={() =>
+                selectedService &&
+                submitInquiry.mutate({
+                  supplierId,
+                  memberId,
+                  serviceType: selectedService.serviceType,
+                  requestDetails: details,
+                  checkInDate: requestedDate || undefined,
+                  budget: budget || undefined,
+                })
+              }
+              disabled={
+                !selectedService ||
+                details.trim().length < 10 ||
+                submitInquiry.isPending
+              }
+              className="text-white"
+              style={{ background: "oklch(0.35 0.09 145)" }}
             >
               {submitInquiry.isPending ? "Submitting..." : "Submit Inquiry"}
             </Button>
@@ -280,15 +475,32 @@ function SubmitInquiryDialog({ memberId, onSubmitted }: { memberId: number; onSu
 export default function SupplierServicesPage() {
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState<string>("all");
+  const [selectedSupplierId, setSelectedSupplierId] = useState("");
+  const [selectedMemberId, setSelectedMemberId] = useState("");
+  const selectedSupplier = Number(selectedSupplierId);
+  const selectedMember = Number(selectedMemberId);
 
-  const { data: services, isLoading: servicesLoading, refetch: refetchServices } =
-    trpc.supplierServices.listForSupplier.useQuery({ supplierId: 1 });
+  const { data: suppliers = [] } = trpc.suppliers.list.useQuery();
+  const { data: members = [] } = trpc.members.list.useQuery();
+  const {
+    data: services,
+    isLoading: servicesLoading,
+    refetch: refetchServices,
+  } = trpc.supplierServices.listForSupplier.useQuery(
+    { supplierId: selectedSupplier },
+    { enabled: Number.isSafeInteger(selectedSupplier) && selectedSupplier > 0 },
+  );
 
-  const { data: inquiries, isLoading: inquiriesLoading, refetch: refetchInquiries } =
-    trpc.supplierServices.listInquiries.useQuery({});
+  const {
+    data: inquiries,
+    isLoading: inquiriesLoading,
+    refetch: refetchInquiries,
+  } = trpc.supplierServices.listInquiries.useQuery({});
 
-  const filteredServices = (services ?? []).filter((s: { serviceType: string }) =>
-    search === "" || s.serviceType.toLowerCase().includes(search.toLowerCase())
+  const filteredServices = (services ?? []).filter(
+    (s: { serviceType: string }) =>
+      search === "" ||
+      s.serviceType.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -296,18 +508,79 @@ export default function SupplierServicesPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <div className="flex items-center gap-2 mb-1"><Building2 className="w-5 h-5 text-primary" /></div>
-          <h1 className="text-3xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <div className="flex items-center gap-2 mb-1">
+            <Building2 className="w-5 h-5 text-primary" />
+          </div>
+          <h1
+            className="text-3xl font-bold"
+            style={{ fontFamily: "'Playfair Display', serif" }}
+          >
             Supplier Services
           </h1>
-          <p className="text-muted-foreground mt-1">Service catalogue and pricing inquiry management</p>
+          <p className="text-muted-foreground mt-1">
+            Service catalogue and pricing inquiry management
+          </p>
         </div>
-        <div className="flex gap-2">
-          <AddServiceDialog supplierId={1} onAdded={refetchServices} />
-          <SubmitInquiryDialog memberId={1} onSubmitted={refetchInquiries} />
+        <div className="flex flex-wrap gap-2">
+          {Number.isSafeInteger(selectedSupplier) && selectedSupplier > 0 && (
+            <AddServiceDialog
+              supplierId={selectedSupplier}
+              onAdded={refetchServices}
+            />
+          )}
+          {Number.isSafeInteger(selectedMember) &&
+            selectedMember > 0 &&
+            Number.isSafeInteger(selectedSupplier) &&
+            selectedSupplier > 0 && (
+              <SubmitInquiryDialog
+                memberId={selectedMember}
+                supplierId={selectedSupplier}
+                services={services ?? []}
+                onSubmitted={refetchInquiries}
+              />
+            )}
         </div>
       </div>
       <hr className="lanai-divider" />
+      <div className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-2">
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+            Supplier for service catalogue
+          </label>
+          <Select
+            value={selectedSupplierId}
+            onValueChange={setSelectedSupplierId}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select a persisted supplier" />
+            </SelectTrigger>
+            <SelectContent>
+              {suppliers.map((supplier) => (
+                <SelectItem key={supplier.id} value={String(supplier.id)}>
+                  {supplier.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+            Member for a pricing inquiry
+          </label>
+          <Select value={selectedMemberId} onValueChange={setSelectedMemberId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select a persisted member" />
+            </SelectTrigger>
+            <SelectContent>
+              {members.map((member) => (
+                <SelectItem key={member.id} value={String(member.id)}>
+                  {member.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
       <Tabs defaultValue="services">
         <TabsList className="grid w-full max-w-sm grid-cols-2">
@@ -320,7 +593,12 @@ export default function SupplierServicesPage() {
           <div className="flex gap-3 flex-wrap">
             <div className="relative flex-1 max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input className="pl-9" placeholder="Search services…" value={search} onChange={e => setSearch(e.target.value)} />
+              <Input
+                className="pl-9"
+                placeholder="Search services…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
             </div>
             <Select value={catFilter} onValueChange={setCatFilter}>
               <SelectTrigger className="w-44">
@@ -341,16 +619,28 @@ export default function SupplierServicesPage() {
           </div>
           {servicesLoading ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-36 rounded-lg" />)}
+              {[...Array(6)].map((_, i) => (
+                <Skeleton key={i} className="h-36 rounded-lg" />
+              ))}
             </div>
           ) : filteredServices.length > 0 ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredServices.map(s => (
-                <ServiceCard key={s.id} service={s as unknown as {
-                  id: number; serviceName: string; serviceCategory: string; description?: string | null;
-                  basePrice?: string | null; currency?: string | null; isAvailable?: boolean | null;
-                  supplierName?: string | null;
-                }} />
+              {filteredServices.map((s) => (
+                <ServiceCard
+                  key={s.id}
+                  service={
+                    s as unknown as {
+                      id: number;
+                      serviceName: string;
+                      serviceCategory: string;
+                      description?: string | null;
+                      basePrice?: string | null;
+                      currency?: string | null;
+                      isAvailable?: boolean | null;
+                      supplierName?: string | null;
+                    }
+                  }
+                />
               ))}
             </div>
           ) : (
@@ -366,15 +656,28 @@ export default function SupplierServicesPage() {
           <div className="lanai-card overflow-hidden">
             {inquiriesLoading ? (
               <div className="p-4 space-y-3">
-                {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-20" />)}
+                {[...Array(5)].map((_, i) => (
+                  <Skeleton key={i} className="h-20" />
+                ))}
               </div>
             ) : inquiries && inquiries.length > 0 ? (
-              inquiries.map(inq => (
-                <InquiryRow key={inq.id} inquiry={inq as {
-                  id: number; requestDetails: string; status: string; quotedPrice?: string | null;
-                  currency?: string | null; responseNotes?: string | null; createdAt: Date;
-                  supplierName?: string | null; serviceName?: string | null;
-                }} />
+              inquiries.map((inq) => (
+                <InquiryRow
+                  key={inq.id}
+                  inquiry={
+                    inq as {
+                      id: number;
+                      requestDetails: string;
+                      status: string;
+                      quotedPrice?: string | null;
+                      currency?: string | null;
+                      responseNotes?: string | null;
+                      createdAt: Date;
+                      supplierName?: string | null;
+                      serviceName?: string | null;
+                    }
+                  }
+                />
               ))
             ) : (
               <div className="p-12 text-center text-muted-foreground">

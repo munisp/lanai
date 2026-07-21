@@ -1,57 +1,113 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
-  LayoutDashboard, Users, Plane, Crown, FileText,
-  Brain, Sunrise, Building2, MessageCircle, Settings,
-  ChevronLeft, ChevronRight, Menu, UserCog,
-  BarChart2, Receipt, Gift, Star, CheckSquare,
-  MessageSquare, TrendingUp, Globe
+  LayoutDashboard,
+  Users,
+  Plane,
+  Crown,
+  FileText,
+  Brain,
+  Sunrise,
+  Building2,
+  MessageCircle,
+  Settings,
+  ChevronLeft,
+  ChevronRight,
+  Menu,
+  UserCog,
+  BarChart2,
+  Receipt,
+  Star,
+  CheckSquare,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   // Overview
-  { href: "/",                    icon: LayoutDashboard, label: "Dashboard",           group: "main" },
-  { href: "/briefing",            icon: Sunrise,         label: "Morning Briefing",    group: "main" },
-  { href: "/analytics",           icon: BarChart2,       label: "Revenue Analytics",   group: "main" },
+  { href: "/", icon: LayoutDashboard, label: "Dashboard", group: "main" },
+  {
+    href: "/briefing",
+    icon: Sunrise,
+    label: "Morning Briefing",
+    group: "main",
+  },
+  {
+    href: "/analytics",
+    icon: BarChart2,
+    label: "Revenue Analytics",
+    group: "main",
+  },
 
   // Client Management
-  { href: "/clients",             icon: Users,           label: "Clients",             group: "crm" },
-  { href: "/members",             icon: Crown,           label: "Members",             group: "crm" },
-  { href: "/travel-requests",     icon: Plane,           label: "Travel Requests",     group: "crm" },
-  { href: "/trip-timeline",       icon: Globe,           label: "Trip Timeline",       group: "crm" },
-  { href: "/celebrations",        icon: Gift,            label: "Celebrations",        group: "crm" },
+  { href: "/clients", icon: Users, label: "Clients", group: "crm" },
+  { href: "/members", icon: Crown, label: "Members", group: "crm" },
+  {
+    href: "/travel-requests",
+    icon: Plane,
+    label: "Travel Requests",
+    group: "crm",
+  },
 
   // AI Intelligence
-  { href: "/proposals",           icon: FileText,        label: "Proposal Engine",     group: "ai" },
-  { href: "/intelligence",        icon: Brain,           label: "Client Intelligence", group: "ai" },
-  { href: "/ai-concierge",        icon: TrendingUp,      label: "AI Concierge",        group: "ai" },
+  { href: "/proposals", icon: FileText, label: "Proposal Engine", group: "ai" },
+  {
+    href: "/intelligence",
+    icon: Brain,
+    label: "Client Intelligence",
+    group: "ai",
+  },
 
   // Operations
-  { href: "/suppliers",           icon: Building2,       label: "Suppliers",           group: "ops" },
-  { href: "/supplier-services",   icon: Star,            label: "Supplier Services",   group: "ops" },
-  { href: "/whatsapp",            icon: MessageCircle,   label: "WhatsApp",            group: "ops" },
-  { href: "/inbox",               icon: MessageSquare,   label: "Unified Inbox",       group: "ops" },
-  { href: "/chatwoot",            icon: MessageCircle,   label: "Chatwoot Inbox",      group: "ops" },
-  { href: "/communication-hub",   icon: MessageSquare,   label: "Communication Hub",   group: "ops" },
-  { href: "/task-templates",      icon: CheckSquare,     label: "Task Templates",      group: "ops" },
+  { href: "/suppliers", icon: Building2, label: "Suppliers", group: "ops" },
+  {
+    href: "/supplier-services",
+    icon: Star,
+    label: "Supplier Services",
+    group: "ops",
+  },
+  { href: "/whatsapp", icon: MessageCircle, label: "WhatsApp", group: "ops" },
+  { href: "/inbox", icon: MessageSquare, label: "Unified Inbox", group: "ops" },
+  {
+    href: "/chatwoot",
+    icon: MessageCircle,
+    label: "Chatwoot Inbox",
+    group: "ops",
+  },
+  {
+    href: "/communication-hub",
+    icon: MessageSquare,
+    label: "Communication Hub",
+    group: "ops",
+  },
+  {
+    href: "/task-templates",
+    icon: CheckSquare,
+    label: "Task Templates",
+    group: "ops",
+  },
 
   // Finance
-  { href: "/invoicing",           icon: Receipt,         label: "Invoicing",           group: "finance" },
-  { href: "/nps",                 icon: Star,            label: "NPS & Feedback",      group: "finance" },
+  { href: "/invoicing", icon: Receipt, label: "Invoicing", group: "finance" },
+  { href: "/nps", icon: Star, label: "NPS & Feedback", group: "finance" },
 
   // System
-  { href: "/member-management",   icon: UserCog,         label: "Member Portal",       group: "system" },
-  { href: "/settings",            icon: Settings,        label: "Settings",            group: "system" },
+  {
+    href: "/member-management",
+    icon: UserCog,
+    label: "Member Portal",
+    group: "system",
+  },
+  { href: "/settings", icon: Settings, label: "Settings", group: "system" },
 ];
 
 const GROUP_LABELS: Record<string, string> = {
-  main:    "Overview",
-  crm:     "Client Management",
-  ai:      "AI Intelligence",
-  ops:     "Operations",
+  main: "Overview",
+  crm: "Client Management",
+  ai: "AI Intelligence",
+  ops: "Operations",
   finance: "Finance & Feedback",
-  system:  "System",
+  system: "System",
 };
 
 interface DashboardLayoutProps {
@@ -59,19 +115,21 @@ interface DashboardLayoutProps {
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
-  const [location]   = useLocation();
-  const [collapsed,  setCollapsed]  = useState(false);
+  const [location] = useLocation();
+  const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const groups = Array.from(new Set(NAV_ITEMS.map(i => i.group)));
+  const groups = Array.from(new Set(NAV_ITEMS.map((i) => i.group)));
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className={cn(
-        "flex items-center gap-3 px-5 py-6 border-b border-sidebar-border",
-        collapsed && "justify-center px-3"
-      )}>
+      <div
+        className={cn(
+          "flex items-center gap-3 px-5 py-6 border-b border-sidebar-border",
+          collapsed && "justify-center px-3",
+        )}
+      >
         <img
           src="/manus-storage/lanai_logo_mark_81fa1679.png"
           alt="Lanai"
@@ -79,8 +137,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         />
         {!collapsed && (
           <div className="animate-fade-in">
-            <div className="text-sidebar-foreground font-semibold text-sm tracking-widest uppercase"
-                 style={{ fontFamily: "'DM Sans', sans-serif" }}>
+            <div
+              className="text-sidebar-foreground font-semibold text-sm tracking-widest uppercase"
+              style={{ fontFamily: "'DM Sans', sans-serif" }}
+            >
               Lanai
             </div>
             <div className="text-sidebar-foreground/50 text-xs tracking-wider">
@@ -92,16 +152,18 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-6">
-        {groups.map(group => (
+        {groups.map((group) => (
           <div key={group}>
             {!collapsed && (
-              <div className="px-3 mb-2 text-xs font-medium tracking-widest uppercase text-sidebar-foreground/40"
-                   style={{ fontFamily: "'DM Sans', sans-serif" }}>
+              <div
+                className="px-3 mb-2 text-xs font-medium tracking-widest uppercase text-sidebar-foreground/40"
+                style={{ fontFamily: "'DM Sans', sans-serif" }}
+              >
                 {GROUP_LABELS[group]}
               </div>
             )}
             <div className="space-y-0.5">
-              {NAV_ITEMS.filter(i => i.group === group).map(item => {
+              {NAV_ITEMS.filter((i) => i.group === group).map((item) => {
                 const isActive = location === item.href;
                 return (
                   <Link key={item.href} href={item.href}>
@@ -113,12 +175,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                         isActive
                           ? "bg-sidebar-primary text-sidebar-primary-foreground"
                           : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent",
-                        collapsed && "justify-center px-2"
+                        collapsed && "justify-center px-2",
                       )}
                     >
                       <item.icon className="w-4 h-4 flex-shrink-0" />
                       {!collapsed && (
-                        <span className="animate-fade-in truncate">{item.label}</span>
+                        <span className="animate-fade-in truncate">
+                          {item.label}
+                        </span>
                       )}
                     </div>
                   </Link>
@@ -132,8 +196,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Gold divider + version */}
       <div className="px-4 py-4 border-t border-sidebar-border">
         {!collapsed && (
-          <div className="text-sidebar-foreground/30 text-xs text-center"
-               style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+          <div
+            className="text-sidebar-foreground/30 text-xs text-center"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
             v2.0 · Lanai Intelligence
           </div>
         )}
@@ -148,7 +214,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         className={cn(
           "hidden lg:flex flex-col flex-shrink-0 transition-all duration-200",
           "relative",
-          collapsed ? "w-16" : "w-60"
+          collapsed ? "w-16" : "w-60",
         )}
         style={{ background: "oklch(0.18 0.06 145)" }}
       >
@@ -158,7 +224,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           style={{
             backgroundImage: `url(/manus-storage/lanai_sidebar_texture_e855e839.jpg)`,
             backgroundSize: "cover",
-            backgroundPosition: "center"
+            backgroundPosition: "center",
           }}
         />
         <div className="relative z-10 flex flex-col h-full">
@@ -172,10 +238,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             "absolute -right-3 top-20 z-20",
             "w-6 h-6 rounded-full flex items-center justify-center",
             "bg-sidebar-primary text-sidebar-primary-foreground",
-            "shadow-md transition-transform duration-150 hover:scale-110"
+            "shadow-md transition-transform duration-150 hover:scale-110",
           )}
         >
-          {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
+          {collapsed ? (
+            <ChevronRight className="w-3 h-3" />
+          ) : (
+            <ChevronLeft className="w-3 h-3" />
+          )}
         </button>
       </aside>
 
@@ -208,17 +278,22 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
-            <img src="/manus-storage/lanai_logo_mark_81fa1679.png" alt="Lanai" className="w-6 h-6 object-contain" />
-            <span className="font-semibold text-sm" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <img
+              src="/manus-storage/lanai_logo_mark_81fa1679.png"
+              alt="Lanai"
+              className="w-6 h-6 object-contain"
+            />
+            <span
+              className="font-semibold text-sm"
+              style={{ fontFamily: "'Playfair Display', serif" }}
+            >
               Lanai Lifestyle
             </span>
           </div>
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto">
-          {children}
-        </main>
+        <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
     </div>
   );

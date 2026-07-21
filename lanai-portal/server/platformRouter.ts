@@ -14,12 +14,17 @@
  *   - Platform Analytics / Events
  *
  * All mutations emit events to Fluvio and notify via Dapr.
- * Offline/test mode uses in-memory stores when db is null.
+ * PostgreSQL is mandatory; no in-memory runtime fallback is permitted.
  */
 
 import { z } from "zod";
 import { eq, and, desc, asc, isNull, sql } from "drizzle-orm";
-import { router, protectedProcedure, memberProcedure, adminProcedure } from "./_core/trpc";
+import {
+  router,
+  protectedProcedure,
+  memberProcedure,
+  adminProcedure,
+} from "./_core/trpc";
 import { getDb } from "./db";
 import {
   notifications,
@@ -41,41 +46,35 @@ import {
 } from "../drizzle/schema";
 import { Fluvio, Dapr, TigerBeetle, Temporal } from "./_core/infrastructure";
 
-// ─── In-memory store for test/offline mode ────────────────────────────────────
-const _store: Record<string, any[]> = {
-  notifications: [],
-  aiInsights: [],
-  morningBriefings: [],
-  conversations: [],
-  messages: [],
-  commissionLedger: [],
-  auditLogs: [],
-  memberPreferences: [],
-  advisorTasks: [],
-  tags: [],
-  memberTags: [],
-  proposalItems: [],
-  platformEvents: [],
-};
-let _nextId = 200;
-const nextId = () => _nextId++;
-
 // ─── Helper: write an audit log entry ────────────────────────────────────────
 async function writeAudit(
   actorType: "user" | "member" | "system",
   actorId: number | undefined,
-  action: "create" | "update" | "delete" | "login" | "logout" | "invite" | "approve" | "reject",
+  action:
+    | "create"
+    | "update"
+    | "delete"
+    | "login"
+    | "logout"
+    | "invite"
+    | "approve"
+    | "reject",
   resourceType: string,
   resourceId?: number,
   before?: unknown,
-  after?: unknown
+  after?: unknown,
 ) {
   const db = await getDb();
-  if (!db) {
-    _store.auditLogs.push({ id: nextId(), actorType, actorId, action, resourceType, resourceId, before, after, createdAt: new Date() });
-    return;
-  }
-  await db.insert(auditLogs).values({ actorType, actorId: actorId ?? null, action, resourceType, resourceId: resourceId ?? null, before: before ?? null, after: after ?? null });
+
+  await db.insert(auditLogs).values({
+    actorType,
+    actorId: actorId ?? null,
+    action,
+    resourceType,
+    resourceId: resourceId ?? null,
+    before: before ?? null,
+    after: after ?? null,
+  });
 }
 
 // ─── Helper: create a notification ───────────────────────────────────────────
@@ -83,7 +82,14 @@ async function createNotification(input: {
   recipientType: "user" | "member";
   recipientUserId?: number;
   recipientMemberId?: number;
-  type: "travel_request" | "proposal" | "booking" | "message" | "payment" | "system" | "ai_insight";
+  type:
+    | "travel_request"
+    | "proposal"
+    | "booking"
+    | "message"
+    | "payment"
+    | "system"
+    | "ai_insight";
   title: string;
   body?: string;
   resourceType?: string;
@@ -91,10 +97,7 @@ async function createNotification(input: {
   actionUrl?: string;
 }) {
   const db = await getDb();
-  if (!db) {
-    _store.notifications.push({ id: nextId(), ...input, isRead: false, createdAt: new Date() });
-    return;
-  }
+
   await db.insert(notifications).values({
     recipientType: input.recipientType,
     recipientUserId: input.recipientUserId ?? null,
@@ -116,13 +119,10 @@ async function trackEvent(
   actorId: number,
   resourceType?: string,
   resourceId?: number,
-  properties?: unknown
+  properties?: unknown,
 ) {
   const db = await getDb();
-  if (!db) {
-    _store.platformEvents.push({ id: nextId(), eventType, actorType, actorId, resourceType, resourceId, properties, createdAt: new Date() });
-    return;
-  }
+
   await db.insert(platformEvents).values({
     eventType,
     actorType,
@@ -141,8 +141,9 @@ export const notificationsRouter = router({
     .input(z.object({ unreadOnly: z.boolean().optional() }))
     .query(async ({ input, ctx }) => {
       const db = await getDb();
-      if (!db) return _store.notifications.filter((n: any) => n.recipientUserId === ctx.user.id && (!input.unreadOnly || !n.isRead));
-      const q = db.select().from(notifications)
+      const q = db
+        .select()
+        .from(notifications)
         .where(eq(notifications.recipientUserId, ctx.user.id))
         .orderBy(desc(notifications.createdAt))
         .limit(50);
@@ -154,8 +155,9 @@ export const notificationsRouter = router({
     .input(z.object({ unreadOnly: z.boolean().optional() }))
     .query(async ({ input, ctx }) => {
       const db = await getDb();
-      if (!db) return _store.notifications.filter((n: any) => n.recipientMemberId === ctx.member.id && (!input.unreadOnly || !n.isRead));
-      return db.select().from(notifications)
+      return db
+        .select()
+        .from(notifications)
         .where(eq(notifications.recipientMemberId, ctx.member.id))
         .orderBy(desc(notifications.createdAt))
         .limit(50);
@@ -166,47 +168,69 @@ export const notificationsRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) {
-        const n = _store.notifications.find((n: any) => n.id === input.id);
-        if (n) { n.isRead = true; n.readAt = new Date(); }
-        return { success: true };
-      }
-      await db.update(notifications).set({ isRead: true, readAt: new Date() }).where(eq(notifications.id, input.id));
+
+      await db
+        .update(notifications)
+        .set({ isRead: true, readAt: new Date() })
+        .where(eq(notifications.id, input.id));
       return { success: true };
     }),
 
   /** Mark all notifications as read for the current advisor */
   markAllRead: protectedProcedure.mutation(async ({ ctx }) => {
     const db = await getDb();
-    if (!db) {
-      _store.notifications.filter((n: any) => n.recipientUserId === ctx.user.id).forEach((n: any) => { n.isRead = true; n.readAt = new Date(); });
-      return { success: true };
-    }
-    await db.update(notifications).set({ isRead: true, readAt: new Date() }).where(eq(notifications.recipientUserId, ctx.user.id));
+
+    await db
+      .update(notifications)
+      .set({ isRead: true, readAt: new Date() })
+      .where(eq(notifications.recipientUserId, ctx.user.id));
     return { success: true };
   }),
 
   /** Admin: send a notification to a member */
   sendToMember: protectedProcedure
-    .input(z.object({
-      memberId: z.number(),
-      type: z.enum(["travel_request", "proposal", "booking", "message", "payment", "system", "ai_insight"]),
-      title: z.string().min(1),
-      body: z.string().optional(),
-      actionUrl: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        memberId: z.number(),
+        type: z.enum([
+          "travel_request",
+          "proposal",
+          "booking",
+          "message",
+          "payment",
+          "system",
+          "ai_insight",
+        ]),
+        title: z.string().min(1),
+        body: z.string().optional(),
+        actionUrl: z.string().optional(),
+      }),
+    )
     .mutation(async ({ input }) => {
-      await createNotification({ recipientType: "member", recipientMemberId: input.memberId, ...input });
-      await Dapr.publishEvent("pubsub", "notification-sent", { memberId: input.memberId, type: input.type });
+      await createNotification({
+        recipientType: "member",
+        recipientMemberId: input.memberId,
+        ...input,
+      });
+      await Dapr.publishEvent("pubsub", "notification-sent", {
+        memberId: input.memberId,
+        type: input.type,
+      });
       return { success: true };
     }),
 
   /** Unread count for current advisor */
   unreadCount: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
-    if (!db) return { count: _store.notifications.filter((n: any) => n.recipientUserId === ctx.user.id && !n.isRead).length };
-    const rows = await db.select({ count: sql<number>`count(*)` }).from(notifications)
-      .where(and(eq(notifications.recipientUserId, ctx.user.id), eq(notifications.isRead, false)));
+    const rows = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.recipientUserId, ctx.user.id),
+          eq(notifications.isRead, false),
+        ),
+      );
     return { count: Number(rows[0]?.count ?? 0) };
   }),
 });
@@ -216,41 +240,59 @@ export const notificationsRouter = router({
 export const aiInsightsRouter = router({
   /** Advisor: list all AI insights */
   list: protectedProcedure
-    .input(z.object({
-      memberId: z.number().optional(),
-      insightType: z.enum(["churn_risk", "upsell_opportunity", "preference_detected", "anniversary", "morning_briefing", "proposal_suggestion"]).optional(),
-      unactionedOnly: z.boolean().optional(),
-    }))
+    .input(
+      z.object({
+        memberId: z.number().optional(),
+        insightType: z
+          .enum([
+            "churn_risk",
+            "upsell_opportunity",
+            "preference_detected",
+            "anniversary",
+            "morning_briefing",
+            "proposal_suggestion",
+          ])
+          .optional(),
+        unactionedOnly: z.boolean().optional(),
+      }),
+    )
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return _store.aiInsights.filter((i: any) =>
-        (!input.memberId || i.memberId === input.memberId) &&
-        (!input.insightType || i.insightType === input.insightType) &&
-        (!input.unactionedOnly || !i.isActioned)
-      );
-      return db.select().from(aiInsights).orderBy(desc(aiInsights.createdAt)).limit(100);
+      return db
+        .select()
+        .from(aiInsights)
+        .orderBy(desc(aiInsights.createdAt))
+        .limit(100);
     }),
 
   /** Advisor: create an AI insight manually */
   create: protectedProcedure
-    .input(z.object({
-      memberId: z.number().optional(),
-      travelRequestId: z.number().optional(),
-      insightType: z.enum(["churn_risk", "upsell_opportunity", "preference_detected", "anniversary", "morning_briefing", "proposal_suggestion"]),
-      title: z.string().min(1),
-      body: z.string().min(1),
-      confidence: z.number().min(0).max(1).optional(),
-      model: z.string().optional(),
-      metadata: z.record(z.string(), z.unknown()).optional(),
-    }))
+    .input(
+      z.object({
+        memberId: z.number().optional(),
+        travelRequestId: z.number().optional(),
+        insightType: z.enum([
+          "churn_risk",
+          "upsell_opportunity",
+          "preference_detected",
+          "anniversary",
+          "morning_briefing",
+          "proposal_suggestion",
+        ]),
+        title: z.string().min(1),
+        body: z.string().min(1),
+        confidence: z.number().min(0).max(1).optional(),
+        model: z.string().optional(),
+        metadata: z.record(z.string(), z.unknown()).optional(),
+      }),
+    )
     .mutation(async ({ input }) => {
       const db = await getDb();
       let rowId: number;
-      if (!db) {
-        rowId = nextId();
-        _store.aiInsights.push({ id: rowId, ...input, isActioned: false, createdAt: new Date() });
-      } else {
-        const [row] = await db.insert(aiInsights).values({
+
+      const [row] = await db
+        .insert(aiInsights)
+        .values({
           memberId: input.memberId ?? null,
           travelRequestId: input.travelRequestId ?? null,
           insightType: input.insightType,
@@ -260,12 +302,27 @@ export const aiInsightsRouter = router({
           model: input.model ?? null,
           metadata: input.metadata ?? null,
           isActioned: false,
-        }).returning({ id: aiInsights.id });
-        rowId = row.id;
-      }
-      await Fluvio.produce("ai-insights", JSON.stringify({ event: "created", id: rowId, type: input.insightType }));
+        })
+        .returning({ id: aiInsights.id });
+      rowId = row.id;
+
+      await Fluvio.produce(
+        "ai-insights",
+        JSON.stringify({
+          event: "created",
+          id: rowId,
+          type: input.insightType,
+        }),
+      );
       if (input.memberId) {
-        await createNotification({ recipientType: "user", type: "ai_insight", title: input.title, body: input.body, resourceType: "ai_insight", resourceId: rowId });
+        await createNotification({
+          recipientType: "user",
+          type: "ai_insight",
+          title: input.title,
+          body: input.body,
+          resourceType: "ai_insight",
+          resourceId: rowId,
+        });
       }
       return { id: rowId };
     }),
@@ -275,12 +332,15 @@ export const aiInsightsRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
-      if (!db) {
-        const i = _store.aiInsights.find((i: any) => i.id === input.id);
-        if (i) { i.isActioned = true; i.actionedByUserId = ctx.user.id; i.actionedAt = new Date(); }
-        return { success: true };
-      }
-      await db.update(aiInsights).set({ isActioned: true, actionedByUserId: ctx.user.id, actionedAt: new Date() }).where(eq(aiInsights.id, input.id));
+
+      await db
+        .update(aiInsights)
+        .set({
+          isActioned: true,
+          actionedByUserId: ctx.user.id,
+          actionedAt: new Date(),
+        })
+        .where(eq(aiInsights.id, input.id));
       return { success: true };
     }),
 
@@ -288,42 +348,59 @@ export const aiInsightsRouter = router({
   morningBriefing: protectedProcedure.query(async () => {
     const db = await getDb();
     const today = new Date().toISOString().slice(0, 10);
-    if (!db) {
-      const existing = _store.morningBriefings.find((b: any) => b.date === today);
-      if (existing) return existing;
-      const briefing = { id: nextId(), date: today, headline: "Morning Briefing", body: "No briefing available in offline mode.", urgentItems: [], opportunities: [], createdAt: new Date() };
-      _store.morningBriefings.push(briefing);
-      return briefing;
-    }
-    const rows = await db.select().from(morningBriefings).where(eq(morningBriefings.date, today)).limit(1);
+
+    const rows = await db
+      .select()
+      .from(morningBriefings)
+      .where(eq(morningBriefings.date, today))
+      .limit(1);
     return rows[0] ?? null;
   }),
 
   /** Admin: save a morning briefing */
   saveMorningBriefing: protectedProcedure
-    .input(z.object({
-      headline: z.string().optional(),
-      body: z.string().min(1),
-      urgentItems: z.array(z.unknown()).optional(),
-      opportunities: z.array(z.unknown()).optional(),
-      model: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        headline: z.string().optional(),
+        body: z.string().min(1),
+        urgentItems: z.array(z.unknown()).optional(),
+        opportunities: z.array(z.unknown()).optional(),
+        model: z.string().optional(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       const today = new Date().toISOString().slice(0, 10);
-      if (!db) {
-        const existing = _store.morningBriefings.find((b: any) => b.date === today);
-        if (existing) { Object.assign(existing, input); return { id: existing.id }; }
-        const id = nextId();
-        _store.morningBriefings.push({ id, date: today, ...input, generatedByUserId: ctx.user.id, createdAt: new Date() });
-        return { id };
-      }
-      const existing = await db.select({ id: morningBriefings.id }).from(morningBriefings).where(eq(morningBriefings.date, today)).limit(1);
+
+      const existing = await db
+        .select({ id: morningBriefings.id })
+        .from(morningBriefings)
+        .where(eq(morningBriefings.date, today))
+        .limit(1);
       if (existing.length > 0) {
-        await db.update(morningBriefings).set({ headline: input.headline ?? null, body: input.body, urgentItems: input.urgentItems ?? null, opportunities: input.opportunities ?? null }).where(eq(morningBriefings.date, today));
+        await db
+          .update(morningBriefings)
+          .set({
+            headline: input.headline ?? null,
+            body: input.body,
+            urgentItems: input.urgentItems ?? null,
+            opportunities: input.opportunities ?? null,
+          })
+          .where(eq(morningBriefings.date, today));
         return { id: existing[0].id };
       }
-      const [row] = await db.insert(morningBriefings).values({ date: today, generatedByUserId: ctx.user.id, headline: input.headline ?? null, body: input.body, urgentItems: input.urgentItems ?? null, opportunities: input.opportunities ?? null, model: input.model ?? null }).returning({ id: morningBriefings.id });
+      const [row] = await db
+        .insert(morningBriefings)
+        .values({
+          date: today,
+          generatedByUserId: ctx.user.id,
+          headline: input.headline ?? null,
+          body: input.body,
+          urgentItems: input.urgentItems ?? null,
+          opportunities: input.opportunities ?? null,
+          model: input.model ?? null,
+        })
+        .returning({ id: morningBriefings.id });
       return { id: row.id };
     }),
 });
@@ -333,92 +410,148 @@ export const aiInsightsRouter = router({
 export const messagingRouter = router({
   /** Advisor: list all conversations */
   listConversations: protectedProcedure
-    .input(z.object({ channel: z.enum(["whatsapp", "email", "portal", "sms"]).optional(), unresolvedOnly: z.boolean().optional() }))
+    .input(
+      z.object({
+        channel: z.enum(["whatsapp", "email", "portal", "sms"]).optional(),
+        unresolvedOnly: z.boolean().optional(),
+      }),
+    )
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return _store.conversations.filter((c: any) =>
-        (!input.channel || c.channel === input.channel) &&
-        (!input.unresolvedOnly || !c.isResolved)
-      );
-      return db.select().from(conversations).orderBy(desc(conversations.lastMessageAt)).limit(100);
+      return db
+        .select()
+        .from(conversations)
+        .orderBy(desc(conversations.lastMessageAt))
+        .limit(100);
     }),
 
   /** Member: list their own conversations */
   myConversations: memberProcedure.query(async ({ ctx }) => {
     const db = await getDb();
-    if (!db) return _store.conversations.filter((c: any) => c.memberId === ctx.member.id);
-    return db.select().from(conversations).where(eq(conversations.memberId, ctx.member.id)).orderBy(desc(conversations.updatedAt));
+    return db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.memberId, ctx.member.id))
+      .orderBy(desc(conversations.updatedAt));
   }),
 
   /** Start a new conversation */
   startConversation: memberProcedure
-    .input(z.object({
-      subject: z.string().optional(),
-      channel: z.enum(["whatsapp", "email", "portal", "sms"]).optional(),
-      travelRequestId: z.number().optional(),
-      firstMessage: z.string().min(1),
-    }))
+    .input(
+      z.object({
+        subject: z.string().optional(),
+        channel: z.enum(["whatsapp", "email", "portal", "sms"]).optional(),
+        travelRequestId: z.number().optional(),
+        firstMessage: z.string().min(1),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       let convId: number;
-      if (!db) {
-        convId = nextId();
-        _store.conversations.push({ id: convId, memberId: ctx.member.id, channel: input.channel ?? "portal", subject: input.subject, travelRequestId: input.travelRequestId, isResolved: false, lastMessageAt: new Date(), createdAt: new Date(), updatedAt: new Date() });
-        _store.messages.push({ id: nextId(), conversationId: convId, senderType: "member", senderMemberId: ctx.member.id, body: input.firstMessage, isRead: false, createdAt: new Date() });
-      } else {
-        const [conv] = await db.insert(conversations).values({ memberId: ctx.member.id, channel: input.channel ?? "portal", subject: input.subject ?? null, travelRequestId: input.travelRequestId ?? null, lastMessageAt: new Date() }).returning({ id: conversations.id });
-        convId = conv.id;
-        await db.insert(messages).values({ conversationId: convId, senderType: "member", senderMemberId: ctx.member.id, body: input.firstMessage });
-      }
-      await Fluvio.produce("messages", JSON.stringify({ event: "new_conversation", conversationId: convId, memberId: ctx.member.id }));
-      await Dapr.publishEvent("pubsub", "new-conversation", { conversationId: convId });
+
+      const [conv] = await db
+        .insert(conversations)
+        .values({
+          memberId: ctx.member.id,
+          channel: input.channel ?? "portal",
+          subject: input.subject ?? null,
+          travelRequestId: input.travelRequestId ?? null,
+          lastMessageAt: new Date(),
+        })
+        .returning({ id: conversations.id });
+      convId = conv.id;
+      await db.insert(messages).values({
+        conversationId: convId,
+        senderType: "member",
+        senderMemberId: ctx.member.id,
+        body: input.firstMessage,
+      });
+
+      await Fluvio.produce(
+        "messages",
+        JSON.stringify({
+          event: "new_conversation",
+          conversationId: convId,
+          memberId: ctx.member.id,
+        }),
+      );
+      await Dapr.publishEvent("pubsub", "new-conversation", {
+        conversationId: convId,
+      });
       return { conversationId: convId };
     }),
 
   /** Send a message in a conversation */
   sendMessage: protectedProcedure
-    .input(z.object({
-      conversationId: z.number(),
-      body: z.string().min(1),
-      attachmentUrl: z.string().url().optional(),
-    }))
+    .input(
+      z.object({
+        conversationId: z.number(),
+        body: z.string().min(1),
+        attachmentUrl: z.string().url().optional(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       let msgId: number;
-      if (!db) {
-        msgId = nextId();
-        _store.messages.push({ id: msgId, conversationId: input.conversationId, senderType: "advisor", senderUserId: ctx.user.id, body: input.body, attachmentUrl: input.attachmentUrl, isRead: false, createdAt: new Date() });
-        const conv = _store.conversations.find((c: any) => c.id === input.conversationId);
-        if (conv) conv.lastMessageAt = new Date();
-      } else {
-        const [msg] = await db.insert(messages).values({ conversationId: input.conversationId, senderType: "advisor", senderUserId: ctx.user.id, body: input.body, attachmentUrl: input.attachmentUrl ?? null }).returning({ id: messages.id });
-        msgId = msg.id;
-        await db.update(conversations).set({ lastMessageAt: new Date(), updatedAt: new Date() }).where(eq(conversations.id, input.conversationId));
-      }
-      await Fluvio.produce("messages", JSON.stringify({ event: "message_sent", messageId: msgId, conversationId: input.conversationId }));
+
+      const [msg] = await db
+        .insert(messages)
+        .values({
+          conversationId: input.conversationId,
+          senderType: "advisor",
+          senderUserId: ctx.user.id,
+          body: input.body,
+          attachmentUrl: input.attachmentUrl ?? null,
+        })
+        .returning({ id: messages.id });
+      msgId = msg.id;
+      await db
+        .update(conversations)
+        .set({ lastMessageAt: new Date(), updatedAt: new Date() })
+        .where(eq(conversations.id, input.conversationId));
+
+      await Fluvio.produce(
+        "messages",
+        JSON.stringify({
+          event: "message_sent",
+          messageId: msgId,
+          conversationId: input.conversationId,
+        }),
+      );
       return { messageId: msgId };
     }),
 
   /** Member sends a message */
   memberSendMessage: memberProcedure
-    .input(z.object({
-      conversationId: z.number(),
-      body: z.string().min(1),
-    }))
+    .input(
+      z.object({
+        conversationId: z.number(),
+        body: z.string().min(1),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       let msgId: number;
-      if (!db) {
-        msgId = nextId();
-        _store.messages.push({ id: msgId, conversationId: input.conversationId, senderType: "member", senderMemberId: ctx.member.id, body: input.body, isRead: false, createdAt: new Date() });
-        const conv = _store.conversations.find((c: any) => c.id === input.conversationId);
-        if (conv) conv.lastMessageAt = new Date();
-      } else {
-        const [msg] = await db.insert(messages).values({ conversationId: input.conversationId, senderType: "member", senderMemberId: ctx.member.id, body: input.body }).returning({ id: messages.id });
-        msgId = msg.id;
-        await db.update(conversations).set({ lastMessageAt: new Date(), updatedAt: new Date() }).where(eq(conversations.id, input.conversationId));
-      }
-      await Fluvio.produce("messages", JSON.stringify({ event: "member_message", messageId: msgId }));
+
+      const [msg] = await db
+        .insert(messages)
+        .values({
+          conversationId: input.conversationId,
+          senderType: "member",
+          senderMemberId: ctx.member.id,
+          body: input.body,
+        })
+        .returning({ id: messages.id });
+      msgId = msg.id;
+      await db
+        .update(conversations)
+        .set({ lastMessageAt: new Date(), updatedAt: new Date() })
+        .where(eq(conversations.id, input.conversationId));
+
+      await Fluvio.produce(
+        "messages",
+        JSON.stringify({ event: "member_message", messageId: msgId }),
+      );
       return { messageId: msgId };
     }),
 
@@ -427,8 +560,11 @@ export const messagingRouter = router({
     .input(z.object({ conversationId: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return _store.messages.filter((m: any) => m.conversationId === input.conversationId);
-      return db.select().from(messages).where(eq(messages.conversationId, input.conversationId)).orderBy(asc(messages.createdAt));
+      return db
+        .select()
+        .from(messages)
+        .where(eq(messages.conversationId, input.conversationId))
+        .orderBy(asc(messages.createdAt));
     }),
 
   /** Advisor: resolve a conversation */
@@ -436,12 +572,11 @@ export const messagingRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) {
-        const c = _store.conversations.find((c: any) => c.id === input.id);
-        if (c) c.isResolved = true;
-        return { success: true };
-      }
-      await db.update(conversations).set({ isResolved: true, updatedAt: new Date() }).where(eq(conversations.id, input.id));
+
+      await db
+        .update(conversations)
+        .set({ isResolved: true, updatedAt: new Date() })
+        .where(eq(conversations.id, input.id));
       return { success: true };
     }),
 
@@ -450,12 +585,11 @@ export const messagingRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
-      if (!db) {
-        const c = _store.conversations.find((c: any) => c.id === input.id);
-        if (c) c.assignedAdvisorId = ctx.user.id;
-        return { success: true };
-      }
-      await db.update(conversations).set({ assignedAdvisorId: ctx.user.id, updatedAt: new Date() }).where(eq(conversations.id, input.id));
+
+      await db
+        .update(conversations)
+        .set({ assignedAdvisorId: ctx.user.id, updatedAt: new Date() })
+        .where(eq(conversations.id, input.id));
       return { success: true };
     }),
 });
@@ -465,79 +599,100 @@ export const messagingRouter = router({
 export const commissionRouter = router({
   /** Advisor: list all commission entries */
   list: protectedProcedure
-    .input(z.object({
-      status: z.enum(["expected", "invoiced", "received", "disputed", "written_off"]).optional(),
-      advisorId: z.number().optional(),
-    }))
+    .input(
+      z.object({
+        status: z
+          .enum(["expected", "invoiced", "received", "disputed", "written_off"])
+          .optional(),
+        advisorId: z.number().optional(),
+      }),
+    )
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return _store.commissionLedger.filter((e: any) =>
-        (!input.status || e.status === input.status) &&
-        (!input.advisorId || e.advisorId === input.advisorId)
-      );
-      return db.select().from(commissionLedger).orderBy(desc(commissionLedger.createdAt)).limit(200);
+      return db
+        .select()
+        .from(commissionLedger)
+        .orderBy(desc(commissionLedger.createdAt))
+        .limit(200);
     }),
 
   /** Advisor: create a commission entry for a booking */
   create: protectedProcedure
-    .input(z.object({
-      bookingId: z.number(),
-      memberId: z.number(),
-      supplierId: z.number().optional(),
-      expectedAmount: z.string(),
-      currency: z.string().optional(),
-      expectedDate: z.string().optional(),
-      invoiceRef: z.string().optional(),
-      notes: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        bookingId: z.number(),
+        memberId: z.number(),
+        supplierId: z.number().optional(),
+        expectedAmount: z.string(),
+        currency: z.string().optional(),
+        expectedDate: z.string().optional(),
+        invoiceRef: z.string().optional(),
+        notes: z.string().optional(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       let rowId: number;
-      if (!db) {
-        rowId = nextId();
-        _store.commissionLedger.push({ id: rowId, ...input, advisorId: ctx.user.id, status: "expected", createdAt: new Date(), updatedAt: new Date() });
-      } else {
-        const [row] = await db.insert(commissionLedger).values({
+
+      const [row] = await db
+        .insert(commissionLedger)
+        .values({
           bookingId: input.bookingId,
           memberId: input.memberId,
           supplierId: input.supplierId ?? null,
           advisorId: ctx.user.id,
           expectedAmount: input.expectedAmount,
           currency: input.currency ?? "GBP",
-          expectedDate: input.expectedDate ? new Date(input.expectedDate) : null,
+          expectedDate: input.expectedDate
+            ? new Date(input.expectedDate)
+            : null,
           invoiceRef: input.invoiceRef ?? null,
           notes: input.notes ?? null,
           status: "expected",
-        }).returning({ id: commissionLedger.id });
-        rowId = row.id;
-      }
+        })
+        .returning({ id: commissionLedger.id });
+      rowId = row.id;
+
       // Record in TigerBeetle
-      await TigerBeetle.createTransfer(BigInt(Math.round(parseFloat(input.expectedAmount) * 100)), BigInt(2001), BigInt(2002));
-      await Fluvio.produce("commissions", JSON.stringify({ event: "created", id: rowId }));
+      await TigerBeetle.createTransfer(
+        BigInt(Math.round(parseFloat(input.expectedAmount) * 100)),
+        BigInt(2001),
+        BigInt(2002),
+      );
+      await Fluvio.produce(
+        "commissions",
+        JSON.stringify({ event: "created", id: rowId }),
+      );
       return { id: rowId };
     }),
 
   /** Advisor: mark commission as received */
   markReceived: protectedProcedure
-    .input(z.object({
-      id: z.number(),
-      receivedAmount: z.string(),
-      receivedDate: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        id: z.number(),
+        receivedAmount: z.string(),
+        receivedDate: z.string().optional(),
+      }),
+    )
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) {
-        const e = _store.commissionLedger.find((e: any) => e.id === input.id);
-        if (e) { e.status = "received"; e.receivedAmount = input.receivedAmount; e.receivedDate = new Date(); }
-        return { success: true };
-      }
-      await db.update(commissionLedger).set({
-        status: "received",
-        receivedAmount: input.receivedAmount,
-        receivedDate: input.receivedDate ? new Date(input.receivedDate) : new Date(),
-        updatedAt: new Date(),
-      }).where(eq(commissionLedger.id, input.id));
-      await Fluvio.produce("commissions", JSON.stringify({ event: "received", id: input.id }));
+
+      await db
+        .update(commissionLedger)
+        .set({
+          status: "received",
+          receivedAmount: input.receivedAmount,
+          receivedDate: input.receivedDate
+            ? new Date(input.receivedDate)
+            : new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(commissionLedger.id, input.id));
+      await Fluvio.produce(
+        "commissions",
+        JSON.stringify({ event: "received", id: input.id }),
+      );
       return { success: true };
     }),
 
@@ -546,30 +701,29 @@ export const commissionRouter = router({
     .input(z.object({ id: z.number(), notes: z.string().optional() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) {
-        const e = _store.commissionLedger.find((e: any) => e.id === input.id);
-        if (e) { e.status = "disputed"; if (input.notes) e.notes = input.notes; }
-        return { success: true };
-      }
-      await db.update(commissionLedger).set({ status: "disputed", notes: input.notes ?? null, updatedAt: new Date() }).where(eq(commissionLedger.id, input.id));
+
+      await db
+        .update(commissionLedger)
+        .set({
+          status: "disputed",
+          notes: input.notes ?? null,
+          updatedAt: new Date(),
+        })
+        .where(eq(commissionLedger.id, input.id));
       return { success: true };
     }),
 
   /** Analytics: commission summary */
   summary: protectedProcedure.query(async () => {
     const db = await getDb();
-    if (!db) {
-      const entries = _store.commissionLedger;
-      return {
-        totalExpected: entries.filter((e: any) => e.status === "expected").reduce((s: number, e: any) => s + parseFloat(e.expectedAmount || "0"), 0),
-        totalReceived: entries.filter((e: any) => e.status === "received").reduce((s: number, e: any) => s + parseFloat(e.receivedAmount || "0"), 0),
-        totalDisputed: entries.filter((e: any) => e.status === "disputed").length,
-      };
-    }
-    const rows = await db.select({
-      status: commissionLedger.status,
-      total: sql<string>`sum(expected_amount)`,
-    }).from(commissionLedger).groupBy(commissionLedger.status);
+
+    const rows = await db
+      .select({
+        status: commissionLedger.status,
+        total: sql<string>`sum(expected_amount)`,
+      })
+      .from(commissionLedger)
+      .groupBy(commissionLedger.status);
     return rows;
   }),
 });
@@ -579,18 +733,20 @@ export const commissionRouter = router({
 export const auditRouter = router({
   /** Admin: list audit logs */
   list: adminProcedure
-    .input(z.object({
-      resourceType: z.string().optional(),
-      actorId: z.number().optional(),
-      limit: z.number().int().min(1).max(500).optional(),
-    }))
+    .input(
+      z.object({
+        resourceType: z.string().optional(),
+        actorId: z.number().optional(),
+        limit: z.number().int().min(1).max(500).optional(),
+      }),
+    )
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return _store.auditLogs.filter((l: any) =>
-        (!input.resourceType || l.resourceType === input.resourceType) &&
-        (!input.actorId || l.actorId === input.actorId)
-      ).slice(0, input.limit ?? 100);
-      return db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(input.limit ?? 100);
+      return db
+        .select()
+        .from(auditLogs)
+        .orderBy(desc(auditLogs.createdAt))
+        .limit(input.limit ?? 100);
     }),
 });
 
@@ -600,45 +756,54 @@ export const preferencesRouter = router({
   /** Member: get their preferences */
   get: memberProcedure.query(async ({ ctx }) => {
     const db = await getDb();
-    if (!db) return _store.memberPreferences.find((p: any) => p.memberId === ctx.member.id) ?? null;
-    const rows = await db.select().from(memberPreferences).where(eq(memberPreferences.memberId, ctx.member.id)).limit(1);
+    const rows = await db
+      .select()
+      .from(memberPreferences)
+      .where(eq(memberPreferences.memberId, ctx.member.id))
+      .limit(1);
     return rows[0] ?? null;
   }),
 
   /** Member: upsert their preferences */
   upsert: memberProcedure
-    .input(z.object({
-      preferredAirlines: z.array(z.string()).optional(),
-      preferredHotelChains: z.array(z.string()).optional(),
-      preferredCabinClass: z.string().optional(),
-      preferredRoomType: z.string().optional(),
-      frequentFlyerNumbers: z.record(z.string(), z.string()).optional(),
-      hotelLoyaltyNumbers: z.record(z.string(), z.string()).optional(),
-      seatPreference: z.string().optional(),
-      mealPreference: z.string().optional(),
-      travelStyle: z.string().optional(),
-      favouriteDestinations: z.array(z.string()).optional(),
-      bucketListDestinations: z.array(z.string()).optional(),
-      avoidedDestinations: z.array(z.string()).optional(),
-      communicationPreference: z.string().optional(),
-      notifyOnProposal: z.boolean().optional(),
-      notifyOnBooking: z.boolean().optional(),
-      notifyOnMessage: z.boolean().optional(),
-      customPreferences: z.record(z.string(), z.unknown()).optional(),
-    }))
+    .input(
+      z.object({
+        preferredAirlines: z.array(z.string()).optional(),
+        preferredHotelChains: z.array(z.string()).optional(),
+        preferredCabinClass: z.string().optional(),
+        preferredRoomType: z.string().optional(),
+        frequentFlyerNumbers: z.record(z.string(), z.string()).optional(),
+        hotelLoyaltyNumbers: z.record(z.string(), z.string()).optional(),
+        seatPreference: z.string().optional(),
+        mealPreference: z.string().optional(),
+        travelStyle: z.string().optional(),
+        favouriteDestinations: z.array(z.string()).optional(),
+        bucketListDestinations: z.array(z.string()).optional(),
+        avoidedDestinations: z.array(z.string()).optional(),
+        communicationPreference: z.string().optional(),
+        notifyOnProposal: z.boolean().optional(),
+        notifyOnBooking: z.boolean().optional(),
+        notifyOnMessage: z.boolean().optional(),
+        customPreferences: z.record(z.string(), z.unknown()).optional(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
-      if (!db) {
-        const existing = _store.memberPreferences.find((p: any) => p.memberId === ctx.member.id);
-        if (existing) { Object.assign(existing, input, { updatedAt: new Date() }); }
-        else { _store.memberPreferences.push({ id: nextId(), memberId: ctx.member.id, ...input, updatedAt: new Date() }); }
-        return { success: true };
-      }
-      const existing = await db.select({ id: memberPreferences.id }).from(memberPreferences).where(eq(memberPreferences.memberId, ctx.member.id)).limit(1);
+
+      const existing = await db
+        .select({ id: memberPreferences.id })
+        .from(memberPreferences)
+        .where(eq(memberPreferences.memberId, ctx.member.id))
+        .limit(1);
       if (existing.length > 0) {
-        await db.update(memberPreferences).set({ ...input, updatedAt: new Date() }).where(eq(memberPreferences.memberId, ctx.member.id));
+        await db
+          .update(memberPreferences)
+          .set({ ...input, updatedAt: new Date() })
+          .where(eq(memberPreferences.memberId, ctx.member.id));
       } else {
-        await db.insert(memberPreferences).values({ memberId: ctx.member.id, ...input });
+        await db
+          .insert(memberPreferences)
+          .values({ memberId: ctx.member.id, ...input });
       }
       await writeAudit("member", ctx.member.id, "update", "member_preferences");
       return { success: true };
@@ -649,8 +814,11 @@ export const preferencesRouter = router({
     .input(z.object({ memberId: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return _store.memberPreferences.find((p: any) => p.memberId === input.memberId) ?? null;
-      const rows = await db.select().from(memberPreferences).where(eq(memberPreferences.memberId, input.memberId)).limit(1);
+      const rows = await db
+        .select()
+        .from(memberPreferences)
+        .where(eq(memberPreferences.memberId, input.memberId))
+        .limit(1);
       return rows[0] ?? null;
     }),
 });
@@ -660,42 +828,42 @@ export const preferencesRouter = router({
 export const tasksRouter = router({
   /** Advisor: list their own tasks */
   myTasks: protectedProcedure
-    .input(z.object({
-      status: z.enum(["open", "in_progress", "done", "cancelled"]).optional(),
-      priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
-    }))
+    .input(
+      z.object({
+        status: z.enum(["open", "in_progress", "done", "cancelled"]).optional(),
+        priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const db = await getDb();
-      if (!db) return _store.advisorTasks.filter((t: any) =>
-        t.assignedToUserId === ctx.user.id &&
-        (!input.status || t.status === input.status) &&
-        (!input.priority || t.priority === input.priority)
-      );
-      return db.select().from(advisorTasks)
+      return db
+        .select()
+        .from(advisorTasks)
         .where(eq(advisorTasks.assignedToUserId, ctx.user.id))
         .orderBy(asc(advisorTasks.dueDate), desc(advisorTasks.createdAt));
     }),
 
   /** Advisor: create a task */
   create: protectedProcedure
-    .input(z.object({
-      assignedToUserId: z.number(),
-      memberId: z.number().optional(),
-      travelRequestId: z.number().optional(),
-      bookingId: z.number().optional(),
-      title: z.string().min(1),
-      description: z.string().optional(),
-      priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
-      dueDate: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        assignedToUserId: z.number(),
+        memberId: z.number().optional(),
+        travelRequestId: z.number().optional(),
+        bookingId: z.number().optional(),
+        title: z.string().min(1),
+        description: z.string().optional(),
+        priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+        dueDate: z.string().optional(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       let rowId: number;
-      if (!db) {
-        rowId = nextId();
-        _store.advisorTasks.push({ id: rowId, ...input, createdByUserId: ctx.user.id, status: "open", createdAt: new Date(), updatedAt: new Date() });
-      } else {
-        const [row] = await db.insert(advisorTasks).values({
+
+      const [row] = await db
+        .insert(advisorTasks)
+        .values({
           assignedToUserId: input.assignedToUserId,
           createdByUserId: ctx.user.id,
           memberId: input.memberId ?? null,
@@ -706,41 +874,53 @@ export const tasksRouter = router({
           priority: input.priority ?? "medium",
           dueDate: input.dueDate ? new Date(input.dueDate) : null,
           status: "open",
-        }).returning({ id: advisorTasks.id });
-        rowId = row.id;
-      }
-      await Fluvio.produce("tasks", JSON.stringify({ event: "created", id: rowId }));
+        })
+        .returning({ id: advisorTasks.id });
+      rowId = row.id;
+
+      await Fluvio.produce(
+        "tasks",
+        JSON.stringify({ event: "created", id: rowId }),
+      );
       return { id: rowId };
     }),
 
   /** Advisor: update task status */
   updateStatus: protectedProcedure
-    .input(z.object({
-      id: z.number(),
-      status: z.enum(["open", "in_progress", "done", "cancelled"]),
-    }))
+    .input(
+      z.object({
+        id: z.number(),
+        status: z.enum(["open", "in_progress", "done", "cancelled"]),
+      }),
+    )
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) {
-        const t = _store.advisorTasks.find((t: any) => t.id === input.id);
-        if (t) { t.status = input.status; if (input.status === "done") t.completedAt = new Date(); }
-        return { success: true };
-      }
-      await db.update(advisorTasks).set({
-        status: input.status,
-        completedAt: input.status === "done" ? new Date() : null,
-        updatedAt: new Date(),
-      }).where(eq(advisorTasks.id, input.id));
+
+      await db
+        .update(advisorTasks)
+        .set({
+          status: input.status,
+          completedAt: input.status === "done" ? new Date() : null,
+          updatedAt: new Date(),
+        })
+        .where(eq(advisorTasks.id, input.id));
       return { success: true };
     }),
 
   /** Admin: list all tasks across all advisors */
   listAll: adminProcedure
-    .input(z.object({ status: z.enum(["open", "in_progress", "done", "cancelled"]).optional() }))
+    .input(
+      z.object({
+        status: z.enum(["open", "in_progress", "done", "cancelled"]).optional(),
+      }),
+    )
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return _store.advisorTasks.filter((t: any) => !input.status || t.status === input.status);
-      return db.select().from(advisorTasks).orderBy(asc(advisorTasks.dueDate)).limit(200);
+      return db
+        .select()
+        .from(advisorTasks)
+        .orderBy(asc(advisorTasks.dueDate))
+        .limit(200);
     }),
 });
 
@@ -750,7 +930,6 @@ export const tagsRouter = router({
   /** List all tags */
   list: protectedProcedure.query(async () => {
     const db = await getDb();
-    if (!db) return _store.tags;
     return db.select().from(tags).orderBy(asc(tags.name));
   }),
 
@@ -760,13 +939,13 @@ export const tagsRouter = router({
     .mutation(async ({ input }) => {
       const db = await getDb();
       let rowId: number;
-      if (!db) {
-        rowId = nextId();
-        _store.tags.push({ id: rowId, ...input, createdAt: new Date() });
-      } else {
-        const [row] = await db.insert(tags).values({ name: input.name, color: input.color ?? null }).returning({ id: tags.id });
-        rowId = row.id;
-      }
+
+      const [row] = await db
+        .insert(tags)
+        .values({ name: input.name, color: input.color ?? null })
+        .returning({ id: tags.id });
+      rowId = row.id;
+
       return { id: rowId };
     }),
 
@@ -775,12 +954,11 @@ export const tagsRouter = router({
     .input(z.object({ memberId: z.number(), tagId: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) {
-        const exists = _store.memberTags.find((t: any) => t.memberId === input.memberId && t.tagId === input.tagId);
-        if (!exists) _store.memberTags.push({ id: nextId(), ...input, createdAt: new Date() });
-        return { success: true };
-      }
-      await db.insert(memberTags).values({ memberId: input.memberId, tagId: input.tagId }).onConflictDoNothing();
+
+      await db
+        .insert(memberTags)
+        .values({ memberId: input.memberId, tagId: input.tagId })
+        .onConflictDoNothing();
       return { success: true };
     }),
 
@@ -789,12 +967,15 @@ export const tagsRouter = router({
     .input(z.object({ memberId: z.number(), tagId: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) {
-        const idx = _store.memberTags.findIndex((t: any) => t.memberId === input.memberId && t.tagId === input.tagId);
-        if (idx !== -1) _store.memberTags.splice(idx, 1);
-        return { success: true };
-      }
-      await db.delete(memberTags).where(and(eq(memberTags.memberId, input.memberId), eq(memberTags.tagId, input.tagId)));
+
+      await db
+        .delete(memberTags)
+        .where(
+          and(
+            eq(memberTags.memberId, input.memberId),
+            eq(memberTags.tagId, input.tagId),
+          ),
+        );
       return { success: true };
     }),
 
@@ -803,8 +984,10 @@ export const tagsRouter = router({
     .input(z.object({ memberId: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return _store.memberTags.filter((t: any) => t.memberId === input.memberId);
-      return db.select().from(memberTags).where(eq(memberTags.memberId, input.memberId));
+      return db
+        .select()
+        .from(memberTags)
+        .where(eq(memberTags.memberId, input.memberId));
     }),
 });
 
@@ -816,40 +999,44 @@ export const proposalItemsRouter = router({
     .input(z.object({ proposalId: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return _store.proposalItems.filter((i: any) => i.proposalId === input.proposalId);
-      return db.select().from(proposalItems).where(eq(proposalItems.proposalId, input.proposalId)).orderBy(asc(proposalItems.sortOrder));
+      return db
+        .select()
+        .from(proposalItems)
+        .where(eq(proposalItems.proposalId, input.proposalId))
+        .orderBy(asc(proposalItems.sortOrder));
     }),
 
   /** Advisor: add a line item to a proposal */
   add: protectedProcedure
-    .input(z.object({
-      proposalId: z.number(),
-      sortOrder: z.number().optional(),
-      itemType: z.string().min(1),
-      title: z.string().min(1),
-      description: z.string().optional(),
-      supplierId: z.number().optional(),
-      supplierRef: z.string().optional(),
-      checkIn: z.string().optional(),
-      checkOut: z.string().optional(),
-      nights: z.number().optional(),
-      unitPrice: z.string().optional(),
-      quantity: z.number().optional(),
-      totalPrice: z.string().optional(),
-      currency: z.string().optional(),
-      commissionRate: z.string().optional(),
-      commissionAmount: z.string().optional(),
-      notes: z.string().optional(),
-      imageUrl: z.string().url().optional(),
-    }))
+    .input(
+      z.object({
+        proposalId: z.number(),
+        sortOrder: z.number().optional(),
+        itemType: z.string().min(1),
+        title: z.string().min(1),
+        description: z.string().optional(),
+        supplierId: z.number().optional(),
+        supplierRef: z.string().optional(),
+        checkIn: z.string().optional(),
+        checkOut: z.string().optional(),
+        nights: z.number().optional(),
+        unitPrice: z.string().optional(),
+        quantity: z.number().optional(),
+        totalPrice: z.string().optional(),
+        currency: z.string().optional(),
+        commissionRate: z.string().optional(),
+        commissionAmount: z.string().optional(),
+        notes: z.string().optional(),
+        imageUrl: z.string().url().optional(),
+      }),
+    )
     .mutation(async ({ input }) => {
       const db = await getDb();
       let rowId: number;
-      if (!db) {
-        rowId = nextId();
-        _store.proposalItems.push({ id: rowId, ...input, createdAt: new Date(), updatedAt: new Date() });
-      } else {
-        const [row] = await db.insert(proposalItems).values({
+
+      const [row] = await db
+        .insert(proposalItems)
+        .values({
           proposalId: input.proposalId,
           sortOrder: input.sortOrder ?? 0,
           itemType: input.itemType,
@@ -868,9 +1055,10 @@ export const proposalItemsRouter = router({
           commissionAmount: input.commissionAmount ?? null,
           notes: input.notes ?? null,
           imageUrl: input.imageUrl ?? null,
-        }).returning({ id: proposalItems.id });
-        rowId = row.id;
-      }
+        })
+        .returning({ id: proposalItems.id });
+      rowId = row.id;
+
       return { id: rowId };
     }),
 
@@ -879,27 +1067,25 @@ export const proposalItemsRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) {
-        const idx = _store.proposalItems.findIndex((i: any) => i.id === input.id);
-        if (idx !== -1) _store.proposalItems.splice(idx, 1);
-        return { success: true };
-      }
+
       await db.delete(proposalItems).where(eq(proposalItems.id, input.id));
       return { success: true };
     }),
 
   /** Advisor: reorder items */
   reorder: protectedProcedure
-    .input(z.object({ items: z.array(z.object({ id: z.number(), sortOrder: z.number() })) }))
+    .input(
+      z.object({
+        items: z.array(z.object({ id: z.number(), sortOrder: z.number() })),
+      }),
+    )
     .mutation(async ({ input }) => {
       const db = await getDb();
       for (const item of input.items) {
-        if (!db) {
-          const i = _store.proposalItems.find((i: any) => i.id === item.id);
-          if (i) i.sortOrder = item.sortOrder;
-        } else {
-          await db.update(proposalItems).set({ sortOrder: item.sortOrder, updatedAt: new Date() }).where(eq(proposalItems.id, item.id));
-        }
+        await db
+          .update(proposalItems)
+          .set({ sortOrder: item.sortOrder, updatedAt: new Date() })
+          .where(eq(proposalItems.id, item.id));
       }
       return { success: true };
     }),
@@ -913,37 +1099,40 @@ export const analyticsRouter = router({
     .input(z.object({ since: z.string().optional() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) {
-        const counts: Record<string, number> = {};
-        for (const e of _store.platformEvents) {
-          counts[e.eventType] = (counts[e.eventType] ?? 0) + 1;
-        }
-        return counts;
-      }
-      const rows = await db.select({
-        eventType: platformEvents.eventType,
-        count: sql<number>`count(*)`,
-      }).from(platformEvents).groupBy(platformEvents.eventType);
+
+      const rows = await db
+        .select({
+          eventType: platformEvents.eventType,
+          count: sql<number>`count(*)`,
+        })
+        .from(platformEvents)
+        .groupBy(platformEvents.eventType);
       return rows;
     }),
 
   /** Admin: dashboard summary */
   dashboard: adminProcedure.query(async () => {
     const db = await getDb();
-    if (!db) {
-      return {
-        totalMembers: _store.memberPreferences.length,
-        openTasks: _store.advisorTasks.filter((t: any) => t.status === "open").length,
-        unreadMessages: _store.messages.filter((m: any) => !m.isRead).length,
-        pendingCommissions: _store.commissionLedger.filter((c: any) => c.status === "expected").length,
-        unactionedInsights: _store.aiInsights.filter((i: any) => !i.isActioned).length,
-      };
-    }
-    const [memberCount] = await db.select({ count: sql<number>`count(*)` }).from(members);
-    const [taskCount] = await db.select({ count: sql<number>`count(*)` }).from(advisorTasks).where(eq(advisorTasks.status, "open"));
-    const [msgCount] = await db.select({ count: sql<number>`count(*)` }).from(messages).where(eq(messages.isRead, false));
-    const [commCount] = await db.select({ count: sql<number>`count(*)` }).from(commissionLedger).where(eq(commissionLedger.status, "expected"));
-    const [insightCount] = await db.select({ count: sql<number>`count(*)` }).from(aiInsights).where(eq(aiInsights.isActioned, false));
+
+    const [memberCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(members);
+    const [taskCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(advisorTasks)
+      .where(eq(advisorTasks.status, "open"));
+    const [msgCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(messages)
+      .where(eq(messages.isRead, false));
+    const [commCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(commissionLedger)
+      .where(eq(commissionLedger.status, "expected"));
+    const [insightCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(aiInsights)
+      .where(eq(aiInsights.isActioned, false));
     return {
       totalMembers: Number(memberCount?.count ?? 0),
       openTasks: Number(taskCount?.count ?? 0),
@@ -955,15 +1144,27 @@ export const analyticsRouter = router({
 
   /** Track a platform event */
   track: protectedProcedure
-    .input(z.object({
-      eventType: z.string().min(1),
-      resourceType: z.string().optional(),
-      resourceId: z.number().optional(),
-      properties: z.record(z.string(), z.unknown()).optional(),
-    }))
+    .input(
+      z.object({
+        eventType: z.string().min(1),
+        resourceType: z.string().optional(),
+        resourceId: z.number().optional(),
+        properties: z.record(z.string(), z.unknown()).optional(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
-      await trackEvent(input.eventType, "user", ctx.user.id, input.resourceType, input.resourceId, input.properties);
-      await Fluvio.produce("analytics", JSON.stringify({ event: input.eventType, actorId: ctx.user.id }));
+      await trackEvent(
+        input.eventType,
+        "user",
+        ctx.user.id,
+        input.resourceType,
+        input.resourceId,
+        input.properties,
+      );
+      await Fluvio.produce(
+        "analytics",
+        JSON.stringify({ event: input.eventType, actorId: ctx.user.id }),
+      );
       return { success: true };
     }),
 });
@@ -976,36 +1177,40 @@ export const supplierContactsRouter = router({
     .input(z.object({ supplierId: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return [];
-      return db.select().from(supplierContacts).where(eq(supplierContacts.supplierId, input.supplierId));
+      return db
+        .select()
+        .from(supplierContacts)
+        .where(eq(supplierContacts.supplierId, input.supplierId));
     }),
 
   /** Advisor: add a contact to a supplier */
   add: protectedProcedure
-    .input(z.object({
-      supplierId: z.number(),
-      name: z.string().min(1),
-      role: z.string().optional(),
-      email: z.string().email().optional(),
-      phone: z.string().optional(),
-      isPrimary: z.boolean().optional(),
-      notes: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        supplierId: z.number(),
+        name: z.string().min(1),
+        role: z.string().optional(),
+        email: z.string().email().optional(),
+        phone: z.string().optional(),
+        isPrimary: z.boolean().optional(),
+        notes: z.string().optional(),
+      }),
+    )
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) {
-        const id = nextId();
-        return { id };
-      }
-      const [row] = await db.insert(supplierContacts).values({
-        supplierId: input.supplierId,
-        name: input.name,
-        role: input.role ?? null,
-        email: input.email ?? null,
-        phone: input.phone ?? null,
-        isPrimary: input.isPrimary ?? false,
-        notes: input.notes ?? null,
-      }).returning({ id: supplierContacts.id });
+
+      const [row] = await db
+        .insert(supplierContacts)
+        .values({
+          supplierId: input.supplierId,
+          name: input.name,
+          role: input.role ?? null,
+          email: input.email ?? null,
+          phone: input.phone ?? null,
+          isPrimary: input.isPrimary ?? false,
+          notes: input.notes ?? null,
+        })
+        .returning({ id: supplierContacts.id });
       return { id: row.id };
     }),
 });
