@@ -23,4 +23,5 @@ pnpm exec vitest run \
   server/smoke.test.ts \
   server/smoke.phase2.test.ts \
   --fileParallelism=false \
+  --maxWorkers=1 \
   --reporter=verbose

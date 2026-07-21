@@ -23,6 +23,27 @@ const TEST_AMENITY_ID = 1;
 const TEST_TAG_ID = 1;
 const TEST_CONVERSATION_ID = 1;
 
+let testSql: ReturnType<typeof postgres> | null = null;
+let resetQueue: Promise<void> = Promise.resolve();
+
+function getTestSql(): ReturnType<typeof postgres> {
+  if (!testSql) {
+    testSql = postgres(requiredEnv("DATABASE_URL"), {
+      max: 1,
+      connect_timeout: 15,
+      idle_timeout: 30,
+    });
+  }
+  return testSql;
+}
+
+async function closeTestSql(): Promise<void> {
+  if (!testSql) return;
+  const client = testSql;
+  testSql = null;
+  await client.end({ timeout: 10 });
+}
+
 function requiredEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
@@ -55,30 +76,29 @@ async function migrateDatabase(): Promise<void> {
 }
 
 async function resetAndSeedDatabase(): Promise<void> {
-  const sql = postgres(requiredEnv("DATABASE_URL"), { max: 1 });
-  try {
-    const tables = await sql<{ tablename: string }[]>`
+  const sql = getTestSql();
+  const tables = await sql<{ tablename: string }[]>`
       SELECT tablename
       FROM pg_tables
       WHERE schemaname = 'public'
         AND tablename <> '__drizzle_migrations'
       ORDER BY tablename
     `;
-    const names = tables.map((table) => table.tablename);
-    if (names.some((name) => !/^[a-z_]+$/.test(name))) {
-      throw new Error("[legacy smoke harness] unsafe table name encountered");
-    }
-    await sql.unsafe(
-      `TRUNCATE TABLE ${names.map((name) => `"${name}"`).join(", ")} RESTART IDENTITY CASCADE`,
-    );
+  const names = tables.map((table) => table.tablename);
+  if (names.some((name) => !/^[a-z_]+$/.test(name))) {
+    throw new Error("[legacy smoke harness] unsafe table name encountered");
+  }
+  await sql.unsafe(
+    `TRUNCATE TABLE ${names.map((name) => `"${name}"`).join(", ")} RESTART IDENTITY CASCADE`,
+  );
 
-    await sql`
+  await sql`
       INSERT INTO users (id, "openId", email, name, "loginMethod", role, "isActive")
       VALUES
         (${TEST_ADVISOR_ID}, 'adv-1', 'advisor@lanai.test', 'Test Advisor', 'keycloak', 'advisor', true),
         (${TEST_SECOND_ADVISOR_ID}, 'adv-2', 'advisor-two@lanai.test', 'Second Advisor', 'keycloak', 'advisor', true)
     `;
-    await sql`
+  await sql`
       INSERT INTO members (
         id, email, name, "pinHash", tier, "crmPersonId", "onboardingComplete", active,
         "invitedByUserId", "assignedAdvisorId", "stripeCustomerId", "stripeSubscriptionId",
@@ -90,11 +110,11 @@ async function resetAndSeedDatabase(): Promise<void> {
         '+447700900000', 'British', 'GB123456', '2030-01-01', '1980-05-15'
       )
     `;
-    await sql`
+  await sql`
       INSERT INTO suppliers (id, name, category, "contactEmail", "isActive")
       VALUES (${TEST_SUPPLIER_ID}, 'Seed Hotel', 'Hotel', 'reservations@seed-hotel.test', true)
     `;
-    await sql`
+  await sql`
       INSERT INTO member_invitations (
         token, email, name, tier, "crmPersonId", "invitedByUserId", accepted, "expiresAt"
       )
@@ -103,7 +123,7 @@ async function resetAndSeedDatabase(): Promise<void> {
         'crm-accepted-member', ${TEST_ADVISOR_ID}, false, now() + interval '7 days'
       )
     `;
-    await sql`
+  await sql`
       INSERT INTO travel_requests (
         id, "memberId", destination, dates, pax, budget, status, "assignedToUserId"
       )
@@ -111,7 +131,7 @@ async function resetAndSeedDatabase(): Promise<void> {
         (${TEST_TRAVEL_REQUEST_ID}, ${TEST_MEMBER_ID}, 'London', '2027-06-01 to 2027-06-07', 2, '12000.00', 'new', ${TEST_ADVISOR_ID}),
         (${TEST_SECOND_TRAVEL_REQUEST_ID}, ${TEST_MEMBER_ID}, 'Paris', '2027-07-01 to 2027-07-05', 2, '8000.00', 'new', ${TEST_ADVISOR_ID})
     `;
-    await sql`
+  await sql`
       INSERT INTO proposals (
         id, "travelRequestId", "memberId", "createdByUserId", title, description, "totalPrice", status
       )
@@ -119,7 +139,7 @@ async function resetAndSeedDatabase(): Promise<void> {
         (${TEST_PROPOSAL_ID}, ${TEST_TRAVEL_REQUEST_ID}, ${TEST_MEMBER_ID}, ${TEST_ADVISOR_ID}, 'Seed Approved Proposal', 'Seeded integration-test proposal', '12000.00', 'approved'),
         (${TEST_SECOND_PROPOSAL_ID}, ${TEST_SECOND_TRAVEL_REQUEST_ID}, ${TEST_MEMBER_ID}, ${TEST_ADVISOR_ID}, 'Seed Rejection Proposal', 'Second seeded integration-test proposal', '8000.00', 'sent')
     `;
-    await sql`
+  await sql`
       INSERT INTO bookings (
         id, "proposalId", "memberId", "supplierId", "createdByUserId", "referenceNumber", "totalAmount", "commissionExpected", status
       )
@@ -127,7 +147,7 @@ async function resetAndSeedDatabase(): Promise<void> {
         (${TEST_BOOKING_ID}, ${TEST_PROPOSAL_ID}, ${TEST_MEMBER_ID}, ${TEST_SUPPLIER_ID}, ${TEST_ADVISOR_ID}, 'SEED-BOOK-1', '12000.00', '1200.00', 'pending'),
         (${TEST_SECOND_BOOKING_ID}, ${TEST_PROPOSAL_ID}, ${TEST_MEMBER_ID}, ${TEST_SUPPLIER_ID}, ${TEST_ADVISOR_ID}, 'SEED-BOOK-2', '8000.00', '800.00', 'confirmed')
     `;
-    await sql`
+  await sql`
       INSERT INTO invoices (
         id, "invoiceNumber", "invoiceType", status, "memberId", "bookingId", "travelRequestId", subtotal, "totalAmount", "createdByUserId"
       )
@@ -136,7 +156,7 @@ async function resetAndSeedDatabase(): Promise<void> {
         ${TEST_BOOKING_ID}, ${TEST_TRAVEL_REQUEST_ID}, '12000.00', '12000.00', ${TEST_ADVISOR_ID}
       )
     `;
-    await sql`
+  await sql`
       INSERT INTO pricing_inquiries (
         id, "supplierId", "travelRequestId", "memberId", "requestedByUserId", "serviceType", "requestDetails", status
       )
@@ -145,7 +165,7 @@ async function resetAndSeedDatabase(): Promise<void> {
         ${TEST_ADVISOR_ID}, 'hotel', 'Seed pricing inquiry', 'pending'
       )
     `;
-    await sql`
+  await sql`
       INSERT INTO task_templates (
         id, "templateType", name, description, "defaultPriority", "defaultDueDaysFromTrigger", "isActive"
       )
@@ -153,7 +173,7 @@ async function resetAndSeedDatabase(): Promise<void> {
         ${TEST_TASK_TEMPLATE_ID}, 'airport_fast_track', 'Seed task template', 'Seeded task template', 'medium', 1, true
       )
     `;
-    await sql`
+  await sql`
       INSERT INTO vip_amenities (
         id, "memberId", "bookingId", "travelRequestId", "amenityType", description, "supplierId", "requestedByUserId"
       )
@@ -162,11 +182,11 @@ async function resetAndSeedDatabase(): Promise<void> {
         'welcome_gift', 'Seed welcome amenity', ${TEST_SUPPLIER_ID}, ${TEST_ADVISOR_ID}
       )
     `;
-    await sql`
+  await sql`
       INSERT INTO tags (id, name, color)
       VALUES (${TEST_TAG_ID}, 'Seed Tag', '#8B5CF6')
     `;
-    await sql`
+  await sql`
       INSERT INTO conversations (id, "memberId", "assignedAdvisorId", channel, subject, "isResolved")
       VALUES (
         ${TEST_CONVERSATION_ID}, ${TEST_MEMBER_ID}, ${TEST_ADVISOR_ID}, 'portal',
@@ -174,27 +194,30 @@ async function resetAndSeedDatabase(): Promise<void> {
       )
     `;
 
-    for (const [table, id] of [
-      ["users", TEST_SECOND_ADVISOR_ID],
-      ["members", TEST_MEMBER_ID],
-      ["suppliers", TEST_SUPPLIER_ID],
-      ["travel_requests", TEST_SECOND_TRAVEL_REQUEST_ID],
-      ["proposals", TEST_SECOND_PROPOSAL_ID],
-      ["bookings", TEST_SECOND_BOOKING_ID],
-      ["invoices", TEST_INVOICE_ID],
-      ["pricing_inquiries", TEST_PRICING_INQUIRY_ID],
-      ["task_templates", TEST_TASK_TEMPLATE_ID],
-      ["vip_amenities", TEST_AMENITY_ID],
-      ["tags", TEST_TAG_ID],
-      ["conversations", TEST_CONVERSATION_ID],
-    ] as const) {
-      await sql.unsafe(
-        `SELECT setval(pg_get_serial_sequence('${table}', 'id'), ${id}, true)`,
-      );
-    }
-  } finally {
-    await sql.end({ timeout: 5 });
+  for (const [table, id] of [
+    ["users", TEST_SECOND_ADVISOR_ID],
+    ["members", TEST_MEMBER_ID],
+    ["suppliers", TEST_SUPPLIER_ID],
+    ["travel_requests", TEST_SECOND_TRAVEL_REQUEST_ID],
+    ["proposals", TEST_SECOND_PROPOSAL_ID],
+    ["bookings", TEST_SECOND_BOOKING_ID],
+    ["invoices", TEST_INVOICE_ID],
+    ["pricing_inquiries", TEST_PRICING_INQUIRY_ID],
+    ["task_templates", TEST_TASK_TEMPLATE_ID],
+    ["vip_amenities", TEST_AMENITY_ID],
+    ["tags", TEST_TAG_ID],
+    ["conversations", TEST_CONVERSATION_ID],
+  ] as const) {
+    await sql.unsafe(
+      `SELECT setval(pg_get_serial_sequence('${table}', 'id'), ${id}, true)`,
+    );
   }
+}
+
+function queueResetAndSeed(): Promise<void> {
+  const next = resetQueue.catch(() => undefined).then(resetAndSeedDatabase);
+  resetQueue = next;
+  return next;
 }
 
 async function bootstrapPermify(): Promise<void> {
@@ -266,12 +289,14 @@ export function installLegacySmokeHarness(): void {
   }, 60_000);
 
   beforeEach(async () => {
-    await resetAndSeedDatabase();
-  }, 30_000);
+    await queueResetAndSeed();
+  }, 120_000);
 
   afterAll(async () => {
+    await resetQueue.catch(() => undefined);
+    await closeTestSql();
     await closeDatabase();
-  });
+  }, 30_000);
 }
 
 export const legacySmokeIds = {
