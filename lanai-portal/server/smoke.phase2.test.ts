@@ -21,57 +21,79 @@
 import { describe, it, expect, vi, beforeAll } from "vitest";
 import type { Request, Response } from "express";
 import { appRouter } from "./routers";
+import { installLegacySmokeHarness } from "./test/legacySmokeHarness";
 
 // ─── Mock infrastructure ──────────────────────────────────────────────────────
 
-vi.mock("./_core/infrastructure", () => ({
-  getKeycloak: vi.fn().mockResolvedValue({ introspect: vi.fn().mockResolvedValue({ active: true }) }),
-  getPermify: vi.fn().mockResolvedValue({ check: vi.fn().mockResolvedValue({ can: true }) }),
-  getDaprClient: vi.fn().mockResolvedValue({ pubsub: { publish: vi.fn().mockResolvedValue(undefined) } }),
-  getTemporalClient: vi.fn().mockResolvedValue({ workflow: { start: vi.fn().mockResolvedValue({ workflowId: "wf-1" }) } }),
-  getRedisClient: vi.fn().mockResolvedValue({ get: vi.fn().mockResolvedValue(null), set: vi.fn().mockResolvedValue("OK") }),
-  getLakehouseClient: vi.fn().mockResolvedValue({ insertRecord: vi.fn().mockResolvedValue(undefined) }),
-  getFluvioProducer: vi.fn().mockResolvedValue({ send: vi.fn().mockResolvedValue(undefined) }),
-  getTigerBeetleClient: vi.fn().mockResolvedValue({ createTransfer: vi.fn().mockResolvedValue({ id: BigInt(1) }) }),
-  getApisixClient: vi.fn().mockResolvedValue({ createRoute: vi.fn().mockResolvedValue({ id: "route-1" }) }),
-  getOpenAppSec: vi.fn().mockResolvedValue({ inspect: vi.fn().mockResolvedValue({ safe: true }) }),
-}));
+vi.mock("./_core/infrastructure", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("./_core/infrastructure")>();
+  return {
+    ...actual,
+    // Authorization is validated against the real local Permify service.
+    Permify: actual.Permify,
+    Keycloak: {
+      verifyToken: vi.fn().mockResolvedValue({ valid: true }),
+      authenticate: vi
+        .fn()
+        .mockResolvedValue({ userId: "kc-123", roles: ["advisor"] }),
+      introspect: vi.fn().mockResolvedValue({ active: true }),
+      createUser: vi.fn().mockResolvedValue({ id: "kc-new-user" }),
+    },
+    TigerBeetle: {
+      createAccount: vi.fn().mockResolvedValue(true),
+      createTransfer: vi
+        .fn()
+        .mockResolvedValue({ created: true, transferId: BigInt(9_001) }),
+      getBalance: vi
+        .fn()
+        .mockResolvedValue({ credits: BigInt(50_000), debits: BigInt(10_000) }),
+    },
+    Dapr: {
+      invokeService: vi.fn().mockResolvedValue({ success: true }),
+      publishEvent: vi.fn().mockResolvedValue(true),
+      invokeMethod: vi.fn().mockResolvedValue({ status: "ok" }),
+    },
+    Temporal: {
+      startWorkflow: vi
+        .fn()
+        .mockResolvedValue({ runId: "wf-1", workflowId: "wf-123" }),
+      signalWorkflow: vi.fn().mockResolvedValue(true),
+      queryWorkflow: vi.fn().mockResolvedValue({ status: "running" }),
+    },
+    Redis: {
+      set: vi.fn().mockResolvedValue(true),
+      get: vi.fn().mockResolvedValue(null),
+      del: vi.fn().mockResolvedValue(1),
+      incr: vi.fn().mockResolvedValue(1),
+    },
+    Lakehouse: {
+      insertRecord: vi.fn().mockResolvedValue(true),
+      writeEvent: vi.fn().mockResolvedValue(true),
+      query: vi.fn().mockResolvedValue([]),
+    },
+    OpenAppSec: {
+      inspectRequest: vi.fn().mockResolvedValue({ safe: true }),
+      inspect: vi.fn().mockResolvedValue({ allowed: true, risk: "low" }),
+    },
+    Fluvio: {
+      produce: vi.fn().mockResolvedValue(true),
+      consume: vi.fn().mockResolvedValue([]),
+    },
+    Apisix: {
+      registerRoute: vi.fn().mockResolvedValue(true),
+      createRoute: vi.fn().mockResolvedValue({ id: "route-123" }),
+    },
+  };
+});
 
-vi.mock("./db", () => ({
-  getDb: vi.fn().mockResolvedValue(null),
-  upsertUser: vi.fn().mockResolvedValue(undefined),
-  getUserByOpenId: vi.fn().mockResolvedValue(null),
-  getAllMembers: vi.fn().mockResolvedValue([]),
-  getAllAdvisors: vi.fn().mockResolvedValue([]),
-  getMemberByEmail: vi.fn().mockResolvedValue(null),
-  getMemberById: vi.fn().mockResolvedValue(null),
-  createMember: vi.fn().mockResolvedValue(10),
-  updateMember: vi.fn().mockResolvedValue(undefined),
-  updateMemberPin: vi.fn().mockResolvedValue(undefined),
-  createMemberSession: vi.fn().mockResolvedValue(undefined),
-  deleteMemberSession: vi.fn().mockResolvedValue(undefined),
-  getMemberSession: vi.fn().mockResolvedValue(null),
-  createInvitation: vi.fn().mockResolvedValue(undefined),
-  getInvitationByToken: vi.fn().mockResolvedValue({
-    id: 1,
-    token: "test-token",
-    email: "member@test.com",
-    name: "Test Member",
-    tier: "gold",
-    crmPersonId: null,
-    invitedByUserId: 1,
-    accepted: false,
-    expiresAt: new Date(Date.now() + 86400000),
-    createdAt: new Date(),
-  }),
-  markInvitationAccepted: vi.fn().mockResolvedValue(undefined),
-  getPendingInvitations: vi.fn().mockResolvedValue([]),
-  updateUserRole: vi.fn().mockResolvedValue(undefined),
-}));
+// PostgreSQL is provided by installLegacySmokeHarness; no in-memory database fallback is used.
 
 vi.mock("./email", () => ({
-  sendInvitationEmail: vi.fn().mockResolvedValue(undefined),
+  sendInvitationEmail: vi.fn().mockResolvedValue({ id: "email-test-1" }),
 }));
+
+installLegacySmokeHarness();
 
 // ─── Context factories ────────────────────────────────────────────────────────
 
@@ -88,8 +110,16 @@ const mockRes = {
   setHeader: vi.fn(),
 } as unknown as Response;
 
-const makeAdvisorCtx = (role: "advisor" | "senior_advisor" | "admin" = "advisor") => ({
-  user: { id: 1, email: "advisor@lanai.com", name: "Test Advisor", role, openId: "oid-1" },
+const makeAdvisorCtx = (
+  role: "advisor" | "senior_advisor" | "admin" = "advisor",
+) => ({
+  user: {
+    id: 1,
+    email: "advisor@lanai.com",
+    name: "Test Advisor",
+    role,
+    openId: "oid-1",
+  },
   member: null,
   req: mockReq,
   res: mockRes,
@@ -145,7 +175,11 @@ describe("1. Extended Member Profiles", () => {
         { airline: "Emirates", number: "EK987654321" },
       ],
       hotelLoyaltyNumbers: [
-        { chain: "Marriott Bonvoy", number: "M123456789", tier: "Titanium Elite" },
+        {
+          chain: "Marriott Bonvoy",
+          number: "M123456789",
+          tier: "Titanium Elite",
+        },
         { chain: "Hilton Honors", number: "H987654321", tier: "Diamond" },
       ],
       preferredHotelBrands: ["Four Seasons", "Aman", "Rosewood"],
@@ -153,10 +187,15 @@ describe("1. Extended Member Profiles", () => {
       cabinClass: "first",
       dietaryRequirements: ["halal", "no-nuts"],
       travelStyle: ["luxury", "wellness", "cultural"],
-      amenityPreferences: ["champagne on arrival", "fruit basket", "pillow menu"],
+      amenityPreferences: [
+        "champagne on arrival",
+        "fruit basket",
+        "pillow menu",
+      ],
       securityLevel: "enhanced",
       nda: true,
-      conciergeNotes: "Prefers to be contacted via WhatsApp. Always books suites.",
+      conciergeNotes:
+        "Prefers to be contacted via WhatsApp. Always books suites.",
     });
     expect(result).toHaveProperty("success", true);
     expect(result.memberId).toBe(10);
@@ -347,7 +386,9 @@ describe("3. Supplier Services & Pricing Inquiries", () => {
 
   it("advisor: can list all services for a supplier", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    const result = await caller.supplierServices.listForSupplier({ supplierId: 1 });
+    const result = await caller.supplierServices.listForSupplier({
+      supplierId: 1,
+    });
     expect(Array.isArray(result)).toBe(true);
   });
 
@@ -358,7 +399,8 @@ describe("3. Supplier Services & Pricing Inquiries", () => {
       travelRequestId: 1,
       memberId: 10,
       serviceType: "villa",
-      requestDetails: "Client requires a 5-bedroom villa in Tuscany for 10 nights in August for a family of 6.",
+      requestDetails:
+        "Client requires a 5-bedroom villa in Tuscany for 10 nights in August for a family of 6.",
       checkInDate: "2025-08-01",
       checkOutDate: "2025-08-11",
       guestCount: 6,
@@ -371,7 +413,9 @@ describe("3. Supplier Services & Pricing Inquiries", () => {
 
   it("advisor: can list all pending pricing inquiries", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    const result = await caller.supplierServices.listInquiries({ status: "pending" });
+    const result = await caller.supplierServices.listInquiries({
+      status: "pending",
+    });
     expect(Array.isArray(result)).toBe(true);
   });
 
@@ -379,7 +423,8 @@ describe("3. Supplier Services & Pricing Inquiries", () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
     const result = await caller.supplierServices.respondToInquiry({
       inquiryId: 1,
-      responseDetails: "We can offer Villa Toscana at £2,200/night. Includes private pool, chef, and concierge.",
+      responseDetails:
+        "We can offer Villa Toscana at £2,200/night. Includes private pool, chef, and concierge.",
       quotedPrice: "22000.00",
       status: "responded",
     });
@@ -473,7 +518,9 @@ describe("4. Invoicing — Client Invoices", () => {
 
   it("advisor: can list all client invoices", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    const result = await caller.invoicing.list({ invoiceType: "client_service" });
+    const result = await caller.invoicing.list({
+      invoiceType: "client_service",
+    });
     expect(Array.isArray(result)).toBe(true);
   });
 
@@ -515,14 +562,16 @@ describe("5. Invoicing — Commission Invoices", () => {
       supplierId: 1,
       lineItems: [
         {
-          description: "Commission: J. Thompson — Four Seasons London (3 nights, £1,800)",
+          description:
+            "Commission: J. Thompson — Four Seasons London (3 nights, £1,800)",
           quantity: "1",
           unitPrice: "1800.00",
           commissionRate: "10.00",
           bookingId: 1,
         },
         {
-          description: "Commission: A. Chen — Four Seasons London (5 nights, £3,000)",
+          description:
+            "Commission: A. Chen — Four Seasons London (5 nights, £3,000)",
           quantity: "1",
           unitPrice: "3000.00",
           commissionRate: "10.00",
@@ -546,7 +595,10 @@ describe("5. Invoicing — Commission Invoices", () => {
 
   it("advisor: can list overdue commission invoices", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    const result = await caller.invoicing.list({ invoiceType: "commission", status: "overdue" });
+    const result = await caller.invoicing.list({
+      invoiceType: "commission",
+      status: "overdue",
+    });
     expect(Array.isArray(result)).toBe(true);
   });
 
@@ -572,8 +624,13 @@ describe("6. Celebrations & Special Dates", () => {
       celebrationDate: "1980-05-15",
       isRecurring: true,
       reminderDaysBefore: 30,
-      notes: "Prefers Krug Champagne. Has previously enjoyed surprise experiences.",
-      giftSuggestions: ["Krug Champagne", "Spa day", "Private dining experience"],
+      notes:
+        "Prefers Krug Champagne. Has previously enjoyed surprise experiences.",
+      giftSuggestions: [
+        "Krug Champagne",
+        "Spa day",
+        "Private dining experience",
+      ],
     });
     expect(result).toHaveProperty("id");
     expect(result).toHaveProperty("celebrationType", "birthday");
@@ -588,7 +645,8 @@ describe("6. Celebrations & Special Dates", () => {
       celebrationDate: "2008-06-14",
       isRecurring: true,
       reminderDaysBefore: 45,
-      notes: "10th anniversary in 2018 was celebrated in Maldives. 20th in 2028 — start planning.",
+      notes:
+        "10th anniversary in 2018 was celebrated in Maldives. 20th in 2028 — start planning.",
     });
     expect(result).toHaveProperty("celebrationType", "anniversary");
   });
@@ -635,7 +693,8 @@ describe("7. NPS & Post-Trip Feedback", () => {
     const result = await caller.nps.submit({
       score: 10,
       bookingId: 1,
-      feedback: "Absolutely exceptional service. The team anticipated every need.",
+      feedback:
+        "Absolutely exceptional service. The team anticipated every need.",
     });
     expect(result).toHaveProperty("category", "promoter");
     expect(result.score).toBe(10);
@@ -668,7 +727,10 @@ describe("7. NPS & Post-Trip Feedback", () => {
 
   it("advisor: can filter NPS responses by detractors requiring follow-up", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    const result = await caller.nps.list({ category: "detractor", followUpRequired: true });
+    const result = await caller.nps.list({
+      category: "detractor",
+      followUpRequired: true,
+    });
     expect(Array.isArray(result)).toBe(true);
   });
 
@@ -728,8 +790,10 @@ describe("8. Communication Timeline", () => {
       communicationType: "phone_call",
       direction: "inbound",
       subject: "Maldives trip review call",
-      summary: "Member called to discuss the Maldives itinerary. Very happy with the proposal.",
-      transcription: "Advisor: Good morning James. Member: Hi, I've reviewed the itinerary and it looks wonderful...",
+      summary:
+        "Member called to discuss the Maldives itinerary. Very happy with the proposal.",
+      transcription:
+        "Advisor: Good morning James. Member: Hi, I've reviewed the itinerary and it looks wonderful...",
       sentiment: "positive",
       sentimentScore: "0.92",
       durationSeconds: 840,
@@ -762,7 +826,9 @@ describe("8. Communication Timeline", () => {
       subject: "Your Maldives Itinerary — Lanai Lifestyle",
       body: "Dear James, Please find attached your personalised Maldives itinerary...",
       followUpRequired: true,
-      followUpDueAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+      followUpDueAt: new Date(
+        Date.now() + 3 * 24 * 60 * 60 * 1000,
+      ).toISOString(),
     });
     expect(result.followUpRequired).toBe(true);
   });
@@ -784,13 +850,17 @@ describe("8. Communication Timeline", () => {
 
   it("advisor: can list all pending follow-ups due in the next 7 days", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    const result = await caller.communicationHub.pendingFollowUps({ daysAhead: 7 });
+    const result = await caller.communicationHub.pendingFollowUps({
+      daysAhead: 7,
+    });
     expect(Array.isArray(result)).toBe(true);
   });
 
   it("advisor: can mark a follow-up as completed", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    const result = await caller.communicationHub.completeFollowUp({ entryId: 1 });
+    const result = await caller.communicationHub.completeFollowUp({
+      entryId: 1,
+    });
     expect(result.success).toBe(true);
   });
 
@@ -812,7 +882,8 @@ describe("9. Task Templates", () => {
     const result = await caller.taskTemplates.create({
       templateType: "airport_fast_track",
       name: "Airport Fast-Track Arrangement",
-      description: "Arrange meet-and-greet and fast-track security for member at departure airport.",
+      description:
+        "Arrange meet-and-greet and fast-track security for member at departure airport.",
       defaultPriority: "high",
       defaultDueDaysFromTrigger: 3,
       checklistItems: [
@@ -833,11 +904,15 @@ describe("9. Task Templates", () => {
     const result = await caller.taskTemplates.create({
       templateType: "villa_provisioning",
       name: "Villa Provisioning Checklist",
-      description: "Ensure villa is stocked and prepared according to member preferences.",
+      description:
+        "Ensure villa is stocked and prepared according to member preferences.",
       defaultPriority: "medium",
       defaultDueDaysFromTrigger: 7,
       checklistItems: [
-        { item: "Confirm dietary requirements with villa manager", required: true },
+        {
+          item: "Confirm dietary requirements with villa manager",
+          required: true,
+        },
         { item: "Order preferred wines and champagne", required: true },
         { item: "Arrange welcome flowers", required: false },
         { item: "Set up children's activities if applicable", required: false },
@@ -871,14 +946,21 @@ describe("9. Task Templates", () => {
     const result = await caller.taskTemplates.create({
       templateType: "visa_check",
       name: "Visa Requirements Check",
-      description: "Verify visa requirements for all travellers before booking is confirmed.",
+      description:
+        "Verify visa requirements for all travellers before booking is confirmed.",
       defaultPriority: "urgent",
       defaultDueDaysFromTrigger: 1,
       checklistItems: [
-        { item: "Check visa requirements for all destinations", required: true },
+        {
+          item: "Check visa requirements for all destinations",
+          required: true,
+        },
         { item: "Verify passport expiry (min 6 months)", required: true },
         { item: "Check transit visa requirements", required: true },
-        { item: "Advise member of any visa applications needed", required: true },
+        {
+          item: "Advise member of any visa applications needed",
+          required: true,
+        },
       ],
     });
     expect(result.templateType).toBe("visa_check");
@@ -925,7 +1007,11 @@ describe("10. Trip Timeline", () => {
       totalSpend: "28500.00",
       currency: "GBP",
       satisfactionScore: 5,
-      highlights: ["Private snorkelling", "Sunset dolphin cruise", "Underwater dining"],
+      highlights: [
+        "Private snorkelling",
+        "Sunset dolphin cruise",
+        "Underwater dining",
+      ],
       memberFeedback: "Absolutely perfect. Best holiday we've ever had.",
     });
     expect(result).toHaveProperty("id");
@@ -972,7 +1058,8 @@ describe("11. VIP Amenities & Welcome Gifts", () => {
       memberId: 10,
       bookingId: 1,
       amenityType: "welcome_gift",
-      description: "Krug Champagne, seasonal fruit basket, and personalised welcome card",
+      description:
+        "Krug Champagne, seasonal fruit basket, and personalised welcome card",
       cost: "250.00",
       currency: "GBP",
       notes: "To be placed in room before 3pm on arrival day",
@@ -999,7 +1086,8 @@ describe("11. VIP Amenities & Welcome Gifts", () => {
       memberId: 10,
       bookingId: 1,
       amenityType: "anniversary_setup",
-      description: "Rose petals on bed, Moët & Chandon, red roses, and anniversary card",
+      description:
+        "Rose petals on bed, Moët & Chandon, red roses, and anniversary card",
       cost: "180.00",
       currency: "GBP",
     });
@@ -1049,7 +1137,9 @@ describe("12. Revenue Analytics Dashboard", () => {
 
   it("admin: can get revenue breakdown by category for the last 30 days", async () => {
     const caller = appRouter.createCaller(makeAdminCtx());
-    const result = await caller.revenueAnalytics.revenueByCategory({ days: 30 });
+    const result = await caller.revenueAnalytics.revenueByCategory({
+      days: 30,
+    });
     expect(result).toHaveProperty("hotels");
     expect(result).toHaveProperty("ancillary");
     expect(result).toHaveProperty("transport");
@@ -1117,14 +1207,18 @@ describe("13. AI Concierge Assistant", () => {
 
   it("gold member: can get destination recommendations", async () => {
     const caller = appRouter.createCaller(makeMemberCtx("gold"));
-    const result = await caller.aiConcierge.recommendDestinations({ partySize: 4 });
+    const result = await caller.aiConcierge.recommendDestinations({
+      partySize: 4,
+    });
     expect(result.tier).toBe("gold");
     expect(result.recommendations.length).toBeGreaterThan(0);
   });
 
   it("silver member: can get destination recommendations", async () => {
     const caller = appRouter.createCaller(makeMemberCtx("silver"));
-    const result = await caller.aiConcierge.recommendDestinations({ partySize: 2 });
+    const result = await caller.aiConcierge.recommendDestinations({
+      partySize: 2,
+    });
     expect(result.tier).toBe("silver");
   });
 
@@ -1205,13 +1299,18 @@ describe("14. Phase 2 End-to-End Lifecycle", () => {
     // Step 1: Advisor builds out the member's extended profile
     const profileResult = await advisor.memberProfile.upsert({
       memberId: 10,
-      frequentFlyerNumbers: [{ airline: "British Airways", number: "BA123456" }],
-      hotelLoyaltyNumbers: [{ chain: "Marriott Bonvoy", number: "M123456", tier: "Titanium" }],
+      frequentFlyerNumbers: [
+        { airline: "British Airways", number: "BA123456" },
+      ],
+      hotelLoyaltyNumbers: [
+        { chain: "Marriott Bonvoy", number: "M123456", tier: "Titanium" },
+      ],
       preferredHotelBrands: ["Aman", "Four Seasons"],
       cabinClass: "first",
       securityLevel: "enhanced",
       nda: true,
-      conciergeNotes: "High-value client. Always book suites. Prefers WhatsApp.",
+      conciergeNotes:
+        "High-value client. Always book suites. Prefers WhatsApp.",
     });
     expect(profileResult.success).toBe(true);
 
@@ -1259,8 +1358,18 @@ describe("14. Phase 2 End-to-End Lifecycle", () => {
     const invoice = await advisor.invoicing.createClientInvoice({
       memberId: 10,
       lineItems: [
-        { itemType: "villa", description: "Villa Toscana — 10 nights", quantity: "10", unitPrice: "2800.00" },
-        { itemType: "transfer", description: "Airport transfers", quantity: "2", unitPrice: "400.00" },
+        {
+          itemType: "villa",
+          description: "Villa Toscana — 10 nights",
+          quantity: "10",
+          unitPrice: "2800.00",
+        },
+        {
+          itemType: "transfer",
+          description: "Airport transfers",
+          quantity: "2",
+          unitPrice: "400.00",
+        },
       ],
       currency: "GBP",
       dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
@@ -1339,7 +1448,8 @@ describe("14. Phase 2 End-to-End Lifecycle", () => {
       supplierId: 1,
       lineItems: [
         {
-          description: "Commission: Thompson — Villa Toscana (10 nights, £28,000)",
+          description:
+            "Commission: Thompson — Villa Toscana (10 nights, £28,000)",
           quantity: "1",
           unitPrice: "28000.00",
           commissionRate: "12.00",

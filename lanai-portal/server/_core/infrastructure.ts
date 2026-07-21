@@ -461,7 +461,7 @@ export const Permify = {
     const subjectEntity = parseEntity(subject, "Permify");
     const resourceEntity = parseEntity(resource, "Permify");
     try {
-      await getPermifyClient().relationship.write({
+      await getPermifyClient().data.write({
         tenantId: ENV.permifyTenantId,
         metadata: { schemaVersion: ENV.permifySchemaVersion },
         tuples: [{ entity: resourceEntity, relation, subject: subjectEntity }],

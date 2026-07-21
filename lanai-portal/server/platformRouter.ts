@@ -97,11 +97,25 @@ async function createNotification(input: {
   actionUrl?: string;
 }) {
   const db = await getDb();
+  const hasUserRecipient = input.recipientUserId !== undefined;
+  const hasMemberRecipient = input.recipientMemberId !== undefined;
+  if (
+    (input.recipientType === "user" &&
+      (!hasUserRecipient || hasMemberRecipient)) ||
+    (input.recipientType === "member" &&
+      (!hasMemberRecipient || hasUserRecipient))
+  ) {
+    throw new Error(
+      `Notification recipient mismatch for recipient type ${input.recipientType}`,
+    );
+  }
 
   await db.insert(notifications).values({
     recipientType: input.recipientType,
-    recipientUserId: input.recipientUserId ?? null,
-    recipientMemberId: input.recipientMemberId ?? null,
+    recipientUserId:
+      input.recipientType === "user" ? input.recipientUserId! : null,
+    recipientMemberId:
+      input.recipientType === "member" ? input.recipientMemberId! : null,
     type: input.type,
     title: input.title,
     body: input.body ?? null,
@@ -286,7 +300,7 @@ export const aiInsightsRouter = router({
         metadata: z.record(z.string(), z.unknown()).optional(),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       let rowId: number;
 
@@ -317,6 +331,7 @@ export const aiInsightsRouter = router({
       if (input.memberId) {
         await createNotification({
           recipientType: "user",
+          recipientUserId: ctx.user.id,
           type: "ai_insight",
           title: input.title,
           body: input.body,
@@ -720,7 +735,7 @@ export const commissionRouter = router({
     const rows = await db
       .select({
         status: commissionLedger.status,
-        total: sql<string>`sum(expected_amount)`,
+        total: sql<string>`sum("expectedAmount")`,
       })
       .from(commissionLedger)
       .groupBy(commissionLedger.status);

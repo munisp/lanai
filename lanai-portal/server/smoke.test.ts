@@ -34,117 +34,86 @@ import { describe, it, expect, vi } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 import type { Member, User } from "../drizzle/schema";
+import { installLegacySmokeHarness } from "./test/legacySmokeHarness";
 
 // ─── Mock all external services ───────────────────────────────────────────────
 
-vi.mock("./_core/infrastructure", () => ({
-  Keycloak: {
-    verifyToken: vi.fn().mockResolvedValue({ valid: true }),
-    authenticate: vi.fn().mockResolvedValue({ userId: "kc-123", roles: ["advisor"] }),
-    introspect: vi.fn().mockResolvedValue({ active: true }),
-    createUser: vi.fn().mockResolvedValue({ id: "kc-new-user" }),
-  },
-  TigerBeetle: {
-    createAccount: vi.fn().mockResolvedValue(true),
-    createTransfer: vi.fn().mockResolvedValue(true),
-    getBalance: vi.fn().mockResolvedValue({ credits: BigInt(50000), debits: BigInt(10000) }),
-  },
-  Permify: {
-    check: vi.fn().mockResolvedValue(true),
-    writeTuple: vi.fn().mockResolvedValue(true),
-    writeRelationship: vi.fn().mockResolvedValue(true),
-  },
-  Dapr: {
-    invokeService: vi.fn().mockResolvedValue({ success: true }),
-    publishEvent: vi.fn().mockResolvedValue(true),
-    invokeMethod: vi.fn().mockResolvedValue({ status: "ok" }),
-  },
-  Temporal: {
-    startWorkflow: vi.fn().mockResolvedValue({ runId: "wf-1", workflowId: "wf-123" }),
-    signalWorkflow: vi.fn().mockResolvedValue(true),
-    queryWorkflow: vi.fn().mockResolvedValue({ status: "running" }),
-  },
-  Redis: {
-    set: vi.fn().mockResolvedValue(true),
-    get: vi.fn().mockResolvedValue(null),
-    del: vi.fn().mockResolvedValue(1),
-    incr: vi.fn().mockResolvedValue(1),
-  },
-  Lakehouse: {
-    insertRecord: vi.fn().mockResolvedValue(true),
-    writeEvent: vi.fn().mockResolvedValue(true),
-    query: vi.fn().mockResolvedValue([]),
-  },
-  OpenAppSec: {
-    inspectRequest: vi.fn().mockResolvedValue({ safe: true }),
-    inspect: vi.fn().mockResolvedValue({ allowed: true, risk: "low" }),
-  },
-  Fluvio: {
-    produce: vi.fn().mockResolvedValue(true),
-    consume: vi.fn().mockResolvedValue([]),
-  },
-  Apisix: {
-    registerRoute: vi.fn().mockResolvedValue(true),
-    createRoute: vi.fn().mockResolvedValue({ id: "route-123" }),
-  },
-  APISIX: {
-    createRoute: vi.fn().mockResolvedValue({ id: "route-123" }),
-    getRoute: vi.fn().mockResolvedValue({ id: "route-123", status: "active" }),
-  },
-  Postgres: { query: vi.fn().mockResolvedValue([]) },
-}));
-
-vi.mock("./db", () => {
-  const members: any[] = [];
-  const users: any[] = [];
-  let id = 1;
+vi.mock("./_core/infrastructure", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("./_core/infrastructure")>();
   return {
-    getDb: vi.fn().mockResolvedValue(null),
-    upsertUser: vi.fn().mockResolvedValue(undefined),
-    getUserByOpenId: vi.fn().mockImplementation(async (openId: string) =>
-      users.find((u: any) => u.openId === openId)
-    ),
-    getAllAdvisors: vi.fn().mockResolvedValue(users),
-    getAllMembers: vi.fn().mockResolvedValue(members),
-    getMemberByEmail: vi.fn().mockImplementation(async (email: string) =>
-      members.find((m: any) => m.email === email && m.active)
-    ),
-    getMemberById: vi.fn().mockImplementation(async (memberId: number) =>
-      members.find((m: any) => m.id === memberId)
-    ),
-    createMember: vi.fn().mockImplementation(async (data: any) => {
-      const newId = id++;
-      members.push({ id: newId, ...data, onboardingComplete: false, active: true, createdAt: new Date(), updatedAt: new Date(), lastSignedIn: null });
-      return newId;
-    }),
-    updateMemberPin: vi.fn().mockImplementation(async (memberId: number, pinHash: string) => {
-      const m = members.find((m: any) => m.id === memberId);
-      if (m) { m.pinHash = pinHash; m.onboardingComplete = true; }
-    }),
-    updateMemberLastSignedIn: vi.fn().mockResolvedValue(undefined),
-    updateMember: vi.fn().mockImplementation(async (memberId: number, data: any) => {
-      const m = members.find((m: any) => m.id === memberId);
-      if (m) Object.assign(m, data);
-    }),
-    createInvitation: vi.fn().mockResolvedValue(undefined),
-    getInvitationByToken: vi.fn().mockResolvedValue({
-      id: 1, token: "test-token", email: "member@test.com", name: "Test Member",
-      tier: "gold", crmPersonId: null, invitedByUserId: 1, accepted: false,
-      expiresAt: new Date(Date.now() + 86400000), createdAt: new Date(),
-    }),
-    markInvitationAccepted: vi.fn().mockResolvedValue(undefined),
-    getPendingInvitations: vi.fn().mockResolvedValue([]),
-    createMemberSession: vi.fn().mockResolvedValue(undefined),
-    getMemberSessionByToken: vi.fn().mockResolvedValue(undefined),
-    deleteMemberSession: vi.fn().mockResolvedValue(undefined),
-    deleteExpiredMemberSessions: vi.fn().mockResolvedValue(undefined),
-    updateUserRole: vi.fn().mockResolvedValue(undefined),
+    ...actual,
+    Keycloak: {
+      verifyToken: vi.fn().mockResolvedValue({ valid: true }),
+      authenticate: vi
+        .fn()
+        .mockResolvedValue({ userId: "kc-123", roles: ["advisor"] }),
+      introspect: vi.fn().mockResolvedValue({ active: true }),
+      createUser: vi.fn().mockResolvedValue({ id: "kc-new-user" }),
+    },
+    TigerBeetle: {
+      createAccount: vi.fn().mockResolvedValue(true),
+      createTransfer: vi
+        .fn()
+        .mockResolvedValue({ created: true, transferId: BigInt(9_001) }),
+      getBalance: vi
+        .fn()
+        .mockResolvedValue({ credits: BigInt(50000), debits: BigInt(10000) }),
+    },
+    // Policy checks are exercised against the real local Permify service.
+    Permify: actual.Permify,
+    Dapr: {
+      invokeService: vi.fn().mockResolvedValue({ success: true }),
+      publishEvent: vi.fn().mockResolvedValue(true),
+      invokeMethod: vi.fn().mockResolvedValue({ status: "ok" }),
+    },
+    Temporal: {
+      startWorkflow: vi
+        .fn()
+        .mockResolvedValue({ runId: "wf-1", workflowId: "wf-123" }),
+      signalWorkflow: vi.fn().mockResolvedValue(true),
+      queryWorkflow: vi.fn().mockResolvedValue({ status: "running" }),
+    },
+    Redis: {
+      set: vi.fn().mockResolvedValue(true),
+      get: vi.fn().mockResolvedValue(null),
+      del: vi.fn().mockResolvedValue(1),
+      incr: vi.fn().mockResolvedValue(1),
+    },
+    Lakehouse: {
+      insertRecord: vi.fn().mockResolvedValue(true),
+      writeEvent: vi.fn().mockResolvedValue(true),
+      query: vi.fn().mockResolvedValue([]),
+    },
+    OpenAppSec: {
+      inspectRequest: vi.fn().mockResolvedValue({ safe: true }),
+      inspect: vi.fn().mockResolvedValue({ allowed: true, risk: "low" }),
+    },
+    Fluvio: {
+      produce: vi.fn().mockResolvedValue(true),
+      consume: vi.fn().mockResolvedValue([]),
+    },
+    Apisix: {
+      registerRoute: vi.fn().mockResolvedValue(true),
+      createRoute: vi.fn().mockResolvedValue({ id: "route-123" }),
+    },
+    APISIX: {
+      createRoute: vi.fn().mockResolvedValue({ id: "route-123" }),
+      getRoute: vi
+        .fn()
+        .mockResolvedValue({ id: "route-123", status: "active" }),
+    },
+    Postgres: { query: vi.fn().mockResolvedValue([]) },
   };
 });
 
+// PostgreSQL is provided by installLegacySmokeHarness; no in-memory database fallback is used.
+
 vi.mock("./email", () => ({
-  sendInvitationEmail: vi.fn().mockResolvedValue(true),
+  sendInvitationEmail: vi.fn().mockResolvedValue({ id: "email-test-1" }),
 }));
+
+installLegacySmokeHarness();
 
 vi.mock("stripe", () => ({
   default: vi.fn().mockImplementation(() => ({
@@ -157,12 +126,16 @@ vi.mock("stripe", () => ({
     },
     checkout: {
       sessions: {
-        create: vi.fn().mockResolvedValue({ url: "https://checkout.stripe.com/test" }),
+        create: vi
+          .fn()
+          .mockResolvedValue({ url: "https://checkout.stripe.com/test" }),
       },
     },
     billingPortal: {
       sessions: {
-        create: vi.fn().mockResolvedValue({ url: "https://billing.stripe.com/test" }),
+        create: vi
+          .fn()
+          .mockResolvedValue({ url: "https://billing.stripe.com/test" }),
       },
     },
     paymentMethods: { list: vi.fn().mockResolvedValue({ data: [] }) },
@@ -171,11 +144,23 @@ vi.mock("stripe", () => ({
 
 // ─── Context factories ────────────────────────────────────────────────────────
 
-function makeAdvisorCtx(role: "advisor" | "senior_advisor" | "admin" = "advisor"): TrpcContext {
+function makeAdvisorCtx(
+  role: "advisor" | "senior_advisor" | "admin" = "advisor",
+): TrpcContext {
   const user: User = {
-    id: 1, openId: "adv-1", email: "advisor@lanai.com", name: "Test Advisor",
-    loginMethod: "manus", role, avatarUrl: null, phone: null, bio: null, isActive: true,
-    createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date(),
+    id: 1,
+    openId: "adv-1",
+    email: "advisor@lanai.com",
+    name: "Test Advisor",
+    loginMethod: "manus",
+    role,
+    avatarUrl: null,
+    phone: null,
+    bio: null,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    lastSignedIn: new Date(),
   };
   return {
     user,
@@ -193,18 +178,35 @@ function makeAdminCtx(): TrpcContext {
   return makeAdvisorCtx("admin");
 }
 
-function makeMemberCtx(tier: "platinum" | "gold" | "silver" = "gold"): TrpcContext {
+function makeMemberCtx(
+  tier: "platinum" | "gold" | "silver" = "gold",
+): TrpcContext {
   const member: Member = {
-    id: 10, email: "member@test.com", name: "Test Member",
-    pinHash: "$2a$12$hash", tier, crmPersonId: "crm-1",
-    onboardingComplete: true, active: true, invitedByUserId: 1,
+    id: 10,
+    email: "member@test.com",
+    name: "Test Member",
+    pinHash: "$2a$12$hash",
+    tier,
+    crmPersonId: "crm-1",
+    onboardingComplete: true,
+    active: true,
+    invitedByUserId: 1,
     assignedAdvisorId: 1,
     stripeCustomerId: tier === "silver" ? null : "cus_test",
     stripeSubscriptionId: tier === "silver" ? null : "sub_test",
-    phone: null, nationality: null, passportNumber: null, passportExpiry: null,
-    dateOfBirth: null, dietaryRequirements: null, accessibilityNeeds: null,
-    emergencyContactName: null, emergencyContactPhone: null, notes: null,
-    createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date(),
+    phone: null,
+    nationality: null,
+    passportNumber: null,
+    passportExpiry: null,
+    dateOfBirth: null,
+    dietaryRequirements: null,
+    accessibilityNeeds: null,
+    emergencyContactName: null,
+    emergencyContactPhone: null,
+    notes: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    lastSignedIn: new Date(),
   };
   return {
     user: undefined,
@@ -280,6 +282,7 @@ describe("2. Member Onboarding & Invitation Flow", () => {
       email: "newplatinum@test.com",
       name: "New Platinum",
       tier: "platinum",
+      crmPersonId: "crm-new-platinum",
       origin: "https://app.lanai.com",
     });
     expect(result).toHaveProperty("token");
@@ -292,6 +295,7 @@ describe("2. Member Onboarding & Invitation Flow", () => {
       email: "newgold@test.com",
       name: "New Gold",
       tier: "gold",
+      crmPersonId: "crm-new-gold",
       origin: "https://app.lanai.com",
     });
     expect(result).toHaveProperty("token");
@@ -303,6 +307,7 @@ describe("2. Member Onboarding & Invitation Flow", () => {
       email: "newsilver@test.com",
       name: "New Silver",
       tier: "silver",
+      crmPersonId: "crm-new-silver",
       origin: "https://app.lanai.com",
     });
     expect(result).toHaveProperty("token");
@@ -331,7 +336,10 @@ describe("2. Member Onboarding & Invitation Flow", () => {
 
   it("advisor: can update a member's tier to platinum", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    const result = await caller.members.update({ memberId: 10, tier: "platinum" });
+    const result = await caller.members.update({
+      memberId: 10,
+      tier: "platinum",
+    });
     expect(result).toEqual({ success: true });
   });
 
@@ -390,7 +398,9 @@ describe("3. Member Profile & Preferences", () => {
 
   it("silver member: can upsert preferences", async () => {
     const caller = appRouter.createCaller(makeMemberCtx("silver"));
-    const result = await caller.preferences.upsert({ travelStyle: "adventure" });
+    const result = await caller.preferences.upsert({
+      travelStyle: "adventure",
+    });
     expect(result.success).toBe(true);
   });
 
@@ -456,31 +466,46 @@ describe("4. Travel Request Lifecycle", () => {
 
   it("advisor: can move request to in_progress", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    const result = await caller.travelRequests.updateStatus({ id: 1, status: "in_progress" });
+    const result = await caller.travelRequests.updateStatus({
+      id: 1,
+      status: "in_progress",
+    });
     expect(result).toEqual({ success: true });
   });
 
   it("advisor: can move request to proposal_sent", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    const result = await caller.travelRequests.updateStatus({ id: 1, status: "proposal_sent" });
+    const result = await caller.travelRequests.updateStatus({
+      id: 1,
+      status: "proposal_sent",
+    });
     expect(result).toEqual({ success: true });
   });
 
   it("advisor: can move request to booked", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    const result = await caller.travelRequests.updateStatus({ id: 1, status: "booked" });
+    const result = await caller.travelRequests.updateStatus({
+      id: 1,
+      status: "booked",
+    });
     expect(result).toEqual({ success: true });
   });
 
   it("advisor: can move request to completed", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    const result = await caller.travelRequests.updateStatus({ id: 1, status: "completed" });
+    const result = await caller.travelRequests.updateStatus({
+      id: 1,
+      status: "completed",
+    });
     expect(result).toEqual({ success: true });
   });
 
   it("advisor: can cancel a travel request", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    const result = await caller.travelRequests.updateStatus({ id: 2, status: "cancelled" });
+    const result = await caller.travelRequests.updateStatus({
+      id: 2,
+      status: "cancelled",
+    });
     expect(result).toEqual({ success: true });
   });
 });
@@ -558,7 +583,10 @@ describe("5. Proposal Lifecycle", () => {
   it("advisor: can reorder proposal items", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
     const result = await caller.proposalItems.reorder({
-      items: [{ id: 1, sortOrder: 2 }, { id: 2, sortOrder: 1 }],
+      items: [
+        { id: 1, sortOrder: 2 },
+        { id: 2, sortOrder: 1 },
+      ],
     });
     expect(result.success).toBe(true);
   });
@@ -589,13 +617,19 @@ describe("5. Proposal Lifecycle", () => {
 
   it("member: can approve a proposal", async () => {
     const caller = appRouter.createCaller(makeMemberCtx());
-    const result = await caller.proposals.respond({ id: 1, decision: "approved" });
+    const result = await caller.proposals.respond({
+      id: 1,
+      decision: "approved",
+    });
     expect(result).toEqual({ success: true });
   });
 
   it("member: can reject a proposal", async () => {
     const caller = appRouter.createCaller(makeMemberCtx());
-    const result = await caller.proposals.respond({ id: 2, decision: "rejected" });
+    const result = await caller.proposals.respond({
+      id: 2,
+      decision: "rejected",
+    });
     expect(result).toEqual({ success: true });
   });
 });
@@ -796,19 +830,25 @@ describe("9. Messaging & Conversations", () => {
 
   it("advisor: can filter conversations by portal channel", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    const result = await caller.messaging.listConversations({ channel: "portal" });
+    const result = await caller.messaging.listConversations({
+      channel: "portal",
+    });
     expect(Array.isArray(result)).toBe(true);
   });
 
   it("advisor: can filter conversations by whatsapp channel", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    const result = await caller.messaging.listConversations({ channel: "whatsapp" });
+    const result = await caller.messaging.listConversations({
+      channel: "whatsapp",
+    });
     expect(Array.isArray(result)).toBe(true);
   });
 
   it("advisor: can filter unresolved conversations", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    const result = await caller.messaging.listConversations({ unresolvedOnly: true });
+    const result = await caller.messaging.listConversations({
+      unresolvedOnly: true,
+    });
     expect(Array.isArray(result)).toBe(true);
   });
 
@@ -851,7 +891,9 @@ describe("10. Notifications", () => {
 
   it("advisor: can filter unread notifications", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    const result = await caller.notifications.myAdvisorNotifications({ unreadOnly: true });
+    const result = await caller.notifications.myAdvisorNotifications({
+      unreadOnly: true,
+    });
     expect(Array.isArray(result)).toBe(true);
   });
 
@@ -904,7 +946,9 @@ describe("10. Notifications", () => {
 
   it("member: can filter unread notifications", async () => {
     const caller = appRouter.createCaller(makeMemberCtx());
-    const result = await caller.notifications.myMemberNotifications({ unreadOnly: true });
+    const result = await caller.notifications.myMemberNotifications({
+      unreadOnly: true,
+    });
     expect(Array.isArray(result)).toBe(true);
   });
 });
@@ -926,7 +970,9 @@ describe("11. AI Insights & Morning Briefings", () => {
 
   it("advisor: can filter insights by upsell_opportunity type", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    const result = await caller.aiInsights.list({ insightType: "upsell_opportunity" });
+    const result = await caller.aiInsights.list({
+      insightType: "upsell_opportunity",
+    });
     expect(Array.isArray(result)).toBe(true);
   });
 
@@ -1114,7 +1160,10 @@ describe("13. Advisor Tasks", () => {
 
   it("advisor: can move task to in_progress", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    const result = await caller.tasks.updateStatus({ id: 1, status: "in_progress" });
+    const result = await caller.tasks.updateStatus({
+      id: 1,
+      status: "in_progress",
+    });
     expect(result.success).toBe(true);
   });
 
@@ -1126,7 +1175,10 @@ describe("13. Advisor Tasks", () => {
 
   it("advisor: can cancel a task", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    const result = await caller.tasks.updateStatus({ id: 2, status: "cancelled" });
+    const result = await caller.tasks.updateStatus({
+      id: 2,
+      status: "cancelled",
+    });
     expect(result.success).toBe(true);
   });
 
@@ -1148,13 +1200,19 @@ describe("14. Tags & Member Tagging", () => {
 
   it("admin: can create an Anniversary tag", async () => {
     const caller = appRouter.createCaller(makeAdminCtx());
-    const result = await caller.tags.create({ name: "Anniversary", color: "#FF69B4" });
+    const result = await caller.tags.create({
+      name: "Anniversary",
+      color: "#FF69B4",
+    });
     expect(result).toHaveProperty("id");
   });
 
   it("admin: can create a High Value tag", async () => {
     const caller = appRouter.createCaller(makeAdminCtx());
-    const result = await caller.tags.create({ name: "High Value", color: "#00C851" });
+    const result = await caller.tags.create({
+      name: "High Value",
+      color: "#00C851",
+    });
     expect(result).toHaveProperty("id");
   });
 
@@ -1266,30 +1324,43 @@ describe("17. Role Management", () => {
 
   it("admin: can promote an advisor to senior_advisor", async () => {
     const caller = appRouter.createCaller(makeAdminCtx());
-    const result = await caller.advisors.updateRole({ userId: 2, role: "senior_advisor" });
+    const result = await caller.advisors.updateRole({
+      userId: 2,
+      role: "senior_advisor",
+    });
     expect(result).toEqual({ success: true });
   });
 
   it("admin: can promote to admin", async () => {
     const caller = appRouter.createCaller(makeAdminCtx());
-    const result = await caller.advisors.updateRole({ userId: 2, role: "admin" });
+    const result = await caller.advisors.updateRole({
+      userId: 2,
+      role: "admin",
+    });
     expect(result).toEqual({ success: true });
   });
 
   it("admin: can demote to advisor", async () => {
     const caller = appRouter.createCaller(makeAdminCtx());
-    const result = await caller.advisors.updateRole({ userId: 2, role: "advisor" });
+    const result = await caller.advisors.updateRole({
+      userId: 2,
+      role: "advisor",
+    });
     expect(result).toEqual({ success: true });
   });
 
   it("advisor: cannot change roles", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    await expect(caller.advisors.updateRole({ userId: 2, role: "admin" })).rejects.toThrow();
+    await expect(
+      caller.advisors.updateRole({ userId: 2, role: "admin" }),
+    ).rejects.toThrow();
   });
 
   it("senior advisor: cannot change roles", async () => {
     const caller = appRouter.createCaller(makeSeniorAdvisorCtx());
-    await expect(caller.advisors.updateRole({ userId: 2, role: "admin" })).rejects.toThrow();
+    await expect(
+      caller.advisors.updateRole({ userId: 2, role: "admin" }),
+    ).rejects.toThrow();
   });
 });
 
@@ -1298,34 +1369,50 @@ describe("17. Role Management", () => {
 describe("18. Stripe Payments", () => {
   const stripeConfigured = !!process.env.STRIPE_SECRET_KEY;
 
-  it.skipIf(!stripeConfigured)("platinum member: can get subscription status", async () => {
-    const caller = appRouter.createCaller(makeMemberCtx("platinum"));
-    const result = await caller.memberPayments.getSubscription();
-    expect(result).toBeDefined();
-  });
+  it.skipIf(!stripeConfigured)(
+    "platinum member: can get subscription status",
+    async () => {
+      const caller = appRouter.createCaller(makeMemberCtx("platinum"));
+      const result = await caller.memberPayments.getSubscription();
+      expect(result).toBeDefined();
+    },
+  );
 
-  it.skipIf(!stripeConfigured)("platinum member: can get payment methods", async () => {
-    const caller = appRouter.createCaller(makeMemberCtx("platinum"));
-    const result = await caller.memberPayments.getPaymentMethods();
-    expect(Array.isArray(result)).toBe(true);
-  });
+  it.skipIf(!stripeConfigured)(
+    "platinum member: can get payment methods",
+    async () => {
+      const caller = appRouter.createCaller(makeMemberCtx("platinum"));
+      const result = await caller.memberPayments.getPaymentMethods();
+      expect(Array.isArray(result)).toBe(true);
+    },
+  );
 
-  it.skipIf(!stripeConfigured)("gold member: can create a checkout session to upgrade to platinum", async () => {
-    const caller = appRouter.createCaller(makeMemberCtx("gold"));
-    const result = await caller.memberPayments.createCheckout({ tier: "platinum" });
-    expect(result).toHaveProperty("url");
-  });
+  it.skipIf(!stripeConfigured)(
+    "gold member: can create a checkout session to upgrade to platinum",
+    async () => {
+      const caller = appRouter.createCaller(makeMemberCtx("gold"));
+      const result = await caller.memberPayments.createCheckout({
+        tier: "platinum",
+      });
+      expect(result).toHaveProperty("url");
+    },
+  );
 
-  it.skipIf(!stripeConfigured)("platinum member: can access billing portal", async () => {
-    const caller = appRouter.createCaller(makeMemberCtx("platinum"));
-    const result = await caller.memberPayments.billingPortal();
-    expect(result).toHaveProperty("url");
-  });
+  it.skipIf(!stripeConfigured)(
+    "platinum member: can access billing portal",
+    async () => {
+      const caller = appRouter.createCaller(makeMemberCtx("platinum"));
+      const result = await caller.memberPayments.billingPortal();
+      expect(result).toHaveProperty("url");
+    },
+  );
 
   it("Stripe: payment router is registered and accessible", async () => {
     // Verify the router is registered even without a key
     // tRPC v11 stores procedures as functions in _def.procedures
-    expect(typeof appRouter._def.procedures["memberPayments.getSubscription"]).toBe("function");
+    expect(
+      typeof appRouter._def.procedures["memberPayments.getSubscription"],
+    ).toBe("function");
   });
 });
 
@@ -1346,8 +1433,14 @@ describe("19. Infrastructure Services", () => {
 
   it("TigerBeetle: createTransfer records a ledger entry", async () => {
     const { TigerBeetle } = await import("./_core/infrastructure");
-    const result = await TigerBeetle.createTransfer(BigInt(1000), BigInt(1001), BigInt(1002));
-    expect(result).toBe(true);
+    const result = await TigerBeetle.createTransfer(
+      BigInt(1000),
+      BigInt(1001),
+      BigInt(1002),
+      "smoke-transfer",
+    );
+    expect(result).toMatchObject({ created: true });
+    expect(typeof result.transferId).toBe("bigint");
   });
 
   it("TigerBeetle: getBalance returns account balance", async () => {
@@ -1365,13 +1458,18 @@ describe("19. Infrastructure Services", () => {
 
   it("Dapr: publishEvent sends an event", async () => {
     const { Dapr } = await import("./_core/infrastructure");
-    const result = await Dapr.publishEvent("pubsub", "test-event", { data: "test" });
+    const result = await Dapr.publishEvent("pubsub", "test-event", {
+      data: "test",
+    });
     expect(result).toBe(true);
   });
 
   it("Fluvio: produce sends a message to a topic", async () => {
     const { Fluvio } = await import("./_core/infrastructure");
-    const result = await Fluvio.produce("travel-requests", JSON.stringify({ id: 1 }));
+    const result = await Fluvio.produce(
+      "travel-requests",
+      JSON.stringify({ id: 1 }),
+    );
     expect(result).toBe(true);
   });
 
@@ -1389,7 +1487,10 @@ describe("19. Infrastructure Services", () => {
 
   it("Lakehouse: insertRecord resolves", async () => {
     const { Lakehouse } = await import("./_core/infrastructure");
-    const result = await Lakehouse.insertRecord("events", { type: "booking_created", id: 1 });
+    const result = await Lakehouse.insertRecord("events", {
+      type: "booking_created",
+      id: 1,
+    });
     expect(result).toBe(true);
   });
 
@@ -1401,7 +1502,10 @@ describe("19. Infrastructure Services", () => {
 
   it("APISIX: createRoute returns a route ID", async () => {
     const { APISIX } = await import("./_core/infrastructure");
-    const result = await APISIX.createRoute({ path: "/api/test", upstream: "lanai-portal" });
+    const result = await APISIX.createRoute({
+      path: "/api/test",
+      upstream: "lanai-portal",
+    });
     expect(result).toHaveProperty("id");
   });
 });
@@ -1419,6 +1523,7 @@ describe("20. E2E Full Concierge Lifecycle", () => {
       email: "e2e@member.com",
       name: "E2E Test Member",
       tier: "platinum",
+      crmPersonId: "crm-e2e-member",
       origin: "https://app.lanai.com",
     });
     expect(invite).toHaveProperty("token");
@@ -1562,7 +1667,9 @@ describe("20. E2E Full Concierge Lifecycle", () => {
     expect(reply).toHaveProperty("messageId");
 
     // Step 17: Advisor resolves the conversation
-    const resolved = await advisorCaller.messaging.resolveConversation({ id: conv.conversationId });
+    const resolved = await advisorCaller.messaging.resolveConversation({
+      id: conv.conversationId,
+    });
     expect(resolved.success).toBe(true);
 
     // Step 18: Commission received
@@ -1573,7 +1680,10 @@ describe("20. E2E Full Concierge Lifecycle", () => {
     expect(commReceived.success).toBe(true);
 
     // Step 19: Advisor completes the task
-    const taskDone = await advisorCaller.tasks.updateStatus({ id: task.id, status: "done" });
+    const taskDone = await advisorCaller.tasks.updateStatus({
+      id: task.id,
+      status: "done",
+    });
     expect(taskDone.success).toBe(true);
 
     // Step 20: Advisor marks travel request as completed
