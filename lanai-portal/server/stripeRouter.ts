@@ -316,9 +316,20 @@ export function registerStripeWebhook(app: Express): void {
     // express.json() parses the body. The _core/index.ts registers this route
     // early via registerStripeWebhook().
     (req: Request, res: Response) => {
-      const stripe = getStripe();
-      const sig = req.headers["stripe-signature"] as string;
+      const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
       const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+      if (!stripeSecretKey || !webhookSecret) {
+        res
+          .status(503)
+          .json({ error: "Stripe webhook processing is unavailable" });
+        return;
+      }
+      const sig = req.headers["stripe-signature"] as string | undefined;
+      if (!sig) {
+        res.status(400).send("Missing Stripe signature");
+        return;
+      }
+      const stripe = getStripe();
 
       let event: Stripe.Event;
 
@@ -326,7 +337,7 @@ export function registerStripeWebhook(app: Express): void {
         event = stripe.webhooks.constructEvent(
           req.body as Buffer,
           sig,
-          webhookSecret ?? "",
+          webhookSecret,
         );
       } catch (err) {
         console.error("[Stripe Webhook] Signature verification failed:", err);
@@ -363,10 +374,7 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
         const customerId = session.customer as string;
         const subscriptionId = session.subscription as string | null;
         const tier = session.metadata?.tier as
-          | "platinum"
-          | "gold"
-          | "silver"
-          | undefined;
+          "platinum" | "gold" | "silver" | undefined;
 
         if (!memberId || !customerId) break;
 

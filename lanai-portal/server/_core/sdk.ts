@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
-import { parse as parseCookieHeader } from "cookie";
 import type { Request } from "express";
 import { ForbiddenError } from "@shared/_core/errors";
 import { COOKIE_NAME } from "@shared/const";
@@ -65,7 +64,20 @@ function deriveAdvisorRole(
 }
 
 function parseCookies(req: Request): Map<string, string> {
-  return new Map(Object.entries(parseCookieHeader(req.headers.cookie ?? "")));
+  const cookies = new Map<string, string>();
+  for (const segment of (req.headers.cookie ?? "").split(";")) {
+    const separator = segment.indexOf("=");
+    if (separator <= 0) continue;
+    const name = segment.slice(0, separator).trim();
+    const encodedValue = segment.slice(separator + 1).trim();
+    if (!name) continue;
+    try {
+      cookies.set(name, decodeURIComponent(encodedValue));
+    } catch {
+      cookies.set(name, encodedValue);
+    }
+  }
+  return cookies;
 }
 
 class KeycloakSdk {

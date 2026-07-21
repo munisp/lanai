@@ -3,16 +3,9 @@ import { createRequire } from "node:module";
 import { DaprClient, HttpMethod } from "@dapr/dapr";
 
 const require = createRequire(import.meta.url);
-// The official Fluvio package exposes its TypeScript declarations from source but
-// its package export is native at runtime. Loading through createRequire preserves
-// the real SDK while avoiding an ESM declaration-resolution bug in TypeScript 7.
-const FluvioSdk = require("@fluvio/client") as {
-  connect(options: { host: string; port: number }): Promise<FluvioClient>;
-};
+
 type FluvioClient = {
-  topicProducer(
-    topic: string,
-  ): Promise<{
+  topicProducer(topic: string): Promise<{
     send?: (key: string, value: string) => Promise<unknown>;
     sendRecord?: (value: string, partition: number) => Promise<unknown>;
   }>;
@@ -668,6 +661,46 @@ export const Redis = {
 
 let fluvioClientPromise: Promise<FluvioClient> | null = null;
 
+type FluvioNativeModule = {
+  connect(endpoint?: string): Promise<FluvioClient>;
+};
+
+let fluvioNativeModule: FluvioNativeModule | null = null;
+
+function getFluvioNativeModule(): FluvioNativeModule {
+  if (fluvioNativeModule) return fluvioNativeModule;
+  const platformDirectory =
+    process.platform === "darwin"
+      ? "darwin"
+      : process.platform === "linux"
+        ? "linux"
+        : null;
+  if (!platformDirectory) {
+    throw new InfrastructureError(
+      "Fluvio",
+      `unsupported runtime platform: ${process.platform}`,
+    );
+  }
+  try {
+    // @fluvio/client v0.14 ships its supported native bindings but publishes an
+    // invalid JavaScript main entrypoint. Load the documented platform binding
+    // lazily so unrelated requests do not fail before event streaming is used.
+    fluvioNativeModule = require(
+      `@fluvio/client/dist/${platformDirectory}/index.node`,
+    ) as FluvioNativeModule;
+    if (typeof fluvioNativeModule.connect !== "function") {
+      throw new Error("native binding does not expose connect()");
+    }
+    return fluvioNativeModule;
+  } catch (error) {
+    throw new InfrastructureError(
+      "Fluvio",
+      "native client binding could not be loaded",
+      error,
+    );
+  }
+}
+
 function getFluvioClient(): Promise<FluvioClient> {
   if (!fluvioClientPromise) {
     const [host, rawPort] = requireConfigured(
@@ -678,7 +711,7 @@ function getFluvioClient(): Promise<FluvioClient> {
       .replace(/^https?:\/\//, "")
       .split(":");
     const port = Number(rawPort || "9003");
-    fluvioClientPromise = FluvioSdk.connect({ host, port });
+    fluvioClientPromise = getFluvioNativeModule().connect(`${host}:${port}`);
   }
   return fluvioClientPromise;
 }
