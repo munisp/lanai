@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:16.8-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./config/postgres/10-test-databases.sql:/docker-entrypoint-initdb.d/10-test-databases.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  permify:
+    image: ghcr.io/permify/permify:v1.7.0
+    command: ["serve"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PERMIFY_DATABASE_ENGINE: postgres
+      PERMIFY_DATABASE_URI: postgres://lanai_test:lanai_test@postgres:5432/permify_test?sslmode=disable
+    ports:
+      - "3476:3476"
+      - "3478:3478"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:3476/healthz >/dev/null 2>&1 || nc -z localhost 3478",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  stripe-mock:
+    image: stripe/stripe-mock:v0.201.0
+    ports:
+      - "12111:12111"
+      - "12112:12112"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:12111/v1/charges"]
+      interval: 3s
+      timeout: 3s
+      retries: 20

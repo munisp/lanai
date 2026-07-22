@@ -23,10 +23,32 @@ import type { Express, Request, Response } from "express";
 
 // ─── Stripe client ────────────────────────────────────────────────────────────
 
-function getStripe(): Stripe {
+export function createStripeClient(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) throw new Error("STRIPE_SECRET_KEY is not configured");
-  return new Stripe(key, { apiVersion: "2026-06-24.dahlia" });
+
+  const endpointOverride = process.env.STRIPE_API_BASE_URL;
+  const options: Stripe.StripeConfig = { apiVersion: "2026-06-24.dahlia" };
+  if (endpointOverride && process.env.NODE_ENV === "production") {
+    throw new Error("STRIPE_API_BASE_URL is only permitted outside production");
+  }
+  if (endpointOverride) {
+    const endpoint = new URL(endpointOverride);
+    if (endpoint.pathname !== "/" && endpoint.pathname !== "") {
+      throw new Error("STRIPE_API_BASE_URL must not include a path");
+    }
+    if (endpoint.protocol !== "http:" && endpoint.protocol !== "https:") {
+      throw new Error("STRIPE_API_BASE_URL must use http or https");
+    }
+    options.host = endpoint.hostname;
+    options.port = endpoint.port || undefined;
+    options.protocol = endpoint.protocol.slice(0, -1) as Stripe.HttpProtocol;
+  }
+  return new Stripe(key, options);
+}
+
+function getStripe(): Stripe {
+  return createStripeClient();
 }
 
 // ─── DB helpers ───────────────────────────────────────────────────────────────
@@ -83,6 +105,13 @@ async function ensureStripePriceId(
   tier: "platinum" | "gold" | "silver",
 ): Promise<string> {
   if (_priceCache[tier]) return _priceCache[tier];
+
+  const configuredPriceId =
+    process.env[`STRIPE_PRICE_ID_${tier.toUpperCase()}`];
+  if (configuredPriceId) {
+    _priceCache[tier] = configuredPriceId;
+    return configuredPriceId;
+  }
 
   const plan = MEMBERSHIP_PLANS[tier];
   if (!plan) throw new Error(`Unknown tier: ${tier}`);

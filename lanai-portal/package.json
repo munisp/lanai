@@ -9,8 +9,10 @@
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
-    "test": "vitest run --exclude server/smoke.test.ts --exclude server/smoke.phase2.test.ts",
+    "test": "vitest run --exclude server/smoke.test.ts --exclude server/smoke.phase2.test.ts --exclude 'server/*.external.test.ts' --exclude server/stripe.stripe-mock.test.ts",
+    "test:provider-contract": "vitest run server/crm.provider-contract.test.ts server/stripe.provider-contract.test.ts server/stripe.stripe-mock.test.ts",
     "test:integration": "bash scripts/test-integration.sh",
+    "test:external": "bash scripts/test-external.sh",
     "test:all": "pnpm test && pnpm test:integration",
     "db:push": "drizzle-kit generate && drizzle-kit migrate"
   },

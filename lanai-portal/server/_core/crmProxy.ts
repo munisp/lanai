@@ -16,11 +16,13 @@ import { URL } from "url";
 import { requireAdvisorAuth } from "./authMiddleware";
 
 export function registerCrmProxy(app: Express): void {
-  const crmUrl = process.env.TWENTY_CRM_URL ?? "http://localhost:3002";
+  const crmUrl = process.env.TWENTY_CRM_URL ?? "";
   const crmToken = process.env.TWENTY_CRM_API_TOKEN ?? "";
 
-  if (!crmToken) {
-    console.warn("[CRM Proxy] TWENTY_CRM_API_TOKEN not set — CRM proxy disabled.");
+  if (!crmToken || !crmUrl) {
+    console.warn(
+      "[CRM Proxy] TWENTY_CRM_URL and TWENTY_CRM_API_TOKEN are required — CRM proxy disabled.",
+    );
     app.use("/crm", (_req: Request, res: Response) => {
       res.status(503).json({ error: "CRM not configured" });
     });
