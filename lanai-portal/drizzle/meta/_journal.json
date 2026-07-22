@@ -15,6 +15,13 @@
       "when": 1784668000000,
       "tag": "0001_platform_integrity",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784682912600,
+      "tag": "0002_fantastic_tigra",
+      "breakpoints": true
     }
   ]
 }

@@ -41,23 +41,31 @@ import { cn } from "@/lib/utils";
 
 // ─── Template Category Icons ──────────────────────────────────────────────────
 const CAT_ICONS: Record<string, React.ElementType> = {
-  airport_fasttrack: Plane,
+  airport_fast_track: Plane,
   villa_provisioning: Home,
   yacht_charter: Anchor,
   restaurant_reservation: Utensils,
   celebration_planning: Gift,
   visa_check: Globe,
-  general: CheckSquare,
+  welcome_gift: Gift,
+  vip_amenity: Gift,
+  jet_charter: Plane,
+  transfer_arrangement: Plane,
+  custom: CheckSquare,
 };
 
 const CAT_COLORS: Record<string, string> = {
-  airport_fasttrack: "bg-blue-50 text-blue-600",
+  airport_fast_track: "bg-blue-50 text-blue-600",
   villa_provisioning: "bg-emerald-50 text-emerald-600",
   yacht_charter: "bg-purple-50 text-purple-600",
   restaurant_reservation: "bg-red-50 text-red-600",
   celebration_planning: "bg-pink-50 text-pink-600",
   visa_check: "bg-amber-50 text-amber-600",
-  general: "bg-gray-50 text-gray-600",
+  welcome_gift: "bg-rose-50 text-rose-600",
+  vip_amenity: "bg-amber-50 text-amber-600",
+  jet_charter: "bg-sky-50 text-sky-600",
+  transfer_arrangement: "bg-cyan-50 text-cyan-600",
+  custom: "bg-gray-50 text-gray-600",
 };
 
 // ─── Priority Badge ───────────────────────────────────────────────────────────
@@ -87,16 +95,17 @@ function TemplateCard({
 }: {
   template: {
     id: number;
-    templateName: string;
-    templateCategory: string;
+    name: string;
+    templateType: string;
     description?: string | null;
     defaultPriority: string;
-    estimatedHours?: string | null;
-    checklistItems?: string[] | null;
+    defaultDueDaysFromTrigger?: number | null;
+    triggerOnBookingStatus?: string | null;
+    checklistItems?: Array<{ item?: string; required?: boolean }> | null;
   };
   onInstantiate: (id: number) => void;
 }) {
-  const Icon = CAT_ICONS[template.templateCategory] ?? CheckSquare;
+  const Icon = CAT_ICONS[template.templateType] ?? CheckSquare;
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -107,28 +116,27 @@ function TemplateCard({
             <div
               className={cn(
                 "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0",
-                CAT_COLORS[template.templateCategory],
+                CAT_COLORS[template.templateType],
               )}
             >
               <Icon className="w-5 h-5" />
             </div>
             <div>
               <div className="font-semibold text-foreground">
-                {template.templateName}
+                {template.name}
               </div>
               <div className="text-xs text-muted-foreground capitalize mt-0.5">
-                {template.templateCategory.replace("_", " ")}
+                {template.templateType.replaceAll("_", " ")}
               </div>
             </div>
           </div>
           <div className="flex flex-col items-end gap-1.5">
             <PriorityBadge priority={template.defaultPriority} />
-            {template.estimatedHours && (
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                {template.estimatedHours}h
-              </span>
-            )}
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              {template.defaultDueDaysFromTrigger ?? 1} day
+              {(template.defaultDueDaysFromTrigger ?? 1) === 1 ? "" : "s"}
+            </span>
           </div>
         </div>
 
@@ -155,7 +163,8 @@ function TemplateCard({
                     className="flex items-center gap-2 text-xs text-muted-foreground"
                   >
                     <CheckCircle className="w-3 h-3 text-muted-foreground/50 flex-shrink-0" />
-                    {item}
+                    {item.item ?? "Checklist item"}
+                    {item.required ? " · required" : ""}
                   </li>
                 ))}
               </ul>
@@ -252,10 +261,12 @@ function ActiveTaskRow({
 function CreateTemplateDialog({ onCreated }: { onCreated: () => void }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [category, setCategory] = useState("general");
+  const [category, setCategory] = useState("custom");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("medium");
-  const [estimatedHours, setEstimatedHours] = useState("");
+  const [dueDays, setDueDays] = useState("1");
+  const [triggerOnBookingStatus, setTriggerOnBookingStatus] =
+    useState("manual");
   const [checklistText, setChecklistText] = useState("");
 
   const createTemplate = trpc.taskTemplates.create.useMutation({
@@ -304,7 +315,7 @@ function CreateTemplateDialog({ onCreated }: { onCreated: () => void }) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="airport_fasttrack">
+                  <SelectItem value="airport_fast_track">
                     Airport Fast-Track
                   </SelectItem>
                   <SelectItem value="villa_provisioning">
@@ -318,7 +329,13 @@ function CreateTemplateDialog({ onCreated }: { onCreated: () => void }) {
                     Celebration Planning
                   </SelectItem>
                   <SelectItem value="visa_check">Visa Check</SelectItem>
-                  <SelectItem value="general">General</SelectItem>
+                  <SelectItem value="welcome_gift">Welcome Gift</SelectItem>
+                  <SelectItem value="vip_amenity">VIP Amenity</SelectItem>
+                  <SelectItem value="jet_charter">Jet Charter</SelectItem>
+                  <SelectItem value="transfer_arrangement">
+                    Transfer Arrangement
+                  </SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -350,16 +367,40 @@ function CreateTemplateDialog({ onCreated }: { onCreated: () => void }) {
               className="min-h-16"
             />
           </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-              Estimated Hours
-            </label>
-            <Input
-              type="number"
-              value={estimatedHours}
-              onChange={(e) => setEstimatedHours(e.target.value)}
-              placeholder="e.g. 2"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                Due Days From Trigger
+              </label>
+              <Input
+                type="number"
+                min="1"
+                max="90"
+                value={dueDays}
+                onChange={(e) => setDueDays(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                Booking-stage Trigger
+              </label>
+              <Select
+                value={triggerOnBookingStatus}
+                onValueChange={setTriggerOnBookingStatus}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manual">Manual only</SelectItem>
+                  <SelectItem value="pending">Booking pending</SelectItem>
+                  <SelectItem value="confirmed">Booking confirmed</SelectItem>
+                  <SelectItem value="paid">Booking paid</SelectItem>
+                  <SelectItem value="cancelled">Booking cancelled</SelectItem>
+                  <SelectItem value="refunded">Booking refunded</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
@@ -396,13 +437,16 @@ function CreateTemplateDialog({ onCreated }: { onCreated: () => void }) {
                   name,
                   description: description || undefined,
                   defaultPriority: priority as
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "urgent",
+                    "low" | "medium" | "high" | "urgent",
+                  defaultDueDaysFromTrigger: Math.max(1, Number(dueDays) || 1),
+                  triggerOnBookingStatus:
+                    triggerOnBookingStatus === "manual"
+                      ? undefined
+                      : triggerOnBookingStatus,
                   checklistItems: checklistText
                     ? checklistText
                         .split("\n")
+                        .map((item) => item.trim())
                         .filter(Boolean)
                         .map((item) => ({ item, required: true }))
                     : undefined,
@@ -508,12 +552,16 @@ export default function TaskTemplatesPage() {
                   template={
                     t as unknown as {
                       id: number;
-                      templateName: string;
-                      templateCategory: string;
+                      name: string;
+                      templateType: string;
                       description?: string | null;
                       defaultPriority: string;
-                      estimatedHours?: string | null;
-                      checklistItems?: string[] | null;
+                      defaultDueDaysFromTrigger?: number | null;
+                      triggerOnBookingStatus?: string | null;
+                      checklistItems?: Array<{
+                        item?: string;
+                        required?: boolean;
+                      }> | null;
                     }
                   }
                   onInstantiate={(id) => {

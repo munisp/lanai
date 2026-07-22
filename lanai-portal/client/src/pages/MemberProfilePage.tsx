@@ -20,7 +20,7 @@ import {
   Gift,
   TrendingUp,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -217,13 +217,27 @@ function FamilyMemberCard({
   );
 }
 
+function formatMoney(value: string | number | null | undefined) {
+  return new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency: "GBP",
+    maximumFractionDigits: 0,
+  }).format(Number(value ?? 0));
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function MemberProfilePage({ memberId }: { memberId: number }) {
   const id = memberId;
 
-  const { data: profileRaw, isLoading } = trpc.memberProfile.get.useQuery({
+  const {
+    data: profileRaw,
+    isLoading,
+    refetch: refetchProfile,
+  } = trpc.memberProfile.get.useQuery({ memberId: id });
+  const { data: revenueSummary } = trpc.memberProfile.revenueSummary.useQuery({
     memberId: id,
   });
+  const { data: suppliers = [] } = trpc.suppliers.list.useQuery();
   // Cast to any to access all extended profile fields (union type from offline fallback)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const profile = profileRaw as any;
@@ -232,7 +246,10 @@ export default function MemberProfilePage({ memberId }: { memberId: number }) {
     trpc.familyMembers.list.useQuery({ memberId: id });
 
   const upsertProfile = trpc.memberProfile.upsert.useMutation({
-    onSuccess: () => toast.success("Profile updated successfully"),
+    onSuccess: () => {
+      toast.success("Profile updated successfully");
+      void refetchProfile();
+    },
     onError: () => toast.error("Failed to update profile"),
   });
   const updateRevenue = trpc.memberProfile.updateRevenue.useMutation({
@@ -256,15 +273,13 @@ export default function MemberProfilePage({ memberId }: { memberId: number }) {
     { airline: string; number: string }[]
   >(
     (profile?.frequentFlyerNumbers as
-      | { airline: string; number: string }[]
-      | null) ?? [],
+      { airline: string; number: string }[] | null) ?? [],
   );
   const [hotelLoyalty, setHotelLoyalty] = useState<
     { chain: string; number: string; tier?: string }[]
   >(
     (profile?.hotelLoyaltyNumbers as
-      | { chain: string; number: string; tier?: string }[]
-      | null) ?? [],
+      { chain: string; number: string; tier?: string }[] | null) ?? [],
   );
   const [cabinClass, setCabinClass] = useState(
     profile?.cabinClass ?? "business",
@@ -298,6 +313,38 @@ export default function MemberProfilePage({ memberId }: { memberId: number }) {
   const [satisfactionScore, setSatisfactionScore] = useState(
     profile?.satisfactionScore ?? "",
   );
+  const [favouriteSupplierIds, setFavouriteSupplierIds] = useState<number[]>(
+    Array.isArray(profile?.favouriteSupplierIds)
+      ? (profile.favouriteSupplierIds as number[])
+      : [],
+  );
+
+  useEffect(() => {
+    if (!profile) return;
+    setFfNumbers(profile.frequentFlyerNumbers ?? []);
+    setHotelLoyalty(profile.hotelLoyaltyNumbers ?? []);
+    setCabinClass(profile.cabinClass ?? "business");
+    setSeatPref(profile.seatPreference ?? "window");
+    setSecurityLevel(profile.securityLevel ?? "standard");
+    setConciergeNotes(profile.conciergeNotes ?? "");
+    setPaName(profile.personalAssistantName ?? "");
+    setPaEmail(profile.personalAssistantEmail ?? "");
+    setPaPhone(profile.personalAssistantPhone ?? "");
+    setFoName(profile.familyOfficeContactName ?? "");
+    setFoEmail(profile.familyOfficeContactEmail ?? "");
+    setPaymentMethod(profile.preferredPaymentMethod ?? "");
+    setLifetimeRevenue(profile.lifetimeRevenue ?? "");
+    setAnnualRevenue(profile.annualRevenue ?? "");
+    setMembershipFees(profile.membershipFeesPaid ?? "");
+    setSatisfactionScore(profile.satisfactionScore ?? "");
+    setFavouriteSupplierIds(
+      Array.isArray(profile.favouriteSupplierIds)
+        ? profile.favouriteSupplierIds.filter((supplierId: unknown) =>
+            Number.isInteger(supplierId),
+          )
+        : [],
+    );
+  }, [profile]);
 
   // New family member form
   const [newFamilyName, setNewFamilyName] = useState("");
@@ -320,6 +367,7 @@ export default function MemberProfilePage({ memberId }: { memberId: number }) {
       familyOfficeContactName: foName || undefined,
       familyOfficeContactEmail: foEmail || undefined,
       preferredPaymentMethod: paymentMethod || undefined,
+      favouriteSupplierIds,
     });
   };
 
@@ -339,12 +387,7 @@ export default function MemberProfilePage({ memberId }: { memberId: number }) {
       memberId: id,
       name: newFamilyName,
       relationship: newFamilyRelationship as
-        | "spouse"
-        | "partner"
-        | "child"
-        | "parent"
-        | "sibling"
-        | "other",
+        "spouse" | "partner" | "child" | "parent" | "sibling" | "other",
       dateOfBirth: newFamilyDob || undefined,
       nationality: newFamilyNationality || undefined,
     });
@@ -496,6 +539,50 @@ export default function MemberProfilePage({ memberId }: { memberId: number }) {
         </div>
       </Section>
 
+      {/* Favourite Suppliers */}
+      <Section title="Favourite Suppliers" icon={Heart}>
+        <div className="pt-4 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Preferred partners are surfaced to concierge workflows and AI
+            recommendations for this member.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {suppliers.length ? (
+              suppliers.map((supplier) => {
+                const selected = favouriteSupplierIds.includes(supplier.id);
+                return (
+                  <button
+                    key={supplier.id}
+                    type="button"
+                    onClick={() =>
+                      setFavouriteSupplierIds((current) =>
+                        selected
+                          ? current.filter(
+                              (supplierId) => supplierId !== supplier.id,
+                            )
+                          : [...current, supplier.id],
+                      )
+                    }
+                    className={cn(
+                      "rounded-full border px-3 py-1.5 text-sm transition-colors",
+                      selected
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background text-muted-foreground hover:border-primary/50",
+                    )}
+                  >
+                    {supplier.name}
+                  </button>
+                );
+              })
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No active suppliers are available yet.
+              </p>
+            )}
+          </div>
+        </div>
+      </Section>
+
       {/* Security & Privacy */}
       <Section title="Security & Privacy" icon={Shield}>
         <div className="pt-4 space-y-0">
@@ -591,42 +678,71 @@ export default function MemberProfilePage({ memberId }: { memberId: number }) {
 
       {/* Revenue Metrics */}
       <Section title="Revenue & Satisfaction Metrics" icon={Star}>
-        <div className="pt-4 space-y-0">
-          <FieldRow label="Lifetime Revenue">
-            <Input
-              value={lifetimeRevenue}
-              onChange={(e) => setLifetimeRevenue(e.target.value)}
-              placeholder="0.00"
-              type="number"
-            />
-          </FieldRow>
-          <FieldRow label="Annual Revenue">
-            <Input
-              value={annualRevenue}
-              onChange={(e) => setAnnualRevenue(e.target.value)}
-              placeholder="0.00"
-              type="number"
-            />
-          </FieldRow>
-          <FieldRow label="Membership Fees Paid">
-            <Input
-              value={membershipFees}
-              onChange={(e) => setMembershipFees(e.target.value)}
-              placeholder="0.00"
-              type="number"
-            />
-          </FieldRow>
-          <FieldRow label="Satisfaction Score">
-            <Input
-              value={satisfactionScore}
-              onChange={(e) => setSatisfactionScore(e.target.value)}
-              placeholder="0.0 – 5.0"
-              type="number"
-              min="0"
-              max="5"
-              step="0.1"
-            />
-          </FieldRow>
+        <div className="pt-4 space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {[
+              ["Client invoiced", revenueSummary?.clientInvoicedRevenue],
+              ["Client paid", revenueSummary?.clientPaidRevenue],
+              ["Year-to-date revenue", revenueSummary?.annualClientRevenue],
+              ["Booking value", revenueSummary?.bookingValue],
+              ["Expected commission", revenueSummary?.expectedCommission],
+              ["Membership fees", revenueSummary?.membershipFeesPaid],
+            ].map(([label, value]) => (
+              <div
+                key={label as string}
+                className="rounded-lg border border-border bg-muted/20 p-3"
+              >
+                <div className="text-xs text-muted-foreground">
+                  {label as string}
+                </div>
+                <div className="mt-1 text-lg font-semibold">
+                  {formatMoney(value as string | number | null)}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Invoiced, paid, booking, and commission values are calculated from
+            persisted finance records. The fields below retain advisor-managed
+            relationship and satisfaction context.
+          </p>
+          <div className="space-y-0">
+            <FieldRow label="Lifetime Revenue">
+              <Input
+                value={lifetimeRevenue}
+                onChange={(e) => setLifetimeRevenue(e.target.value)}
+                placeholder="0.00"
+                type="number"
+              />
+            </FieldRow>
+            <FieldRow label="Annual Revenue">
+              <Input
+                value={annualRevenue}
+                onChange={(e) => setAnnualRevenue(e.target.value)}
+                placeholder="0.00"
+                type="number"
+              />
+            </FieldRow>
+            <FieldRow label="Membership Fees Paid">
+              <Input
+                value={membershipFees}
+                onChange={(e) => setMembershipFees(e.target.value)}
+                placeholder="0.00"
+                type="number"
+              />
+            </FieldRow>
+            <FieldRow label="Satisfaction Score">
+              <Input
+                value={satisfactionScore}
+                onChange={(e) => setSatisfactionScore(e.target.value)}
+                placeholder="0.0 – 5.0"
+                type="number"
+                min="0"
+                max="5"
+                step="0.1"
+              />
+            </FieldRow>
+          </div>
         </div>
         <div className="flex justify-end pt-3">
           <Button

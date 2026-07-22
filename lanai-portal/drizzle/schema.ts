@@ -281,6 +281,11 @@ export const proposals = pgTable(
     createdByUserId: integer("createdByUserId"),
     title: varchar("title", { length: 255 }).notNull(),
     description: text("description"),
+    heroImageUrl: varchar("heroImageUrl", { length: 1024 }),
+    mapEmbedUrl: varchar("mapEmbedUrl", { length: 2048 }),
+    itinerary: jsonb("itinerary"), // ordered interactive daily itinerary entries
+    pricingTiers: jsonb("pricingTiers"), // named options with inclusions and total price
+    clientMessage: text("clientMessage"),
     aiGenerated: boolean("aiGenerated").default(false).notNull(),
     aiModel: varchar("aiModel", { length: 64 }),
     status: proposalStatusEnum("status").default("draft").notNull(),
@@ -300,6 +305,7 @@ export const proposals = pgTable(
     index("proposals_travelRequestId_idx").on(t.travelRequestId),
     index("proposals_memberId_idx").on(t.memberId),
     index("proposals_status_idx").on(t.status),
+    index("proposals_member_status_idx").on(t.memberId, t.status),
   ],
 );
 export type Proposal = typeof proposals.$inferSelect;
@@ -721,6 +727,8 @@ export const advisorTasks = pgTable(
     memberId: integer("memberId"),
     travelRequestId: integer("travelRequestId"),
     bookingId: integer("bookingId"),
+    taskTemplateId: integer("taskTemplateId"),
+    automationKey: varchar("automationKey", { length: 255 }),
     title: varchar("title", { length: 255 }).notNull(),
     description: text("description"),
     status: taskStatusEnum("status").default("open").notNull(),
@@ -735,6 +743,8 @@ export const advisorTasks = pgTable(
     index("advisor_tasks_memberId_idx").on(t.memberId),
     index("advisor_tasks_status_idx").on(t.status),
     index("advisor_tasks_dueDate_idx").on(t.dueDate),
+    index("advisor_tasks_template_idx").on(t.taskTemplateId),
+    uniqueIndex("advisor_tasks_automationKey_unique").on(t.automationKey),
   ],
 );
 export type AdvisorTask = typeof advisorTasks.$inferSelect;
@@ -1106,6 +1116,8 @@ export const memberProfiles = pgTable(
     hotelLoyaltyNumbers: jsonb("hotelLoyaltyNumbers"), // [{ chain: "Marriott", number: "M123456", tier: "Titanium" }]
 
     // Travel Documents
+    dateOfBirth: timestamp("dateOfBirth"),
+    passportExpiry: timestamp("passportExpiry"),
     visaExpiry: jsonb("visaExpiry"), // [{ country: "USA", expiry: "2027-01-01" }]
     globalEntryNumber: varchar("globalEntryNumber", { length: 64 }),
     knownTravellerNumber: varchar("knownTravellerNumber", { length: 64 }),
@@ -1125,6 +1137,7 @@ export const memberProfiles = pgTable(
     bucketListDestinations: jsonb("bucketListDestinations"),
     travelStyle: jsonb("travelStyle"), // ["adventure", "wellness", "cultural"]
     amenityPreferences: jsonb("amenityPreferences"), // ["champagne on arrival", "fruit basket"]
+    favouriteSupplierIds: jsonb("favouriteSupplierIds"), // Supplier IDs preferred by the member
 
     // Celebration Dates
     anniversaryDate: timestamp("anniversaryDate"),
@@ -1261,6 +1274,7 @@ export const invoices = pgTable(
     totalAmount: numeric("totalAmount", { precision: 12, scale: 2 }).notNull(),
     currency: varchar("currency", { length: 8 }).default("GBP"),
     commissionRate: numeric("commissionRate", { precision: 5, scale: 2 }),
+    reconciliationPeriod: varchar("reconciliationPeriod", { length: 7 }), // YYYY-MM for supplier month-end reconciliation
 
     // Dates
     issuedAt: timestamp("issuedAt"),
@@ -1283,6 +1297,11 @@ export const invoices = pgTable(
     index("invoices_status_idx").on(t.status),
     index("invoices_type_idx").on(t.invoiceType),
     index("invoices_dueDate_idx").on(t.dueDate),
+    index("invoices_reconciliationPeriod_idx").on(
+      t.supplierId,
+      t.invoiceType,
+      t.reconciliationPeriod,
+    ),
   ],
 );
 export type Invoice = typeof invoices.$inferSelect;
@@ -1328,6 +1347,10 @@ export const celebrations = pgTable(
     lastReminderSentAt: timestamp("lastReminderSentAt"),
     notes: text("notes"),
     giftSuggestions: jsonb("giftSuggestions"),
+    giftBudget: numeric("giftBudget", { precision: 10, scale: 2 }),
+    giftStatus: varchar("giftStatus", { length: 32 })
+      .default("pending")
+      .notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
   },
@@ -1384,6 +1407,8 @@ export const communicationTimeline = pgTable(
     transcription: text("transcription"), // AI transcription for calls
     sentiment: sentimentEnum("sentiment"),
     sentimentScore: numeric("sentimentScore", { precision: 4, scale: 3 }),
+    inquiryCategory: varchar("inquiryCategory", { length: 64 }), // AI-derived: booking, service_request, issue, feedback, general
+    aiAnalysis: jsonb("aiAnalysis"), // summary, entities, routing and confidence metadata
     durationSeconds: integer("durationSeconds"), // for phone calls
     attachmentUrls: jsonb("attachmentUrls"),
     externalId: varchar("externalId", { length: 255 }), // WhatsApp message ID, email thread ID
@@ -1401,6 +1426,7 @@ export const communicationTimeline = pgTable(
     index("comm_timeline_type_idx").on(t.communicationType),
     index("comm_timeline_createdAt_idx").on(t.createdAt),
     index("comm_timeline_followUp_idx").on(t.followUpRequired, t.followUpDueAt),
+    index("comm_timeline_inquiry_category_idx").on(t.inquiryCategory),
   ],
 );
 export type CommunicationTimelineEntry =

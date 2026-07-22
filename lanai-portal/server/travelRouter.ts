@@ -6,12 +6,14 @@ import {
   bookings,
   documents,
   proposals,
+  proposalItems,
   suppliers,
   travelRequests,
 } from "../drizzle/schema";
 import { Permify } from "./_core/infrastructure";
 import { recordBookingCommission } from "./_core/ledger";
 import { dispatchOutboxBatch, enqueueDomainEvent } from "./_core/outbox";
+import { instantiateBookingStageTasks } from "./_core/bookingTaskAutomation";
 
 async function recordEvent(
   input: Parameters<typeof enqueueDomainEvent>[0],
@@ -147,6 +149,34 @@ export const proposalsRouter = router({
         memberId: z.number().int().positive(),
         title: z.string().trim().min(1).max(255),
         description: z.string().trim().max(20_000).optional(),
+        heroImageUrl: z.string().url().max(1024).optional(),
+        mapEmbedUrl: z.string().url().max(2048).optional(),
+        clientMessage: z.string().trim().max(10_000).optional(),
+        itinerary: z
+          .array(
+            z.object({
+              day: z.number().int().min(1),
+              title: z.string().trim().min(1).max(255),
+              location: z.string().trim().max(255).optional(),
+              description: z.string().trim().max(10_000).optional(),
+              imageUrl: z.string().url().max(1024).optional(),
+              mapUrl: z.string().url().max(2048).optional(),
+              activities: z.array(z.string().trim().min(1).max(255)).optional(),
+            }),
+          )
+          .optional(),
+        pricingTiers: z
+          .array(
+            z.object({
+              name: z.string().trim().min(1).max(128),
+              description: z.string().trim().max(2_000).optional(),
+              totalPrice: z.string().regex(/^\d+(\.\d{1,2})?$/),
+              currency: z.string().length(3).default("GBP"),
+              inclusions: z.array(z.string().trim().min(1).max(255)).optional(),
+              recommended: z.boolean().optional(),
+            }),
+          )
+          .optional(),
         totalPrice: z
           .string()
           .regex(/^\d+(\.\d{1,2})?$/)
@@ -171,6 +201,11 @@ export const proposalsRouter = router({
           createdByUserId: ctx.user.id,
           title: input.title,
           description: input.description ?? null,
+          heroImageUrl: input.heroImageUrl ?? null,
+          mapEmbedUrl: input.mapEmbedUrl ?? null,
+          itinerary: input.itinerary ?? null,
+          pricingTiers: input.pricingTiers ?? null,
+          clientMessage: input.clientMessage ?? null,
           totalPrice: input.totalPrice ?? null,
           currency: input.currency?.toUpperCase() ?? "GBP",
           status: "draft",
@@ -202,6 +237,125 @@ export const proposalsRouter = router({
         idempotencyKey: `proposal:${row.id}:created`,
       });
       return row;
+    }),
+
+  updatePresentation: protectedProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        title: z.string().trim().min(1).max(255).optional(),
+        description: z.string().trim().max(20_000).optional(),
+        heroImageUrl: z.string().url().max(1024).nullable().optional(),
+        mapEmbedUrl: z.string().url().max(2048).nullable().optional(),
+        clientMessage: z.string().trim().max(10_000).nullable().optional(),
+        itinerary: z
+          .array(
+            z.object({
+              day: z.number().int().min(1),
+              title: z.string().trim().min(1).max(255),
+              location: z.string().trim().max(255).optional(),
+              description: z.string().trim().max(10_000).optional(),
+              imageUrl: z.string().url().max(1024).optional(),
+              mapUrl: z.string().url().max(2048).optional(),
+              activities: z.array(z.string().trim().min(1).max(255)).optional(),
+            }),
+          )
+          .optional(),
+        pricingTiers: z
+          .array(
+            z.object({
+              name: z.string().trim().min(1).max(128),
+              description: z.string().trim().max(2_000).optional(),
+              totalPrice: z.string().regex(/^\d+(\.\d{1,2})?$/),
+              currency: z.string().length(3).default("GBP"),
+              inclusions: z.array(z.string().trim().min(1).max(255)).optional(),
+              recommended: z.boolean().optional(),
+            }),
+          )
+          .optional(),
+        totalPrice: z
+          .string()
+          .regex(/^\d+(\.\d{1,2})?$/)
+          .optional(),
+        currency: z.string().length(3).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      const { id, ...data } = input;
+      const [row] = await db
+        .update(proposals)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(proposals.id, id))
+        .returning({ id: proposals.id });
+      if (!row) throw new Error("Proposal was not found");
+      return row;
+    }),
+
+  detail: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      const [proposal] = await db
+        .select()
+        .from(proposals)
+        .where(eq(proposals.id, input.id));
+      if (!proposal) return null;
+      const items = await db
+        .select()
+        .from(proposalItems)
+        .where(eq(proposalItems.proposalId, proposal.id))
+        .orderBy(proposalItems.sortOrder);
+      const commercial = {
+        totalPrice: proposal.totalPrice ?? "0",
+        totalCommission: items.reduce(
+          (sum, item) => sum + Number(item.commissionAmount ?? "0"),
+          0,
+        ),
+        averageMarginPercent: items.length
+          ? items.reduce(
+              (sum, item) => sum + Number(item.commissionRate ?? "0"),
+              0,
+            ) / items.length
+          : 0,
+      };
+      return { proposal, items, commercial };
+    }),
+
+  myProposalDetail: memberProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(async ({ input, ctx }) => {
+      const db = await getDb();
+      const [proposal] = await db
+        .select()
+        .from(proposals)
+        .where(
+          and(
+            eq(proposals.id, input.id),
+            eq(proposals.memberId, ctx.member.id),
+          ),
+        );
+      if (!proposal) return null;
+      const items = await db
+        .select({
+          id: proposalItems.id,
+          sortOrder: proposalItems.sortOrder,
+          itemType: proposalItems.itemType,
+          title: proposalItems.title,
+          description: proposalItems.description,
+          checkIn: proposalItems.checkIn,
+          checkOut: proposalItems.checkOut,
+          nights: proposalItems.nights,
+          quantity: proposalItems.quantity,
+          totalPrice: proposalItems.totalPrice,
+          currency: proposalItems.currency,
+          notes: proposalItems.notes,
+          imageUrl: proposalItems.imageUrl,
+        })
+        .from(proposalItems)
+        .where(eq(proposalItems.proposalId, proposal.id))
+        .orderBy(proposalItems.sortOrder);
+      return { proposal, items };
     }),
 
   send: protectedProcedure
@@ -315,7 +469,11 @@ export const bookingsRouter = router({
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       const proposal = await db
-        .select({ memberId: proposals.memberId, status: proposals.status })
+        .select({
+          memberId: proposals.memberId,
+          status: proposals.status,
+          travelRequestId: proposals.travelRequestId,
+        })
         .from(proposals)
         .where(eq(proposals.id, input.proposalId))
         .limit(1);
@@ -378,7 +536,77 @@ export const bookingsRouter = router({
         },
         idempotencyKey: `booking:${row.id}:created`,
       });
-      return { id: row.id, ledgerTransferId };
+      const taskAutomation = await instantiateBookingStageTasks({
+        bookingId: row.id,
+        memberId: input.memberId,
+        assignedToUserId: ctx.user.id,
+        createdByUserId: ctx.user.id,
+        travelRequestId: proposal[0]?.travelRequestId,
+        status: "pending",
+      });
+      return { id: row.id, ledgerTransferId, taskAutomation };
+    }),
+
+  updateStatus: protectedProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        status: z.enum([
+          "pending",
+          "confirmed",
+          "paid",
+          "cancelled",
+          "refunded",
+        ]),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      const [existing] = await db
+        .select({
+          id: bookings.id,
+          memberId: bookings.memberId,
+          proposalId: bookings.proposalId,
+        })
+        .from(bookings)
+        .where(eq(bookings.id, input.id));
+      if (!existing) throw new Error("Booking was not found");
+      const [row] = await db
+        .update(bookings)
+        .set({
+          status: input.status,
+          confirmedAt: input.status === "confirmed" ? new Date() : undefined,
+          cancelledAt: input.status === "cancelled" ? new Date() : undefined,
+          updatedAt: new Date(),
+        })
+        .where(eq(bookings.id, input.id))
+        .returning({ id: bookings.id });
+      const [proposal] = await db
+        .select({ travelRequestId: proposals.travelRequestId })
+        .from(proposals)
+        .where(eq(proposals.id, existing.proposalId));
+      const taskAutomation = await instantiateBookingStageTasks({
+        bookingId: existing.id,
+        memberId: existing.memberId,
+        assignedToUserId: ctx.user.id,
+        createdByUserId: ctx.user.id,
+        travelRequestId: proposal?.travelRequestId,
+        status: input.status,
+      });
+      await recordEvent({
+        aggregateType: "booking",
+        aggregateId: existing.id,
+        eventType: `status_${input.status}`,
+        payload: {
+          bookingId: existing.id,
+          memberId: existing.memberId,
+          advisorId: ctx.user.id,
+          status: input.status,
+          createdTaskIds: taskAutomation.createdTaskIds,
+        },
+        idempotencyKey: `booking:${existing.id}:status:${input.status}`,
+      });
+      return { id: row?.id ?? existing.id, taskAutomation };
     }),
 
   markCommissionReceived: protectedProcedure

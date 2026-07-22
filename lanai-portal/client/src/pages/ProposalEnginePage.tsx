@@ -6,6 +6,7 @@
  *   - Structured: JSON proposal with expandable sections
  */
 import { useState, useRef, useCallback } from "react";
+import { Link } from "wouter";
 import {
   Brain,
   Sparkles,
@@ -21,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { trpc } from "@/lib/trpc";
 
 const TRIP_TYPES = [
   "Honeymoon",
@@ -167,6 +169,30 @@ export default function ProposalEnginePage() {
     days: true,
   });
   const abortRef = useRef<AbortController | null>(null);
+  const [memberId, setMemberId] = useState("");
+  const [travelRequestId, setTravelRequestId] = useState("");
+  const [heroImageUrl, setHeroImageUrl] = useState("");
+  const [mapEmbedUrl, setMapEmbedUrl] = useState("");
+  const [tierName, setTierName] = useState("");
+  const [tierPrice, setTierPrice] = useState("");
+  const [tierInclusions, setTierInclusions] = useState("");
+  const [savedProposalId, setSavedProposalId] = useState<number | null>(null);
+  const { data: members = [] } = trpc.members.list.useQuery();
+  const { data: travelRequests = [] } = trpc.travelRequests.list.useQuery();
+  const createProposal = trpc.proposals.create.useMutation({
+    onSuccess: (created) => {
+      setSavedProposalId(created.id);
+      toast.success("Premium proposal saved as a draft.");
+    },
+    onError: (error) =>
+      toast.error(error.message || "Unable to save proposal."),
+  });
+  const sendProposal = trpc.proposals.send.useMutation({
+    onSuccess: () =>
+      toast.success("Proposal sent to the member portal for digital approval."),
+    onError: (error) =>
+      toast.error(error.message || "Unable to send proposal."),
+  });
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -292,6 +318,62 @@ export default function ProposalEnginePage() {
     setLoading(false);
   };
 
+  const savePremiumProposal = () => {
+    const output =
+      mode === "stream" ? streamText : (proposal?.executive_summary ?? "");
+    if (!output.trim()) {
+      toast.error("Generate a proposal before saving it.");
+      return;
+    }
+    if (!memberId || !travelRequestId) {
+      toast.error(
+        "Select the persisted member and travel request for this proposal.",
+      );
+      return;
+    }
+    if (tierPrice && !/^\d+(\.\d{1,2})?$/.test(tierPrice)) {
+      toast.error("Tier price must be a valid numeric amount.");
+      return;
+    }
+    const itinerary = proposal?.day_by_day?.map((day, index) => ({
+      day: Number(day.day) || index + 1,
+      title: day.title,
+      location: form.destination || undefined,
+      description: day.description,
+      activities: index === 0 ? proposal.included_experiences : undefined,
+    }));
+    const pricingTiers =
+      tierName && tierPrice
+        ? [
+            {
+              name: tierName,
+              totalPrice: tierPrice,
+              currency: "GBP",
+              inclusions: tierInclusions
+                .split("\n")
+                .map((item) => item.trim())
+                .filter(Boolean),
+              recommended: true,
+            },
+          ]
+        : undefined;
+    createProposal.mutate({
+      travelRequestId: Number(travelRequestId),
+      memberId: Number(memberId),
+      title:
+        proposal?.proposal_title ||
+        `${form.destination} ${form.trip_type || "Travel"} Proposal`,
+      description: output,
+      clientMessage: proposal?.executive_summary || undefined,
+      heroImageUrl: heroImageUrl || undefined,
+      mapEmbedUrl: mapEmbedUrl || undefined,
+      itinerary,
+      pricingTiers,
+      totalPrice: tierPrice || undefined,
+      currency: "GBP",
+    });
+  };
+
   const copyOutput = () => {
     const text =
       mode === "stream" ? streamText : JSON.stringify(proposal, null, 2);
@@ -364,6 +446,80 @@ export default function ProposalEnginePage() {
           >
             Trip Details
           </h2>
+
+          <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Persisted Client Context
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Member *</label>
+                <select
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  value={memberId}
+                  onChange={(event) => {
+                    const id = event.target.value;
+                    setMemberId(id);
+                    const member = members.find(
+                      (item) => item.id === Number(id),
+                    );
+                    if (member) set("client_name", member.name);
+                    setTravelRequestId("");
+                  }}
+                >
+                  <option value="">Select a member…</option>
+                  {members.map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {member.name} · {member.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">
+                  Structured Request *
+                </label>
+                <select
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  value={travelRequestId}
+                  disabled={!memberId}
+                  onChange={(event) => {
+                    const id = event.target.value;
+                    setTravelRequestId(id);
+                    const request = travelRequests.find(
+                      (item) => item.id === Number(id),
+                    );
+                    if (request)
+                      setForm((current) => ({
+                        ...current,
+                        destination: request.destination,
+                        duration: request.dates,
+                        party_size: String(request.pax),
+                        budget: request.budget ?? current.budget,
+                        special_requests:
+                          request.notes ?? current.special_requests,
+                      }));
+                  }}
+                >
+                  <option value="">
+                    {memberId ? "Select a request…" : "Choose a member first"}
+                  </option>
+                  {travelRequests
+                    .filter((request) => request.memberId === Number(memberId))
+                    .map((request) => (
+                      <option key={request.id} value={request.id}>
+                        {request.destination} · {request.dates}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Selecting a request pre-fills its real destination, dates, party
+              size, budget, and notes. AI output is never saved against an
+              unselected client record.
+            </p>
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -489,6 +645,45 @@ export default function ProposalEnginePage() {
               placeholder="e.g. Surprise element, specific experiences, accessibility needs…"
               value={form.special_requests}
               onChange={(e) => set("special_requests", e.target.value)}
+            />
+          </div>
+
+          <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Premium Presentation Details
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input
+                placeholder="Hero destination image URL (optional)"
+                value={heroImageUrl}
+                onChange={(event) => setHeroImageUrl(event.target.value)}
+              />
+              <Input
+                placeholder="Trusted map embed URL (optional)"
+                value={mapEmbedUrl}
+                onChange={(event) => setMapEmbedUrl(event.target.value)}
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input
+                placeholder="Pricing tier name, e.g. Signature"
+                value={tierName}
+                onChange={(event) => setTierName(event.target.value)}
+              />
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Tier total price (GBP)"
+                value={tierPrice}
+                onChange={(event) => setTierPrice(event.target.value)}
+              />
+            </div>
+            <Textarea
+              rows={2}
+              placeholder="One inclusion or optional upgrade per line (optional)"
+              value={tierInclusions}
+              onChange={(event) => setTierInclusions(event.target.value)}
             />
           </div>
 
@@ -736,6 +931,59 @@ export default function ProposalEnginePage() {
                   </p>
                 </div>
               )}
+            </div>
+          )}
+
+          {hasOutput && (
+            <div className="lanai-card p-5 space-y-3 border-primary/20">
+              <div>
+                <h3
+                  className="font-semibold"
+                  style={{ fontFamily: "'Playfair Display', serif" }}
+                >
+                  Premium Proposal Delivery
+                </h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Save the real AI output with the selected member and request.
+                  Advisor-only commission and margin visibility remain in the
+                  internal proposal detail; the member receives a
+                  commercial-safe itinerary and approval page.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  onClick={savePremiumProposal}
+                  disabled={
+                    createProposal.isPending || savedProposalId !== null
+                  }
+                  className="gap-2"
+                  style={{ background: "oklch(0.35 0.09 145)" }}
+                >
+                  {createProposal.isPending
+                    ? "Saving…"
+                    : savedProposalId
+                      ? "Draft Saved"
+                      : "Save Premium Draft"}
+                </Button>
+                {savedProposalId && (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        sendProposal.mutate({ id: savedProposalId })
+                      }
+                      disabled={sendProposal.isPending}
+                    >
+                      {sendProposal.isPending
+                        ? "Sending…"
+                        : "Send for Digital Approval"}
+                    </Button>
+                    <Link href={`/client/proposals/${savedProposalId}`}>
+                      <Button variant="outline">Open Client View</Button>
+                    </Link>
+                  </>
+                )}
+              </div>
             </div>
           )}
         </div>

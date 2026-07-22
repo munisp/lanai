@@ -1,14 +1,37 @@
 import {
-  Gift, Plus, Calendar, Bell, Star, Heart, PartyPopper,
-  Cake, Anchor, CheckCircle, Clock, Trash2, Edit
+  Gift,
+  Plus,
+  Calendar,
+  Bell,
+  Star,
+  Heart,
+  PartyPopper,
+  Cake,
+  Anchor,
+  CheckCircle,
+  Clock,
+  Trash2,
+  Edit,
 } from "lucide-react";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -36,23 +59,36 @@ const CELEBRATION_COLORS: Record<string, string> = {
 
 // ─── Celebration Card ─────────────────────────────────────────────────────────
 function CelebrationCard({
-  celebration, onDelete,
+  celebration,
+  onDelete,
 }: {
   celebration: {
-    id: number; celebrationType: string; celebrationDate: string; title: string;
-    notes?: string | null; reminderDaysBefore?: number | null; isRecurring?: boolean | null;
-    giftBudget?: string | null; giftStatus?: string | null;
+    id: number;
+    celebrationType: string;
+    celebrationDate: string;
+    title: string;
+    notes?: string | null;
+    reminderDaysBefore?: number | null;
+    isRecurring?: boolean | null;
+    giftBudget?: string | null;
+    giftStatus?: string | null;
   };
   onDelete: (id: number) => void;
 }) {
   const Icon = CELEBRATION_ICONS[celebration.celebrationType] ?? Gift;
   const daysUntil = Math.ceil(
-    (new Date(celebration.celebrationDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+    (new Date(celebration.celebrationDate).getTime() - Date.now()) /
+      (1000 * 60 * 60 * 24),
   );
   const isUpcoming = daysUntil >= 0 && daysUntil <= 30;
 
   return (
-    <div className={cn("lanai-card p-5 space-y-3", isUpcoming && "ring-2 ring-amber-300")}>
+    <div
+      className={cn(
+        "lanai-card p-5 space-y-3",
+        isUpcoming && "ring-2 ring-amber-300",
+      )}
+    >
       {isUpcoming && (
         <div className="flex items-center gap-1.5 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full w-fit">
           <Bell className="w-3 h-3" />
@@ -61,16 +97,26 @@ function CelebrationCard({
       )}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", CELEBRATION_COLORS[celebration.celebrationType])}>
+          <div
+            className={cn(
+              "w-10 h-10 rounded-xl flex items-center justify-center",
+              CELEBRATION_COLORS[celebration.celebrationType],
+            )}
+          >
             <Icon className="w-5 h-5" />
           </div>
           <div>
-            <div className="font-semibold text-foreground">{celebration.title}</div>
-            <div className="text-xs text-muted-foreground capitalize">{celebration.celebrationType}</div>
+            <div className="font-semibold text-foreground">
+              {celebration.title}
+            </div>
+            <div className="text-xs text-muted-foreground capitalize">
+              {celebration.celebrationType}
+            </div>
           </div>
         </div>
         <Button
-          variant="ghost" size="icon"
+          variant="ghost"
+          size="icon"
           className="text-destructive hover:text-destructive h-8 w-8"
           onClick={() => onDelete(celebration.id)}
         >
@@ -83,7 +129,11 @@ function CelebrationCard({
           <div className="text-muted-foreground mb-0.5">Date</div>
           <div className="font-medium flex items-center gap-1">
             <Calendar className="w-3 h-3" />
-            {new Date(celebration.celebrationDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+            {new Date(celebration.celebrationDate).toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })}
           </div>
         </div>
         {celebration.reminderDaysBefore && (
@@ -98,13 +148,22 @@ function CelebrationCard({
         {celebration.giftBudget && (
           <div>
             <div className="text-muted-foreground mb-0.5">Gift Budget</div>
-            <div className="font-medium">£{parseFloat(celebration.giftBudget).toLocaleString()}</div>
+            <div className="font-medium">
+              £{parseFloat(celebration.giftBudget).toLocaleString()}
+            </div>
           </div>
         )}
         {celebration.giftStatus && (
           <div>
             <div className="text-muted-foreground mb-0.5">Gift Status</div>
-            <div className={cn("font-medium capitalize", celebration.giftStatus === "arranged" ? "text-emerald-600" : "text-amber-600")}>
+            <div
+              className={cn(
+                "font-medium capitalize",
+                celebration.giftStatus === "arranged"
+                  ? "text-emerald-600"
+                  : "text-amber-600",
+              )}
+            >
               {celebration.giftStatus}
             </div>
           </div>
@@ -118,17 +177,27 @@ function CelebrationCard({
       )}
 
       {celebration.notes && (
-        <div className="text-xs text-muted-foreground bg-muted/30 rounded p-2">{celebration.notes}</div>
+        <div className="text-xs text-muted-foreground bg-muted/30 rounded p-2">
+          {celebration.notes}
+        </div>
       )}
     </div>
   );
 }
 
 // ─── VIP Amenity Card ─────────────────────────────────────────────────────────
-function VipAmenityCard({ amenity, onUpdateStatus }: {
+function VipAmenityCard({
+  amenity,
+  onUpdateStatus,
+}: {
   amenity: {
-    id: number; amenityType: string; description?: string | null; status: string;
-    cost?: string | null; confirmedAt?: Date | null; bookingId?: number | null;
+    id: number;
+    amenityType: string;
+    description?: string | null;
+    status: string;
+    cost?: string | null;
+    confirmedAt?: Date | null;
+    bookingId?: number | null;
   };
   onUpdateStatus: (id: number, status: string) => void;
 }) {
@@ -145,24 +214,47 @@ function VipAmenityCard({ amenity, onUpdateStatus }: {
           <Star className="w-4 h-4" />
         </div>
         <div>
-          <div className="text-sm font-medium capitalize">{amenity.amenityType.replace("_", " ")}</div>
-          {amenity.description && <div className="text-xs text-muted-foreground">{amenity.description}</div>}
-          {amenity.cost && <div className="text-xs text-muted-foreground">Cost: £{parseFloat(amenity.cost).toLocaleString()}</div>}
+          <div className="text-sm font-medium capitalize">
+            {amenity.amenityType.replace("_", " ")}
+          </div>
+          {amenity.description && (
+            <div className="text-xs text-muted-foreground">
+              {amenity.description}
+            </div>
+          )}
+          {amenity.cost && (
+            <div className="text-xs text-muted-foreground">
+              Cost: £{parseFloat(amenity.cost).toLocaleString()}
+            </div>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", statusColors[amenity.status] ?? "bg-gray-100 text-gray-600")}>
+        <span
+          className={cn(
+            "text-xs px-2 py-0.5 rounded-full font-medium",
+            statusColors[amenity.status] ?? "bg-gray-100 text-gray-600",
+          )}
+        >
           {amenity.status}
         </span>
         {amenity.status === "requested" && (
-          <Button size="sm" variant="outline" className="h-7 text-xs"
-            onClick={() => onUpdateStatus(amenity.id, "confirmed")}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs"
+            onClick={() => onUpdateStatus(amenity.id, "confirmed")}
+          >
             Confirm
           </Button>
         )}
         {amenity.status === "confirmed" && (
-          <Button size="sm" variant="outline" className="h-7 text-xs"
-            onClick={() => onUpdateStatus(amenity.id, "delivered")}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs"
+            onClick={() => onUpdateStatus(amenity.id, "delivered")}
+          >
             Delivered
           </Button>
         )}
@@ -172,7 +264,13 @@ function VipAmenityCard({ amenity, onUpdateStatus }: {
 }
 
 // ─── Add Celebration Dialog ───────────────────────────────────────────────────
-function AddCelebrationDialog({ memberId, onAdded }: { memberId: number; onAdded: () => void }) {
+function AddCelebrationDialog({
+  memberId,
+  onAdded,
+}: {
+  memberId: number;
+  onAdded: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState("birthday");
   const [title, setTitle] = useState("");
@@ -183,26 +281,39 @@ function AddCelebrationDialog({ memberId, onAdded }: { memberId: number; onAdded
   const [giftBudget, setGiftBudget] = useState("");
 
   const addCelebration = trpc.celebrations.add.useMutation({
-    onSuccess: () => { toast.success("Celebration added"); setOpen(false); onAdded(); },
+    onSuccess: () => {
+      toast.success("Celebration added");
+      setOpen(false);
+      onAdded();
+    },
     onError: () => toast.error("Failed to add celebration"),
   });
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="gap-2 text-white" style={{ background: "oklch(0.35 0.09 145)" }}>
+        <Button
+          className="gap-2 text-white"
+          style={{ background: "oklch(0.35 0.09 145)" }}
+        >
           <Plus className="w-4 h-4" /> Add Celebration
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle style={{ fontFamily: "'Playfair Display', serif" }}>Add Celebration</DialogTitle>
+          <DialogTitle style={{ fontFamily: "'Playfair Display', serif" }}>
+            Add Celebration
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 pt-2">
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Type</label>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+              Type
+            </label>
             <Select value={type} onValueChange={setType}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="birthday">Birthday</SelectItem>
                 <SelectItem value="anniversary">Anniversary</SelectItem>
@@ -215,46 +326,101 @@ function AddCelebrationDialog({ memberId, onAdded }: { memberId: number; onAdded
             </Select>
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Title</label>
-            <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. 50th Birthday" />
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+              Title
+            </label>
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. 50th Birthday"
+            />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Date</label>
-            <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+              Date
+            </label>
+            <Input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Reminder (days before)</label>
-              <Input type="number" value={reminderDays} onChange={e => setReminderDays(e.target.value)} />
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                Reminder (days before)
+              </label>
+              <Input
+                type="number"
+                value={reminderDays}
+                onChange={(e) => setReminderDays(e.target.value)}
+              />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Gift Budget (£)</label>
-              <Input type="number" value={giftBudget} onChange={e => setGiftBudget(e.target.value)} placeholder="0.00" />
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                Gift Budget (£)
+              </label>
+              <Input
+                type="number"
+                value={giftBudget}
+                onChange={(e) => setGiftBudget(e.target.value)}
+                placeholder="0.00"
+              />
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <input type="checkbox" id="recurring" checked={recurring} onChange={e => setRecurring(e.target.checked)} className="rounded" />
-            <label htmlFor="recurring" className="text-sm">Recurring annually</label>
+            <input
+              type="checkbox"
+              id="recurring"
+              checked={recurring}
+              onChange={(e) => setRecurring(e.target.checked)}
+              className="rounded"
+            />
+            <label htmlFor="recurring" className="text-sm">
+              Recurring annually
+            </label>
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Notes</label>
-            <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Special instructions..." className="min-h-16" />
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+              Notes
+            </label>
+            <Textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Special instructions..."
+              className="min-h-16"
+            />
           </div>
           <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
             <Button
-              onClick={() => addCelebration.mutate({
-                memberId,
-                celebrationType: type as "birthday" | "anniversary" | "honeymoon" | "graduation" | "retirement" | "promotion" | "other",
-                title,
-                celebrationDate: date,
-                notes: notes || undefined,
-                reminderDaysBefore: reminderDays ? parseInt(reminderDays) : undefined,
-                isRecurring: recurring,
-                // giftBudget not in schema
-              })}
+              onClick={() =>
+                addCelebration.mutate({
+                  memberId,
+                  celebrationType: type as
+                    | "birthday"
+                    | "anniversary"
+                    | "honeymoon"
+                    | "graduation"
+                    | "retirement"
+                    | "promotion"
+                    | "other",
+                  title,
+                  celebrationDate: date,
+                  notes: notes || undefined,
+                  reminderDaysBefore: reminderDays
+                    ? parseInt(reminderDays)
+                    : undefined,
+                  isRecurring: recurring,
+                  giftBudget: giftBudget || undefined,
+                  giftStatus: giftBudget ? "pending" : undefined,
+                })
+              }
               disabled={!title || !date || addCelebration.isPending}
-              className="text-white" style={{ background: "oklch(0.35 0.09 145)" }}
+              className="text-white"
+              style={{ background: "oklch(0.35 0.09 145)" }}
             >
               {addCelebration.isPending ? "Adding..." : "Add Celebration"}
             </Button>
@@ -267,32 +433,71 @@ function AddCelebrationDialog({ memberId, onAdded }: { memberId: number; onAdded
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function CelebrationsPage({ memberId }: { memberId?: number }) {
-  const id = memberId ?? 1;
+  const id = memberId ?? 0;
+  const hasMemberContext = Number.isSafeInteger(id) && id > 0;
 
-  const { data: celebrations, isLoading: celebLoading, refetch: refetchCeleb } =
-    trpc.celebrations.list.useQuery({ memberId: id });
+  const {
+    data: celebrations,
+    isLoading: celebLoading,
+    refetch: refetchCeleb,
+  } = trpc.celebrations.list.useQuery(
+    { memberId: id },
+    { enabled: hasMemberContext },
+  );
 
-  const { data: upcoming } = trpc.celebrations.upcoming.useQuery({ daysAhead: 30 });
+  const { data: upcoming } = trpc.celebrations.upcoming.useQuery({
+    daysAhead: 30,
+  });
 
-  const { data: amenities, isLoading: amenitiesLoading, refetch: refetchAmenities } =
-    trpc.vipAmenities.list.useQuery({ memberId: id });
+  const {
+    data: amenities,
+    isLoading: amenitiesLoading,
+    refetch: refetchAmenities,
+  } = trpc.vipAmenities.list.useQuery(
+    { memberId: id },
+    { enabled: hasMemberContext },
+  );
 
   const deleteCelebration = trpc.celebrations.delete.useMutation({
-    onSuccess: () => { toast.success("Celebration removed"); refetchCeleb(); },
+    onSuccess: () => {
+      toast.success("Celebration removed");
+      refetchCeleb();
+    },
   });
 
   const confirmAmenity = trpc.vipAmenities.confirm.useMutation({
-    onSuccess: () => { toast.success("Amenity confirmed"); refetchAmenities(); },
+    onSuccess: () => {
+      toast.success("Amenity confirmed");
+      refetchAmenities();
+    },
   });
   const deliverAmenity = trpc.vipAmenities.markDelivered.useMutation({
-    onSuccess: () => { toast.success("Amenity delivered"); refetchAmenities(); },
+    onSuccess: () => {
+      toast.success("Amenity delivered");
+      refetchAmenities();
+    },
   });
+
+  const generateDueActions =
+    trpc.experienceManagement.generateDueActions.useMutation({
+      onSuccess: (result) =>
+        toast.success(
+          `${result.generatedCandidates} experience actions generated`,
+        ),
+      onError: (error) =>
+        toast.error(error.message || "Unable to generate experience actions"),
+    });
 
   const [amenityType, setAmenityType] = useState("champagne");
   const [amenityDesc, setAmenityDesc] = useState("");
   const [amenityCost, setAmenityCost] = useState("");
   const addAmenity = trpc.vipAmenities.request.useMutation({
-    onSuccess: () => { toast.success("VIP amenity requested"); refetchAmenities(); setAmenityDesc(""); setAmenityCost(""); },
+    onSuccess: () => {
+      toast.success("VIP amenity requested");
+      refetchAmenities();
+      setAmenityDesc("");
+      setAmenityCost("");
+    },
   });
 
   return (
@@ -300,13 +505,40 @@ export default function CelebrationsPage({ memberId }: { memberId?: number }) {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <div className="flex items-center gap-2 mb-1"><Gift className="w-5 h-5 text-primary" /></div>
-          <h1 className="text-3xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <div className="flex items-center gap-2 mb-1">
+            <Gift className="w-5 h-5 text-primary" />
+          </div>
+          <h1
+            className="text-3xl font-bold"
+            style={{ fontFamily: "'Playfair Display', serif" }}
+          >
             Celebrations & Experience
           </h1>
-          <p className="text-muted-foreground mt-1">Automated reminders, VIP amenities, and personalised experiences</p>
+          <p className="text-muted-foreground mt-1">
+            Automated reminders, VIP amenities, and personalised experiences
+          </p>
         </div>
-        <AddCelebrationDialog memberId={id} onAdded={refetchCeleb} />
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => generateDueActions.mutate({ daysAhead: 30 })}
+            disabled={generateDueActions.isPending}
+          >
+            <Clock className="w-3.5 h-3.5" />{" "}
+            {generateDueActions.isPending
+              ? "Generating..."
+              : "Generate due actions"}
+          </Button>
+          {hasMemberContext ? (
+            <AddCelebrationDialog memberId={id} onAdded={refetchCeleb} />
+          ) : (
+            <Button disabled className="gap-2">
+              <Plus className="w-4 h-4" /> Select a member
+            </Button>
+          )}
+        </div>
       </div>
       <hr className="lanai-divider" />
 
@@ -315,14 +547,22 @@ export default function CelebrationsPage({ memberId }: { memberId?: number }) {
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-3">
             <Bell className="w-4 h-4 text-amber-600" />
-            <span className="text-sm font-semibold text-amber-800">Upcoming Celebrations (Next 30 Days)</span>
+            <span className="text-sm font-semibold text-amber-800">
+              Upcoming Celebrations (Next 30 Days)
+            </span>
           </div>
           <div className="space-y-2">
-            {upcoming.map(c => {
+            {upcoming.map((c) => {
               const Icon = CELEBRATION_ICONS[c.celebrationType] ?? Gift;
-              const daysUntil = Math.ceil((new Date(c.celebrationDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+              const daysUntil = Math.ceil(
+                (new Date(c.celebrationDate).getTime() - Date.now()) /
+                  (1000 * 60 * 60 * 24),
+              );
               return (
-                <div key={c.id} className="flex items-center justify-between bg-white rounded-lg p-2.5 text-sm">
+                <div
+                  key={c.id}
+                  className="flex items-center justify-between bg-white rounded-lg p-2.5 text-sm"
+                >
                   <div className="flex items-center gap-2">
                     <Icon className="w-4 h-4 text-amber-600" />
                     <span className="font-medium">{c.title}</span>
@@ -344,19 +584,31 @@ export default function CelebrationsPage({ memberId }: { memberId?: number }) {
         </h2>
         {celebLoading ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-48 rounded-lg" />)}
+            {[...Array(3)].map((_, i) => (
+              <Skeleton key={i} className="h-48 rounded-lg" />
+            ))}
           </div>
         ) : celebrations && celebrations.length > 0 ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {celebrations.map(c => (
+            {celebrations.map((c) => (
               <CelebrationCard
                 key={c.id}
-                celebration={c as unknown as {
-                  id: number; celebrationType: string; celebrationDate: string; title: string;
-                  notes?: string | null; reminderDaysBefore?: number | null; isRecurring?: boolean | null;
-                  giftBudget?: string | null; giftStatus?: string | null;
-                }}
-                onDelete={id => deleteCelebration.mutate({ celebrationId: id })}
+                celebration={
+                  c as unknown as {
+                    id: number;
+                    celebrationType: string;
+                    celebrationDate: string;
+                    title: string;
+                    notes?: string | null;
+                    reminderDaysBefore?: number | null;
+                    isRecurring?: boolean | null;
+                    giftBudget?: string | null;
+                    giftStatus?: string | null;
+                  }
+                }
+                onDelete={(id) =>
+                  deleteCelebration.mutate({ celebrationId: id })
+                }
               />
             ))}
           </div>
@@ -371,18 +623,26 @@ export default function CelebrationsPage({ memberId }: { memberId?: number }) {
       {/* VIP Amenities */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">VIP Amenities</h2>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">
+            VIP Amenities
+          </h2>
         </div>
 
         {/* Quick Add Amenity */}
         <div className="lanai-card p-4 mb-4">
           <div className="flex gap-3 items-end">
             <div className="flex-1">
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Amenity Type</label>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                Amenity Type
+              </label>
               <Select value={amenityType} onValueChange={setAmenityType}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="champagne">Champagne on Arrival</SelectItem>
+                  <SelectItem value="champagne">
+                    Champagne on Arrival
+                  </SelectItem>
                   <SelectItem value="flowers">Flowers</SelectItem>
                   <SelectItem value="room_upgrade">Room Upgrade</SelectItem>
                   <SelectItem value="early_checkin">Early Check-in</SelectItem>
@@ -396,22 +656,38 @@ export default function CelebrationsPage({ memberId }: { memberId?: number }) {
               </Select>
             </div>
             <div className="flex-1">
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Description</label>
-              <Input value={amenityDesc} onChange={e => setAmenityDesc(e.target.value)} placeholder="Details..." />
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                Description
+              </label>
+              <Input
+                value={amenityDesc}
+                onChange={(e) => setAmenityDesc(e.target.value)}
+                placeholder="Details..."
+              />
             </div>
             <div className="w-28">
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Cost (£)</label>
-              <Input type="number" value={amenityCost} onChange={e => setAmenityCost(e.target.value)} placeholder="0.00" />
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                Cost (£)
+              </label>
+              <Input
+                type="number"
+                value={amenityCost}
+                onChange={(e) => setAmenityCost(e.target.value)}
+                placeholder="0.00"
+              />
             </div>
             <Button
-              onClick={() => addAmenity.mutate({
-                memberId: id,
-                amenityType,
-                description: amenityDesc || undefined,
-                cost: amenityCost || undefined,
-              })}
-              disabled={addAmenity.isPending}
-              className="gap-2 text-white whitespace-nowrap" style={{ background: "oklch(0.35 0.09 145)" }}
+              onClick={() =>
+                addAmenity.mutate({
+                  memberId: id,
+                  amenityType,
+                  description: amenityDesc || undefined,
+                  cost: amenityCost || undefined,
+                })
+              }
+              disabled={addAmenity.isPending || !hasMemberContext}
+              className="gap-2 text-white whitespace-nowrap"
+              style={{ background: "oklch(0.35 0.09 145)" }}
             >
               <Plus className="w-4 h-4" /> Request
             </Button>
@@ -420,18 +696,31 @@ export default function CelebrationsPage({ memberId }: { memberId?: number }) {
 
         {amenitiesLoading ? (
           <div className="space-y-2">
-            {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
+            {[...Array(3)].map((_, i) => (
+              <Skeleton key={i} className="h-16 rounded-lg" />
+            ))}
           </div>
         ) : amenities && amenities.length > 0 ? (
           <div className="space-y-2">
-            {amenities.map(a => (
+            {amenities.map((a) => (
               <VipAmenityCard
                 key={a.id}
-                amenity={a as unknown as {
-                  id: number; amenityType: string; description?: string | null; status: string;
-                  cost?: string | null; confirmedAt?: Date | null; bookingId?: number | null;
-                }}
-                onUpdateStatus={(id, status) => status === "confirmed" ? confirmAmenity.mutate({ amenityId: id }) : deliverAmenity.mutate({ amenityId: id })}
+                amenity={
+                  a as unknown as {
+                    id: number;
+                    amenityType: string;
+                    description?: string | null;
+                    status: string;
+                    cost?: string | null;
+                    confirmedAt?: Date | null;
+                    bookingId?: number | null;
+                  }
+                }
+                onUpdateStatus={(id, status) =>
+                  status === "confirmed"
+                    ? confirmAmenity.mutate({ amenityId: id })
+                    : deliverAmenity.mutate({ amenityId: id })
+                }
               />
             ))}
           </div>

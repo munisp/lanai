@@ -56,6 +56,7 @@ import {
   tripTimelinePatchRouter,
   npsPatchRouter,
   aiConciergePatchRouter,
+  experienceManagementRouter,
 } from "./phase2Router";
 import {
   createInvitation,
@@ -684,6 +685,7 @@ export const appRouter = router({
     ...vipAmenitiesPatchRouter._def.record,
   }),
   revenueAnalytics: revenueAnalyticsRouter,
+  experienceManagement: experienceManagementRouter,
   aiConcierge: router({
     ...aiConciergeRouter._def.record,
     ...aiConciergePatchRouter._def.record,

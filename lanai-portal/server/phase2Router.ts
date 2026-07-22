@@ -57,7 +57,9 @@ import {
   travelRequests,
   advisorTasks,
   memberPreferences,
+  proposals,
 } from "../drizzle/schema";
+import { invokeLocalAi } from "./_core/localAi";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -67,6 +69,95 @@ function generateInvoiceNumber(): string {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const rand = Math.floor(Math.random() * 9000) + 1000;
   return `LAN-${year}${month}-${rand}`;
+}
+
+async function buildConciergeMemberFacts(
+  memberId: number,
+): Promise<Record<string, unknown>> {
+  const db = await getDb();
+  const [
+    member,
+    profile,
+    preferences,
+    recentRequests,
+    recentBookings,
+    recentTrips,
+    recentCommunications,
+  ] = await Promise.all([
+    db.select().from(members).where(eq(members.id, memberId)).limit(1),
+    db
+      .select()
+      .from(memberProfiles)
+      .where(eq(memberProfiles.memberId, memberId))
+      .limit(1),
+    db
+      .select()
+      .from(memberPreferences)
+      .where(eq(memberPreferences.memberId, memberId))
+      .limit(1),
+    db
+      .select()
+      .from(travelRequests)
+      .where(eq(travelRequests.memberId, memberId))
+      .orderBy(desc(travelRequests.createdAt))
+      .limit(20),
+    db
+      .select()
+      .from(bookings)
+      .where(eq(bookings.memberId, memberId))
+      .orderBy(desc(bookings.createdAt))
+      .limit(20),
+    db
+      .select()
+      .from(tripTimeline)
+      .where(eq(tripTimeline.memberId, memberId))
+      .orderBy(desc(tripTimeline.departureDate))
+      .limit(20),
+    db
+      .select()
+      .from(communicationTimeline)
+      .where(eq(communicationTimeline.memberId, memberId))
+      .orderBy(desc(communicationTimeline.createdAt))
+      .limit(30),
+  ]);
+  if (!member[0])
+    throw new TRPCError({ code: "NOT_FOUND", message: "Member was not found" });
+  return {
+    member: { id: member[0].id, name: member[0].name, tier: member[0].tier },
+    profile: profile[0] ?? null,
+    preferences: preferences[0] ?? null,
+    travel_requests: recentRequests.map((item) => ({
+      destination: item.destination,
+      dates: item.dates,
+      pax: item.pax,
+      budget: item.budget,
+      status: item.status,
+      notes: item.notes,
+    })),
+    bookings: recentBookings.map((item) => ({
+      status: item.status,
+      currency: item.currency,
+      total_amount: item.totalAmount,
+      commission_expected: item.commissionExpected,
+      check_in: item.checkIn,
+      check_out: item.checkOut,
+    })),
+    trips: recentTrips.map((item) => ({
+      destination: item.destination,
+      total_spend: item.totalSpend,
+      satisfaction_score: item.satisfactionScore,
+      highlights: item.highlights,
+      feedback: item.memberFeedback,
+    })),
+    communications: recentCommunications.map((item) => ({
+      type: item.communicationType,
+      direction: item.direction,
+      summary: item.summary,
+      sentiment: item.sentiment,
+      body: item.body,
+      created_at: item.createdAt,
+    })),
+  };
 }
 
 // ─── 1. Extended Member Profiles ─────────────────────────────────────────────
@@ -83,6 +174,48 @@ export const memberProfileRouter = router({
         .from(memberProfiles)
         .where(eq(memberProfiles.memberId, input.memberId));
       return profile ?? null;
+    }),
+
+  /** Advisor: calculate transaction-derived member value for concierge prioritisation */
+  revenueSummary: protectedProcedure
+    .input(z.object({ memberId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      const yearStart = new Date(new Date().getFullYear(), 0, 1);
+      const [invoiceTotals] = await db
+        .select({
+          clientInvoicedRevenue: sql<string>`coalesce(sum(case when ${invoices.invoiceType} = 'client_service' and ${invoices.status} in ('issued', 'paid') then ${invoices.totalAmount} else 0 end), 0)`,
+          clientPaidRevenue: sql<string>`coalesce(sum(case when ${invoices.invoiceType} = 'client_service' and ${invoices.status} = 'paid' then ${invoices.totalAmount} else 0 end), 0)`,
+          annualClientRevenue: sql<string>`coalesce(sum(case when ${invoices.invoiceType} = 'client_service' and ${invoices.status} in ('issued', 'paid') and ${invoices.createdAt} >= ${yearStart} then ${invoices.totalAmount} else 0 end), 0)`,
+        })
+        .from(invoices)
+        .where(eq(invoices.memberId, input.memberId));
+      const [bookingTotals] = await db
+        .select({
+          bookingValue: sql<string>`coalesce(sum(${bookings.totalAmount}), 0)`,
+          expectedCommission: sql<string>`coalesce(sum(${bookings.commissionExpected}), 0)`,
+        })
+        .from(bookings)
+        .where(eq(bookings.memberId, input.memberId));
+      const [profile] = await db
+        .select({
+          membershipFeesPaid: memberProfiles.membershipFeesPaid,
+          satisfactionScore: memberProfiles.satisfactionScore,
+          lastNpsScore: memberProfiles.lastNpsScore,
+        })
+        .from(memberProfiles)
+        .where(eq(memberProfiles.memberId, input.memberId));
+
+      return {
+        clientInvoicedRevenue: invoiceTotals?.clientInvoicedRevenue ?? "0",
+        clientPaidRevenue: invoiceTotals?.clientPaidRevenue ?? "0",
+        annualClientRevenue: invoiceTotals?.annualClientRevenue ?? "0",
+        bookingValue: bookingTotals?.bookingValue ?? "0",
+        expectedCommission: bookingTotals?.expectedCommission ?? "0",
+        membershipFeesPaid: profile?.membershipFeesPaid ?? "0",
+        satisfactionScore: profile?.satisfactionScore ?? null,
+        lastNpsScore: profile?.lastNpsScore ?? null,
+      };
     }),
 
   /** Advisor: upsert extended profile */
@@ -102,6 +235,8 @@ export const memberProfileRouter = router({
             }),
           )
           .optional(),
+        dateOfBirth: z.string().optional(),
+        passportExpiry: z.string().optional(),
         visaExpiry: z
           .array(z.object({ country: z.string(), expiry: z.string() }))
           .optional(),
@@ -117,6 +252,7 @@ export const memberProfileRouter = router({
         bucketListDestinations: z.array(z.string()).optional(),
         travelStyle: z.array(z.string()).optional(),
         amenityPreferences: z.array(z.string()).optional(),
+        favouriteSupplierIds: z.array(z.number().int().positive()).optional(),
         anniversaryDate: z.string().optional(),
         weddingAnniversaryDate: z.string().optional(),
         personalAssistantName: z.string().optional(),
@@ -133,7 +269,11 @@ export const memberProfileRouter = router({
     )
     .mutation(async ({ input }) => {
       const db = await getDb();
-      const { memberId, ...data } = input;
+      const { memberId, dateOfBirth, passportExpiry, ...data } = input;
+      const timestampData = {
+        ...(dateOfBirth ? { dateOfBirth: new Date(dateOfBirth) } : {}),
+        ...(passportExpiry ? { passportExpiry: new Date(passportExpiry) } : {}),
+      };
       const existing = await db
         .select({ id: memberProfiles.id })
         .from(memberProfiles)
@@ -142,11 +282,17 @@ export const memberProfileRouter = router({
         await db
           .update(memberProfiles)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .set({ ...(data as any), updatedAt: new Date() })
+          .set({
+            ...(data as any),
+            ...(timestampData as any),
+            updatedAt: new Date(),
+          })
           .where(eq(memberProfiles.memberId, memberId));
       } else {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await db.insert(memberProfiles).values({ memberId, ...(data as any) });
+        await db
+          .insert(memberProfiles)
+          .values({ memberId, ...(data as any), ...(timestampData as any) });
       }
       return { success: true, memberId };
     }),
@@ -176,10 +322,18 @@ export const memberProfileRouter = router({
     .mutation(async ({ input }) => {
       const db = await getDb();
       const { memberId, ...data } = input;
-      await db
-        .update(memberProfiles)
-        .set({ ...data, updatedAt: new Date() })
+      const [existing] = await db
+        .select({ id: memberProfiles.id })
+        .from(memberProfiles)
         .where(eq(memberProfiles.memberId, memberId));
+      if (existing) {
+        await db
+          .update(memberProfiles)
+          .set({ ...data, updatedAt: new Date() })
+          .where(eq(memberProfiles.memberId, memberId));
+      } else {
+        await db.insert(memberProfiles).values({ memberId, ...data });
+      }
       return { success: true };
     }),
 });
@@ -571,6 +725,134 @@ export const invoicingRouter = router({
       return invoice;
     }),
 
+  /** Create one commission invoice per supplier for eligible bookings in a reconciliation month. */
+  generateCommissionReconciliation: protectedProcedure
+    .input(
+      z.object({
+        month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Use YYYY-MM"),
+        supplierId: z.number().int().positive().optional(),
+        dueDays: z.number().int().min(1).max(90).default(14),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      const [year, month] = input.month.split("-").map(Number);
+      const periodStart = new Date(year, month - 1, 1);
+      const periodEnd = new Date(year, month, 0, 23, 59, 59, 999);
+      const conditions = [
+        gte(bookings.checkOut, periodStart),
+        lte(bookings.checkOut, periodEnd),
+        isNotNull(bookings.supplierId),
+        isNotNull(bookings.commissionExpected),
+        sql`${bookings.status} in ('confirmed', 'paid')`,
+      ];
+      if (input.supplierId) {
+        conditions.push(eq(bookings.supplierId, input.supplierId));
+      }
+      const eligibleBookings = await db
+        .select()
+        .from(bookings)
+        .where(and(...conditions));
+      const bookingsBySupplier = new Map<number, typeof eligibleBookings>();
+      for (const booking of eligibleBookings) {
+        if (!booking.supplierId) continue;
+        const supplierBookings =
+          bookingsBySupplier.get(booking.supplierId) ?? [];
+        supplierBookings.push(booking);
+        bookingsBySupplier.set(booking.supplierId, supplierBookings);
+      }
+
+      const created: {
+        supplierId: number;
+        invoiceId: number;
+        invoiceNumber: string;
+        totalAmount: string;
+      }[] = [];
+      const skipped: { supplierId: number; reason: string }[] = [];
+      for (const [supplierId, supplierBookings] of bookingsBySupplier) {
+        const [existing] = await db
+          .select({ id: invoices.id })
+          .from(invoices)
+          .where(
+            and(
+              eq(invoices.supplierId, supplierId),
+              eq(invoices.invoiceType, "commission"),
+              eq(invoices.reconciliationPeriod, input.month),
+            ),
+          );
+        if (existing) {
+          skipped.push({
+            supplierId,
+            reason: "reconciliation invoice already exists",
+          });
+          continue;
+        }
+
+        const lineItems = supplierBookings.map((booking, index) => {
+          const bookingValue = Number(booking.totalAmount ?? "0");
+          const commissionAmount = Number(
+            booking.commissionExpected ?? booking.commissionAmount ?? "0",
+          );
+          const commissionRate =
+            bookingValue > 0 ? (commissionAmount / bookingValue) * 100 : 0;
+          return {
+            invoiceId: 0,
+            itemType: "other" as const,
+            description: `Commission reconciliation for booking ${booking.referenceNumber ?? booking.id}`,
+            quantity: "1",
+            unitPrice: String(bookingValue),
+            totalPrice: String(bookingValue),
+            commissionRate: commissionRate.toFixed(4),
+            commissionAmount: String(commissionAmount),
+            bookingId: booking.id,
+            sortOrder: index,
+          };
+        });
+        const totalAmount = lineItems.reduce(
+          (sum, item) => sum + Number(item.commissionAmount),
+          0,
+        );
+        const dueDate = new Date(periodEnd);
+        dueDate.setDate(dueDate.getDate() + input.dueDays);
+        const [invoice] = await db
+          .insert(invoices)
+          .values({
+            invoiceNumber: generateInvoiceNumber(),
+            invoiceType: "commission",
+            status: "draft",
+            supplierId,
+            subtotal: String(totalAmount),
+            taxAmount: "0",
+            discountAmount: "0",
+            totalAmount: String(totalAmount),
+            currency: supplierBookings[0]?.currency ?? "GBP",
+            notes: `Automated ${input.month} supplier commission reconciliation.`,
+            reconciliationPeriod: input.month,
+            dueDate,
+            createdByUserId: ctx.user.id,
+          })
+          .returning();
+        await db
+          .insert(invoiceLineItems)
+          .values(
+            lineItems.map((item) => ({ ...item, invoiceId: invoice.id })),
+          );
+        created.push({
+          supplierId,
+          invoiceId: invoice.id,
+          invoiceNumber: invoice.invoiceNumber,
+          totalAmount: String(totalAmount),
+        });
+      }
+
+      return {
+        period: input.month,
+        eligibleBookings: eligibleBookings.length,
+        created,
+        skipped,
+      };
+    }),
+
   list: protectedProcedure
     .input(
       z.object({
@@ -710,6 +992,13 @@ export const celebrationsRouter = router({
         reminderDaysBefore: z.number().int().positive().default(30),
         notes: z.string().optional(),
         giftSuggestions: z.array(z.string()).optional(),
+        giftBudget: z
+          .string()
+          .regex(/^\d+(\.\d{1,2})?$/)
+          .optional(),
+        giftStatus: z
+          .enum(["pending", "arranged", "delivered", "cancelled"])
+          .optional(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -871,6 +1160,124 @@ export const communicationHubRouter = router({
           followUpDueAt: input.followUpDueAt
             ? new Date(input.followUpDueAt)
             : undefined,
+        })
+        .returning();
+      return created;
+    }),
+
+  /** Analyze unstructured communication through the local CPU gateway before persistence. */
+  analyzeAndLog: protectedProcedure
+    .input(
+      z.object({
+        memberId: z.number().int().positive(),
+        communicationType: z.enum([
+          "email",
+          "whatsapp",
+          "phone_call",
+          "portal_message",
+          "internal_note",
+          "sms",
+        ]),
+        channel: z.enum(["whatsapp", "email", "portal", "sms"]).optional(),
+        direction: z.enum(["inbound", "outbound"]),
+        subject: z.string().max(512).optional(),
+        body: z.string().max(20_000).optional(),
+        transcription: z.string().max(20_000).optional(),
+        durationSeconds: z.number().int().positive().optional(),
+        travelRequestId: z.number().int().positive().optional(),
+        bookingId: z.number().int().positive().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const content = input.transcription?.trim() || input.body?.trim();
+      if (!content) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "A message body or call transcription is required for AI analysis",
+        });
+      }
+      const facts = await buildConciergeMemberFacts(input.memberId);
+      const result = await invokeLocalAi({
+        capability: "intelligence",
+        responseFormat: "json",
+        system:
+          "Analyze a concierge communication only from supplied content and member facts. Do not fabricate facts. Return JSON {summary:string,transcription:string|null,sentiment:positive|neutral|negative|urgent,sentiment_score:number,inquiry_category:booking|service_request|issue|feedback|celebration|visa|general,follow_up_required:boolean,follow_up_hours:number,entities:[string],routing_notes:string}. Use transcription only to clean supplied call text; never claim audio was processed when it was not supplied.",
+        prompt: JSON.stringify({ member_facts: facts, communication: input }),
+        temperature: 0.1,
+        maxTokens: 900,
+        metadata: {
+          feature: "communication_intake",
+          memberId: input.memberId,
+          channel: input.channel ?? input.communicationType,
+        },
+      });
+      const analysis = result.structured ?? {};
+      const sentiment = analysis.sentiment;
+      const allowedSentiment =
+        sentiment === "positive" ||
+        sentiment === "neutral" ||
+        sentiment === "negative" ||
+        sentiment === "urgent"
+          ? sentiment
+          : "neutral";
+      const category = analysis.inquiry_category;
+      const allowedCategories = [
+        "booking",
+        "service_request",
+        "issue",
+        "feedback",
+        "celebration",
+        "visa",
+        "general",
+      ];
+      const inquiryCategory =
+        typeof category === "string" && allowedCategories.includes(category)
+          ? category
+          : "general";
+      const followUpRequired =
+        analysis.follow_up_required === true || allowedSentiment === "urgent";
+      const hours =
+        typeof analysis.follow_up_hours === "number" &&
+        Number.isFinite(analysis.follow_up_hours)
+          ? Math.min(24 * 30, Math.max(1, Math.round(analysis.follow_up_hours)))
+          : 24;
+      const followUpDueAt = followUpRequired
+        ? new Date(Date.now() + hours * 60 * 60 * 1000)
+        : undefined;
+      const [created] = await (
+        await getDb()
+      )
+        .insert(communicationTimeline)
+        .values({
+          ...input,
+          advisorUserId: ctx.user.id,
+          body: input.body ?? content,
+          transcription:
+            typeof analysis.transcription === "string"
+              ? analysis.transcription
+              : input.transcription,
+          summary:
+            typeof analysis.summary === "string"
+              ? analysis.summary
+              : content.slice(0, 500),
+          sentiment: allowedSentiment,
+          sentimentScore:
+            typeof analysis.sentiment_score === "number" &&
+            Number.isFinite(analysis.sentiment_score)
+              ? String(Math.max(-1, Math.min(1, analysis.sentiment_score)))
+              : undefined,
+          inquiryCategory,
+          aiAnalysis: {
+            entities: Array.isArray(analysis.entities) ? analysis.entities : [],
+            routing_notes:
+              typeof analysis.routing_notes === "string"
+                ? analysis.routing_notes
+                : "",
+            model_output: analysis,
+          },
+          followUpRequired,
+          followUpDueAt,
         })
         .returning();
       return created;
@@ -1193,6 +1600,130 @@ export const vipAmenitiesRouter = router({
 // ─── 11. Revenue Analytics Dashboard ─────────────────────────────────────────
 
 export const revenueAnalyticsRouter = router({
+  /** Advisor: derive current operating metrics directly from persisted finance and booking records. */
+  operationalSnapshot: protectedProcedure
+    .input(z.object({ days: z.number().int().min(1).max(365).default(30) }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      const now = new Date();
+      const todayStart = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+      );
+      const periodStart = new Date(todayStart);
+      periodStart.setDate(periodStart.getDate() - (input.days - 1));
+
+      const [todayRevenue] = await db
+        .select({
+          value: sql<string>`coalesce(sum(case when ${invoices.invoiceType} = 'client_service' then ${invoices.totalAmount} else 0 end), 0)`,
+        })
+        .from(invoices)
+        .where(
+          and(eq(invoices.status, "paid"), gte(invoices.paidAt, todayStart)),
+        );
+      const [bookingMetrics] = await db
+        .select({
+          averageBookingValue: sql<string>`coalesce(avg(${bookings.totalAmount}), 0)`,
+          bookingCount: sql<number>`count(*)::int`,
+        })
+        .from(bookings)
+        .where(
+          and(
+            gte(bookings.createdAt, periodStart),
+            sql`${bookings.status} in ('confirmed', 'paid')`,
+          ),
+        );
+      const [membershipFees] = await db
+        .select({
+          value: sql<string>`coalesce(sum(${invoiceLineItems.totalPrice}), 0)`,
+        })
+        .from(invoiceLineItems)
+        .innerJoin(invoices, eq(invoiceLineItems.invoiceId, invoices.id))
+        .where(
+          and(
+            eq(invoices.status, "paid"),
+            eq(invoiceLineItems.itemType, "membership_fee"),
+          ),
+        );
+      const categoryRows = await db
+        .select({
+          itemType: invoiceLineItems.itemType,
+          value: sql<string>`coalesce(sum(${invoiceLineItems.totalPrice}), 0)`,
+        })
+        .from(invoiceLineItems)
+        .innerJoin(invoices, eq(invoiceLineItems.invoiceId, invoices.id))
+        .where(
+          and(eq(invoices.status, "paid"), gte(invoices.paidAt, periodStart)),
+        )
+        .groupBy(invoiceLineItems.itemType);
+      const revenueByCategory = {
+        hotels: 0,
+        ancillary: 0,
+        luxuryTransport: 0,
+        villas: 0,
+        apartments: 0,
+      };
+      for (const row of categoryRows) {
+        const value = Number(row.value ?? 0);
+        if (row.itemType === "hotel") revenueByCategory.hotels += value;
+        else if (row.itemType === "villa") revenueByCategory.villas += value;
+        else if (row.itemType === "apartment")
+          revenueByCategory.apartments += value;
+        else if (row.itemType === "jet" || row.itemType === "yacht")
+          revenueByCategory.luxuryTransport += value;
+        else if (
+          row.itemType === "transfer" ||
+          row.itemType === "restaurant" ||
+          row.itemType === "event" ||
+          row.itemType === "experience" ||
+          row.itemType === "ancillary"
+        )
+          revenueByCategory.ancillary += value;
+      }
+      const [activeRequests] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(travelRequests)
+        .where(sql`${travelRequests.status} not in ('completed', 'cancelled')`);
+      const [openTasks] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(advisorTasks)
+        .where(sql`${advisorTasks.status} in ('open', 'in_progress')`);
+      const upcomingTrips = await db
+        .select({
+          bookingId: bookings.id,
+          referenceNumber: bookings.referenceNumber,
+          checkIn: bookings.checkIn,
+          checkOut: bookings.checkOut,
+          totalAmount: bookings.totalAmount,
+          memberId: members.id,
+          memberName: members.name,
+        })
+        .from(bookings)
+        .innerJoin(members, eq(bookings.memberId, members.id))
+        .where(
+          and(
+            gte(bookings.checkIn, todayStart),
+            sql`${bookings.status} in ('confirmed', 'paid')`,
+          ),
+        )
+        .orderBy(asc(bookings.checkIn))
+        .limit(6);
+
+      return {
+        asOf: now.toISOString(),
+        days: input.days,
+        totalDailyRevenue: todayRevenue?.value ?? "0",
+        averageBookingValue: bookingMetrics?.averageBookingValue ?? "0",
+        membershipFeesCollected: membershipFees?.value ?? "0",
+        revenueByCategory,
+        bookingsCount: bookingMetrics?.bookingCount ?? 0,
+        activeRequestsCount: activeRequests?.count ?? 0,
+        openTasksCount: openTasks?.count ?? 0,
+        upcomingTrips,
+      };
+    }),
+
   /** Admin: get today's revenue snapshot */
   todaySnapshot: adminProcedure.query(async () => {
     const db = await getDb();
@@ -1329,7 +1860,7 @@ export const revenueAnalyticsRouter = router({
 // ─── 12. AI Concierge Assistant ───────────────────────────────────────────────
 
 export const aiConciergeRouter = router({
-  /** Generate destination recommendations based on member profile & history */
+  /** Member-safe destination recommendations, always grounded in the caller's own persisted profile. */
   recommendDestinations: memberProcedure
     .input(
       z.object({
@@ -1339,98 +1870,210 @@ export const aiConciergeRouter = router({
         partySize: z.number().int().positive().default(2),
       }),
     )
-    .query(async ({ ctx, input }) => {
-      // In production: calls LLM with member profile context
-      // For now: returns structured recommendations based on tier
-      const recommendations = [
-        {
-          destination: "Amalfi Coast, Italy",
-          reason:
-            "Matches your preference for coastal luxury and Mediterranean cuisine",
-          bestTime: "May–September",
-          estimatedBudget: "£8,000–£15,000",
-          suggestedSuppliers: ["Villa San Michele", "Capri Palace"],
-          experiences: [
-            "Private boat charter",
-            "Michelin-star dining",
-            "Limoncello tasting tour",
-          ],
-        },
-        {
-          destination: "Maldives",
-          reason:
-            "Perfect for couples seeking seclusion and underwater experiences",
-          bestTime: "November–April",
-          estimatedBudget: "£12,000–£25,000",
-          suggestedSuppliers: ["One&Only Reethi Rah", "Soneva Fushi"],
-          experiences: [
-            "Private snorkelling",
-            "Sunset dolphin cruise",
-            "Underwater dining",
-          ],
-        },
-        {
-          destination: "Japan (Tokyo + Kyoto)",
-          reason: "Cultural immersion with world-class hospitality and cuisine",
-          bestTime: "March–April (Cherry Blossom) or October–November",
-          estimatedBudget: "£10,000–£20,000",
-          suggestedSuppliers: ["Aman Tokyo", "Amanjiwo Kyoto"],
-          experiences: [
-            "Private tea ceremony",
-            "Bullet train in first class",
-            "Kaiseki dinner",
-          ],
-        },
-      ];
+    .query(async ({ input, ctx }) => {
+      const memberId = ctx.member.id;
+      const facts = await buildConciergeMemberFacts(memberId);
+      const result = await invokeLocalAi({
+        capability: "intelligence",
+        responseFormat: "json",
+        system:
+          "You are a luxury concierge. Recommend up to three destination concepts only from supplied member facts and request constraints. Do not invent confirmed supplier availability or prices. Return JSON {recommendations:[{destination,reason,bestTime,estimatedBudget,highlights:[string],suggestedSuppliers:[string]}],missing_data:[string]}. suggestedSuppliers may only name supplied favourite suppliers; otherwise return an empty list.",
+        prompt: JSON.stringify({ member_facts: facts, request: input }),
+        temperature: 0.2,
+        maxTokens: 1_200,
+        metadata: { feature: "destination_recommendations", memberId },
+      });
+      const rawRecommendations = Array.isArray(
+        result.structured?.recommendations,
+      )
+        ? result.structured.recommendations
+        : [];
+      const recommendations = rawRecommendations.map((raw) => {
+        const item = raw as Record<string, unknown>;
+        return {
+          destination:
+            typeof item.destination === "string" ? item.destination : "",
+          reason: typeof item.reason === "string" ? item.reason : "",
+          bestTime:
+            typeof item.bestTime === "string" ? item.bestTime : undefined,
+          estimatedBudget:
+            typeof item.estimatedBudget === "string"
+              ? item.estimatedBudget
+              : undefined,
+          highlights: Array.isArray(item.highlights)
+            ? item.highlights.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+          suggestedSuppliers: Array.isArray(item.suggestedSuppliers)
+            ? item.suggestedSuppliers.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        };
+      });
       return {
-        memberId: ctx.member.id,
+        memberId,
         tier: ctx.member.tier,
         recommendations,
+        missingData: result.structured?.missing_data ?? [],
       };
     }),
 
-  /** Generate upgrade suggestions for an existing proposal */
+  /** Advisor-scoped recommendations for a selected persisted member. */
+  recommendDestinationsForMember: protectedProcedure
+    .input(
+      z.object({
+        memberId: z.number().int().positive(),
+        travelStyle: z.array(z.string()).optional(),
+        budget: z.string().optional(),
+        travelMonth: z.string().optional(),
+        partySize: z.number().int().positive().default(2),
+      }),
+    )
+    .query(async ({ input }) => {
+      const facts = await buildConciergeMemberFacts(input.memberId);
+      const result = await invokeLocalAi({
+        capability: "intelligence",
+        responseFormat: "json",
+        system:
+          "You are a luxury concierge. Recommend up to three destination concepts only from supplied member facts and request constraints. Do not invent confirmed supplier availability or prices. Return JSON {recommendations:[{destination,reason,bestTime,estimatedBudget,highlights:[string],suggestedSuppliers:[string]}],missing_data:[string]}. suggestedSuppliers may only name supplied favourite suppliers; otherwise return an empty list.",
+        prompt: JSON.stringify({ member_facts: facts, request: input }),
+        temperature: 0.2,
+        maxTokens: 1_200,
+        metadata: {
+          feature: "destination_recommendations",
+          memberId: input.memberId,
+        },
+      });
+      const rawRecommendations = Array.isArray(
+        result.structured?.recommendations,
+      )
+        ? result.structured.recommendations
+        : [];
+      const recommendations = rawRecommendations.map((raw) => {
+        const item = raw as Record<string, unknown>;
+        return {
+          destination:
+            typeof item.destination === "string" ? item.destination : "",
+          reason: typeof item.reason === "string" ? item.reason : "",
+          bestTime:
+            typeof item.bestTime === "string" ? item.bestTime : undefined,
+          estimatedBudget:
+            typeof item.estimatedBudget === "string"
+              ? item.estimatedBudget
+              : undefined,
+          highlights: Array.isArray(item.highlights)
+            ? item.highlights.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+          suggestedSuppliers: Array.isArray(item.suggestedSuppliers)
+            ? item.suggestedSuppliers.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        };
+      });
+      return {
+        memberId: input.memberId,
+        recommendations,
+        missingData: result.structured?.missing_data ?? [],
+      };
+    }),
+
+  /** Generate commercially reviewable upgrade opportunities from a real persisted proposal and member history. */
   suggestUpgrades: protectedProcedure
     .input(
       z.object({
-        proposalId: z.number().int().positive(),
+        proposalId: z.number().int().positive().optional(),
         memberId: z.number().int().positive(),
       }),
     )
     .query(async ({ input }) => {
-      // In production: calls LLM with proposal details and member preferences
+      const db = await getDb();
+      const rows = await db
+        .select()
+        .from(proposals)
+        .where(
+          input.proposalId
+            ? and(
+                eq(proposals.id, input.proposalId),
+                eq(proposals.memberId, input.memberId),
+              )
+            : eq(proposals.memberId, input.memberId),
+        )
+        .orderBy(desc(proposals.updatedAt))
+        .limit(1);
+      const proposal = rows[0];
+      if (!proposal) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message:
+            "A persisted proposal is required before upgrades can be assessed",
+        });
+      }
+      const facts = await buildConciergeMemberFacts(input.memberId);
+      const result = await invokeLocalAi({
+        capability: "intelligence",
+        responseFormat: "json",
+        system:
+          "You are a luxury travel concierge. Identify optional upgrades grounded only in supplied proposal and member facts. Do not fabricate availability, incentives, or exact prices. Return JSON {upgrades:[{category,type,suggested,description,additionalCost,estimatedCost,priority}],missing_data:[string]}. category/type describe the upgrade, suggested/description are client-safe wording, and additionalCost/estimatedCost are a non-binding estimate.",
+        prompt: JSON.stringify({ member_facts: facts, proposal }),
+        temperature: 0.15,
+        maxTokens: 900,
+        metadata: {
+          feature: "proposal_upgrades",
+          memberId: input.memberId,
+          proposalId: proposal.id,
+        },
+      });
+      const rawUpgrades = Array.isArray(result.structured?.upgrades)
+        ? result.structured.upgrades
+        : [];
+      const upgrades = rawUpgrades.map((raw) => {
+        const item = raw as Record<string, unknown>;
+        const category =
+          typeof item.category === "string"
+            ? item.category
+            : typeof item.type === "string"
+              ? item.type
+              : "experience";
+        const suggested =
+          typeof item.suggested === "string"
+            ? item.suggested
+            : typeof item.description === "string"
+              ? item.description
+              : "Review this optional upgrade with the member.";
+        const additionalCost =
+          typeof item.additionalCost === "string"
+            ? item.additionalCost
+            : typeof item.estimatedCost === "string"
+              ? item.estimatedCost
+              : undefined;
+        return {
+          category,
+          suggested,
+          additionalCost,
+          type: typeof item.type === "string" ? item.type : category,
+          description:
+            typeof item.description === "string" ? item.description : suggested,
+          estimatedCost:
+            typeof item.estimatedCost === "string"
+              ? item.estimatedCost
+              : additionalCost,
+          priority:
+            typeof item.priority === "string" ? item.priority : "medium",
+        };
+      });
       return {
-        proposalId: input.proposalId,
-        upgrades: [
-          {
-            category: "accommodation",
-            current: "Deluxe Room",
-            suggested: "Ocean Suite",
-            additionalCost: "£850/night",
-            reason:
-              "Member has previously booked suites at comparable properties",
-          },
-          {
-            category: "flight",
-            current: "Business Class",
-            suggested: "First Class",
-            additionalCost: "£2,400 per person",
-            reason:
-              "Member's tier qualifies for first-class upgrade incentives",
-          },
-          {
-            category: "experience",
-            current: null,
-            suggested: "Private helicopter transfer from airport",
-            additionalCost: "£1,200",
-            reason:
-              "Matches member's preference for seamless, time-efficient travel",
-          },
-        ],
+        proposalId: proposal.id,
+        upgrades,
+        missingData: result.structured?.missing_data ?? [],
       };
     }),
 
-  /** Generate a personalised follow-up campaign message */
+  /** Generate a personalised, reviewable follow-up from persisted member behaviour rather than a canned template. */
   generateFollowUpMessage: protectedProcedure
     .input(
       z.object({
@@ -1446,23 +2089,36 @@ export const aiConciergeRouter = router({
       }),
     )
     .query(async ({ input }) => {
-      const templates: Record<string, string> = {
-        post_trip:
-          "We hope you had a wonderful experience. We'd love to hear your thoughts and start planning your next adventure.",
-        birthday:
-          "Wishing you a very happy birthday! As a valued Lanai member, we'd love to make your special day extraordinary.",
-        anniversary:
-          "Congratulations on your anniversary! Allow us to help you celebrate in style.",
-        re_engagement:
-          "We've been thinking about you and have some exciting destinations that match your travel style.",
-        upsell:
-          "Based on your recent travels, we think you'd love these exclusive experiences we've curated just for you.",
-      };
+      const facts = await buildConciergeMemberFacts(input.memberId);
+      const result = await invokeLocalAi({
+        capability: "whatsapp",
+        responseFormat: "json",
+        system:
+          "Draft a warm concierge follow-up grounded only in supplied facts. Do not promise availability or invent travel details. Return JSON {campaigns:[{type,subject,body,sendAt,channels:[string]}],missing_data:[string]}. Include one concise reviewed campaign for the requested context.",
+        prompt: JSON.stringify({
+          member_facts: facts,
+          context: input.context,
+          trip_id: input.tripId,
+        }),
+        temperature: 0.3,
+        maxTokens: 700,
+        metadata: {
+          feature: "follow_up_campaign",
+          memberId: input.memberId,
+          context: input.context,
+        },
+      });
+      const campaigns = Array.isArray(result.structured?.campaigns)
+        ? result.structured.campaigns
+        : [];
+      const first = (campaigns[0] ?? {}) as Record<string, unknown>;
       return {
         memberId: input.memberId,
         context: input.context,
-        suggestedMessage: templates[input.context] ?? templates.re_engagement,
-        channels: ["whatsapp", "email"],
+        suggestedMessage: typeof first.body === "string" ? first.body : "",
+        channels: Array.isArray(first.channels) ? first.channels : [],
+        campaigns,
+        missingData: result.structured?.missing_data ?? [],
       };
     }),
 });
@@ -1544,6 +2200,151 @@ export const tripTimelinePatchRouter = router({
     }),
 });
 
+export const experienceManagementRouter = router({
+  /** Generate idempotent operational actions for celebrations, VIP amenities, and post-trip feedback windows. */
+  generateDueActions: protectedProcedure
+    .input(z.object({ daysAhead: z.number().int().min(1).max(90).default(30) }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      const now = new Date();
+      const windowEnd = new Date(
+        now.getTime() + input.daysAhead * 24 * 60 * 60 * 1000,
+      );
+      const [allMembers, allCelebrations, amenities, trips, feedback] =
+        await Promise.all([
+          db
+            .select({
+              id: members.id,
+              assignedAdvisorId: members.assignedAdvisorId,
+              name: members.name,
+            })
+            .from(members),
+          db.select().from(celebrations),
+          db.select().from(vipAmenities),
+          db
+            .select()
+            .from(tripTimeline)
+            .where(isNotNull(tripTimeline.returnDate)),
+          db.select({ bookingId: npsResponses.bookingId }).from(npsResponses),
+        ]);
+      const memberById = new Map(
+        allMembers.map((member) => [member.id, member]),
+      );
+      const feedbackBookingIds = new Set(
+        feedback
+          .map((item) => item.bookingId)
+          .filter((id): id is number => typeof id === "number"),
+      );
+      const tasks: Array<typeof advisorTasks.$inferInsert> = [];
+      const skippedMembers = new Set<number>();
+      const addTask = (
+        memberId: number,
+        automationKey: string,
+        title: string,
+        description: string,
+        dueDate: Date,
+        priority: "low" | "medium" | "high" | "urgent" = "medium",
+        bookingId?: number,
+      ) => {
+        const member = memberById.get(memberId);
+        if (!member?.assignedAdvisorId) {
+          skippedMembers.add(memberId);
+          return;
+        }
+        tasks.push({
+          assignedToUserId: member.assignedAdvisorId,
+          createdByUserId: ctx.user.id,
+          memberId,
+          bookingId,
+          automationKey,
+          title,
+          description,
+          dueDate,
+          priority,
+          status: "open",
+        });
+      };
+      for (const celebration of allCelebrations) {
+        const base = new Date(celebration.celebrationDate);
+        const occurrence = celebration.isRecurring
+          ? new Date(now.getFullYear(), base.getMonth(), base.getDate())
+          : base;
+        if (celebration.isRecurring && occurrence < now)
+          occurrence.setFullYear(occurrence.getFullYear() + 1);
+        const reminderDate = new Date(
+          occurrence.getTime() -
+            (celebration.reminderDaysBefore ?? 30) * 24 * 60 * 60 * 1000,
+        );
+        if (reminderDate >= now && reminderDate <= windowEnd) {
+          addTask(
+            celebration.memberId,
+            `celebration:${celebration.id}:${occurrence.getFullYear()}`,
+            `Plan ${celebration.title}`,
+            `Celebration on ${occurrence.toLocaleDateString("en-GB")}. Review gift suggestions, VIP amenity, and concierge outreach. ${celebration.notes ?? ""}`.trim(),
+            reminderDate,
+            "high",
+          );
+        }
+      }
+      for (const amenity of amenities) {
+        if (!amenity.confirmedAt) {
+          addTask(
+            amenity.memberId,
+            `vip-amenity:${amenity.id}:confirm`,
+            `Confirm VIP amenity: ${amenity.amenityType}`,
+            amenity.description ??
+              "Confirm supplier availability and delivery plan.",
+            now,
+            "high",
+            amenity.bookingId ?? undefined,
+          );
+        } else if (!amenity.deliveredAt) {
+          addTask(
+            amenity.memberId,
+            `vip-amenity:${amenity.id}:delivery`,
+            `Verify VIP amenity delivery: ${amenity.amenityType}`,
+            amenity.description ??
+              "Confirm the amenity was delivered and record the outcome.",
+            now,
+            "medium",
+            amenity.bookingId ?? undefined,
+          );
+        }
+      }
+      const feedbackWindowStart = new Date(
+        now.getTime() - 7 * 24 * 60 * 60 * 1000,
+      );
+      for (const trip of trips) {
+        if (
+          !trip.returnDate ||
+          trip.returnDate < feedbackWindowStart ||
+          trip.returnDate > now ||
+          !trip.bookingId ||
+          feedbackBookingIds.has(trip.bookingId)
+        )
+          continue;
+        addTask(
+          trip.memberId,
+          `post-trip-feedback:${trip.id}`,
+          `Request post-trip feedback: ${trip.destination ?? trip.title}`,
+          "Send a personal post-trip check-in and invite the member to complete NPS feedback. Review satisfaction notes before outreach.",
+          now,
+          "medium",
+          trip.bookingId,
+        );
+      }
+      if (tasks.length)
+        await db
+          .insert(advisorTasks)
+          .values(tasks)
+          .onConflictDoNothing({ target: advisorTasks.automationKey });
+      return {
+        generatedCandidates: tasks.length,
+        skippedWithoutAssignedAdvisor: [...skippedMembers],
+      };
+    }),
+});
+
 export const npsPatchRouter = router({
   detractors: protectedProcedure.query(async () => {
     const db = await getDb();
@@ -1564,74 +2365,96 @@ export const aiConciergePatchRouter = router({
   chat: memberProcedure
     .input(
       z.object({
-        message: z.string().min(1),
+        message: z.string().min(1).max(10_000),
         history: z
           .array(
             z.object({
               role: z.enum(["user", "assistant"]),
-              content: z.string(),
+              content: z.string().max(10_000),
             }),
           )
+          .max(20)
           .optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const responses: Record<string, string> = {
-        default:
-          "Thank you for your message. I'm your Lanai AI Concierge. How can I help you plan your next extraordinary experience?",
-        hotel:
-          "I'd be delighted to recommend some exceptional hotels. Based on your preferences, I suggest the Aman Tokyo or Four Seasons Bali.",
-        flight:
-          "For your travel, I recommend booking first class with British Airways or Emirates for the finest in-flight experience.",
-        restaurant:
-          "I can arrange reservations at some of the world's finest restaurants. Shall I book Alain Ducasse or Nobu for your visit?",
-        villa:
-          "Our curated villa collection includes stunning properties in Tuscany, Mykonos, and the Maldives. Which destination interests you?",
-      };
-      const msg = input.message.toLowerCase();
-      const reply = msg.includes("hotel")
-        ? responses.hotel
-        : msg.includes("flight")
-          ? responses.flight
-          : msg.includes("restaurant")
-            ? responses.restaurant
-            : msg.includes("villa")
-              ? responses.villa
-              : responses.default;
+      const db = await getDb();
+      const facts = await buildConciergeMemberFacts(ctx.member.id);
+      await db.insert(communicationTimeline).values({
+        memberId: ctx.member.id,
+        communicationType: "portal_message",
+        channel: "portal",
+        direction: "inbound",
+        body: input.message,
+        summary: input.message.slice(0, 500),
+      });
+      const result = await invokeLocalAi({
+        capability: "whatsapp",
+        responseFormat: "json",
+        system:
+          "You are Lanai's AI Concierge. Respond only from supplied member facts and chat context. Do not state availability, prices, or bookings as confirmed. If information is unavailable, say a concierge will verify it. Return JSON {reply:string,suggested_actions:[string],sentiment:positive|neutral|negative|urgent}.",
+        prompt: JSON.stringify({
+          member_facts: facts,
+          history: input.history ?? [],
+          message: input.message,
+        }),
+        temperature: 0.3,
+        maxTokens: 700,
+        metadata: { feature: "member_concierge_chat", memberId: ctx.member.id },
+      });
+      const reply =
+        typeof result.structured?.reply === "string"
+          ? result.structured.reply
+          : "";
+      if (!reply)
+        throw new TRPCError({
+          code: "BAD_GATEWAY",
+          message: "AI concierge returned no reply",
+        });
+      const sentiment = result.structured?.sentiment;
+      await db.insert(communicationTimeline).values({
+        memberId: ctx.member.id,
+        communicationType: "portal_message",
+        channel: "portal",
+        direction: "outbound",
+        body: reply,
+        summary: reply.slice(0, 500),
+        sentiment:
+          sentiment === "positive" ||
+          sentiment === "neutral" ||
+          sentiment === "negative" ||
+          sentiment === "urgent"
+            ? sentiment
+            : "neutral",
+      });
       return {
         memberId: ctx.member.id,
         reply,
-        suggestedActions: [
-          "Browse destinations",
-          "View proposals",
-          "Contact advisor",
-        ],
+        suggestedActions: Array.isArray(result.structured?.suggested_actions)
+          ? result.structured.suggested_actions
+          : [],
       };
     }),
   generateFollowUpCampaigns: protectedProcedure
     .input(z.object({ memberId: z.number().int().positive() }))
     .query(async ({ input }) => {
+      const facts = await buildConciergeMemberFacts(input.memberId);
+      const result = await invokeLocalAi({
+        capability: "whatsapp",
+        responseFormat: "json",
+        system:
+          "Create up to three reviewable concierge campaigns based only on supplied member facts. Do not invent trips, availability, or prices. Return JSON {campaigns:[{type,subject,body,sendAt,channels:[string]}],missing_data:[string]}.",
+        prompt: JSON.stringify({ member_facts: facts }),
+        temperature: 0.25,
+        maxTokens: 900,
+        metadata: { feature: "follow_up_campaigns", memberId: input.memberId },
+      });
       return {
         memberId: input.memberId,
-        campaigns: [
-          {
-            context: "post_trip",
-            message:
-              "We hope you had a wonderful experience. Ready to plan your next adventure?",
-            channel: "whatsapp",
-          },
-          {
-            context: "birthday",
-            message:
-              "Wishing you a very happy birthday! Let us make your day extraordinary.",
-            channel: "email",
-          },
-          {
-            context: "re_engagement",
-            message: "We've curated some exclusive experiences just for you.",
-            channel: "whatsapp",
-          },
-        ],
+        campaigns: Array.isArray(result.structured?.campaigns)
+          ? result.structured.campaigns
+          : [],
+        missingData: result.structured?.missing_data ?? [],
       };
     }),
 });

@@ -93,6 +93,80 @@ vi.mock("./email", () => ({
   sendInvitationEmail: vi.fn().mockResolvedValue({ id: "email-test-1" }),
 }));
 
+vi.mock("./_core/localAi", () => ({
+  invokeLocalAi: vi
+    .fn()
+    .mockImplementation(
+      async ({ metadata }: { metadata?: { feature?: string } }) => {
+        const feature = metadata?.feature ?? "";
+        if (feature.includes("destination"))
+          return {
+            structured: {
+              recommendations: [
+                {
+                  destination: "Lisbon",
+                  reason: "Grounded test recommendation",
+                  bestTime: "May",
+                  estimatedBudget: "£5,000",
+                  highlights: ["Private dining"],
+                },
+              ],
+              missing_data: [],
+            },
+          };
+        if (feature.includes("upgrade"))
+          return {
+            structured: {
+              upgrades: [
+                {
+                  type: "suite",
+                  description: "Reviewable upgrade",
+                  estimatedCost: "£500",
+                  priority: "medium",
+                },
+              ],
+              missing_data: [],
+            },
+          };
+        if (feature.includes("communication"))
+          return {
+            structured: {
+              summary: "Classified communication",
+              transcription: null,
+              sentiment: "neutral",
+              sentiment_score: 0,
+              inquiry_category: "service_request",
+              follow_up_required: false,
+              follow_up_hours: 24,
+              entities: [],
+              routing_notes: "",
+            },
+          };
+        if (feature.includes("chat"))
+          return {
+            structured: {
+              reply: "Grounded test concierge reply",
+              suggested_actions: ["Review request"],
+              sentiment: "neutral",
+            },
+          };
+        return {
+          structured: {
+            campaigns: [
+              {
+                type: "re_engagement",
+                subject: "A reviewable follow-up",
+                body: "Grounded test follow-up",
+                channels: ["email"],
+              },
+            ],
+            missing_data: [],
+          },
+        };
+      },
+    ),
+}));
+
 installLegacySmokeHarness();
 
 // ─── Context factories ────────────────────────────────────────────────────────

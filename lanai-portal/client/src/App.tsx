@@ -42,6 +42,7 @@ const MemberBillingPage = lazy(() => import("./pages/MemberBillingPage"));
 const MemberPortalEnhancedPage = lazy(
   () => import("./pages/MemberPortalEnhancedPage"),
 );
+const ClientProposalPage = lazy(() => import("./pages/ClientProposalPage"));
 import { Crown, Loader2 } from "lucide-react";
 import { Button } from "./components/ui/button";
 
@@ -229,6 +230,11 @@ function App() {
               <Route path="/client/billing">
                 <MemberPortalGuard>
                   <MemberBillingPage />
+                </MemberPortalGuard>
+              </Route>
+              <Route path="/client/proposals/:id">
+                <MemberPortalGuard>
+                  <ClientProposalPage />
                 </MemberPortalGuard>
               </Route>
               <Route path="/client/profile">
