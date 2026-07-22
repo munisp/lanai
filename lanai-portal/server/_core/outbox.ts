@@ -13,8 +13,10 @@ import {
   Lakehouse,
   Temporal,
 } from "./infrastructure";
+import { synchronizeOutboxEventToCrm } from "./crmSyncService";
+import { TwentyCrmClient } from "./twentyClient";
 
-const DELIVERY_TARGETS = ["fluvio", "dapr", "lakehouse"] as const;
+const DELIVERY_TARGETS = ["fluvio", "dapr", "lakehouse", "crm"] as const;
 type DeliveryTarget = (typeof DELIVERY_TARGETS)[number];
 
 export type DomainEventInput = {
@@ -117,14 +119,43 @@ async function markDelivery(
 async function publish(event: OutboxEvent): Promise<void> {
   const envelope = toEnvelope(event);
   const payload = JSON.stringify(envelope);
-  const outcomes = await Promise.allSettled([
-    Fluvio.produce(topicFor(envelope), payload, String(envelope.aggregateId)),
-    Dapr.publishEvent("pubsub", daprTopicFor(envelope), envelope),
-    Lakehouse.insertRecord("platform_events", envelope),
-  ]);
+  const deliveries: Array<{
+    target: DeliveryTarget;
+    operation: Promise<unknown>;
+  }> = [
+    {
+      target: "fluvio",
+      operation: Fluvio.produce(
+        topicFor(envelope),
+        payload,
+        String(envelope.aggregateId),
+      ),
+    },
+    {
+      target: "dapr",
+      operation: Dapr.publishEvent("pubsub", daprTopicFor(envelope), envelope),
+    },
+    {
+      target: "lakehouse",
+      operation: Lakehouse.insertRecord("platform_events", envelope),
+    },
+  ];
+  // CRM is feature-gated. When disabled, it does not create a misleading
+  // delivery record or block platform events; when enabled it shares the exact
+  // same durable retry boundary as the other outbox targets.
+  if (TwentyCrmClient.isConfigured()) {
+    deliveries.push({
+      target: "crm",
+      operation: synchronizeOutboxEventToCrm(event),
+    });
+  }
+
+  const outcomes = await Promise.allSettled(
+    deliveries.map((delivery) => delivery.operation),
+  );
   const failures: unknown[] = [];
   for (const [index, outcome] of outcomes.entries()) {
-    const target = DELIVERY_TARGETS[index]!;
+    const target = deliveries[index]!.target;
     if (outcome.status === "fulfilled") {
       await markDelivery(event.id, target, "delivered");
     } else {

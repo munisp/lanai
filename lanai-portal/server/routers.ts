@@ -17,7 +17,9 @@ import {
 import { sendInvitationEmail } from "./email";
 import { memberPaymentsRouter } from "./stripeRouter";
 import { chatwootRouter } from "./chatwootRouter";
+import { crmSyncRouter } from "./crmSyncRouter";
 import { syncContactForMember } from "./chatwootService";
+import { dispatchOutboxBatch, enqueueDomainEvent } from "./_core/outbox";
 import {
   travelRequestsRouter,
   proposalsRouter,
@@ -337,6 +339,23 @@ export const appRouter = router({
           })();
           if (!created) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
           member = created;
+          await enqueueDomainEvent({
+            aggregateType: "member",
+            aggregateId: member.id,
+            eventType: "created",
+            payload: {
+              memberId: member.id,
+              tier: member.tier,
+              invitationToken: invitation.token,
+            },
+            idempotencyKey: `member:${member.id}:created`,
+          });
+          void dispatchOutboxBatch().catch((error) =>
+            console.error(
+              "[Outbox] Member CRM projection dispatch failed",
+              error,
+            ),
+          );
         }
 
         // Hash and store PIN
@@ -693,6 +712,9 @@ export const appRouter = router({
 
   // ── Chatwoot (omnichannel communication layer) ────────────────────────────────────────────
   chatwoot: chatwootRouter,
+
+  // ── Twenty CRM synchronization operations ───────────────────────────────────
+  crmSync: crmSyncRouter,
 });
 
 export type AppRouter = typeof appRouter;

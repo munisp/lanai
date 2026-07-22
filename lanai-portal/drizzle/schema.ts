@@ -120,6 +120,42 @@ export const commissionStatusEnum = pgEnum("commission_status", [
   "disputed",
   "written_off",
 ]);
+export const crmSyncStatusEnum = pgEnum("crm_sync_status", [
+  "pending",
+  "synced",
+  "conflicted",
+  "failed",
+  "dead_letter",
+  "detached",
+]);
+export const crmFieldPolicyEnum = pgEnum("crm_field_policy", [
+  "lanai_authoritative",
+  "crm_authoritative",
+  "lanai_publish_only",
+  "manual_conflict",
+]);
+export const crmConflictStatusEnum = pgEnum("crm_conflict_status", [
+  "open",
+  "resolved_lanai",
+  "resolved_crm",
+  "ignored",
+]);
+export const crmInboundStatusEnum = pgEnum("crm_inbound_status", [
+  "received",
+  "processed",
+  "ignored",
+  "conflicted",
+  "failed",
+]);
+export type CrmSyncStatus =
+  "pending" | "synced" | "conflicted" | "failed" | "dead_letter" | "detached";
+export type CrmFieldPolicy =
+  | "lanai_authoritative"
+  | "crm_authoritative"
+  | "lanai_publish_only"
+  | "manual_conflict";
+export type CrmInboundStatus =
+  "received" | "processed" | "ignored" | "conflicted" | "failed";
 
 // ─── Core: Users (Advisors / Staff) ──────────────────────────────────────────
 
@@ -1860,6 +1896,127 @@ export const eventDeliveries = pgTable(
 );
 export type EventDelivery = typeof eventDeliveries.$inferSelect;
 export type InsertEventDelivery = typeof eventDeliveries.$inferInsert;
+
+// ─── Twenty CRM Synchronization ───────────────────────────────────────────────
+
+/** Stable cross-system identity. Never resolve CRM records by a mutable display field. */
+export const crmObjectLinks = pgTable(
+  "crm_object_links",
+  {
+    id: serial("id").primaryKey(),
+    lanaiObjectType: varchar("lanaiObjectType", { length: 64 }).notNull(),
+    lanaiObjectId: varchar("lanaiObjectId", { length: 64 }).notNull(),
+    crmObjectType: varchar("crmObjectType", { length: 64 }).notNull(),
+    crmObjectId: varchar("crmObjectId", { length: 128 }).notNull(),
+    lastLanaiVersion: integer("lastLanaiVersion").default(0).notNull(),
+    lastCrmRevision: varchar("lastCrmRevision", { length: 128 }),
+    lanaiProjectionHash: varchar("lanaiProjectionHash", { length: 64 }),
+    crmProjectionHash: varchar("crmProjectionHash", { length: 64 }),
+    syncState: crmSyncStatusEnum("syncState").default("pending").notNull(),
+    metadata: jsonb("metadata"),
+    lastSyncedAt: timestamp("lastSyncedAt"),
+    detachedAt: timestamp("detachedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("crm_object_links_lanai_object_unique").on(
+      t.lanaiObjectType,
+      t.lanaiObjectId,
+      t.crmObjectType,
+    ),
+    uniqueIndex("crm_object_links_crm_object_unique").on(
+      t.crmObjectType,
+      t.crmObjectId,
+    ),
+    index("crm_object_links_state_updated_idx").on(t.syncState, t.updatedAt),
+  ],
+);
+export type CrmObjectLink = typeof crmObjectLinks.$inferSelect;
+export type InsertCrmObjectLink = typeof crmObjectLinks.$inferInsert;
+
+/** Per-CRM operation audit and retry record, independent of generic event delivery. */
+export const crmSyncDeliveries = pgTable(
+  "crm_sync_deliveries",
+  {
+    id: serial("id").primaryKey(),
+    outboxEventId: integer("outboxEventId"),
+    crmObjectLinkId: integer("crmObjectLinkId"),
+    operation: varchar("operation", { length: 32 }).notNull(),
+    idempotencyKey: varchar("idempotencyKey", { length: 192 })
+      .notNull()
+      .unique(),
+    requestHash: varchar("requestHash", { length: 64 }).notNull(),
+    status: crmSyncStatusEnum("status").default("pending").notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    remoteRevision: varchar("remoteRevision", { length: 128 }),
+    lastError: text("lastError"),
+    deliveredAt: timestamp("deliveredAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("crm_sync_deliveries_status_created_idx").on(t.status, t.createdAt),
+    index("crm_sync_deliveries_outbox_event_idx").on(t.outboxEventId),
+    index("crm_sync_deliveries_link_idx").on(t.crmObjectLinkId),
+  ],
+);
+export type CrmSyncDelivery = typeof crmSyncDeliveries.$inferSelect;
+export type InsertCrmSyncDelivery = typeof crmSyncDeliveries.$inferInsert;
+
+/** Raw, signature-verified Twenty webhook payloads are durable before projection. */
+export const crmInboundEvents = pgTable(
+  "crm_inbound_events",
+  {
+    id: serial("id").primaryKey(),
+    crmEventId: varchar("crmEventId", { length: 192 }).notNull().unique(),
+    eventType: varchar("eventType", { length: 128 }).notNull(),
+    crmObjectType: varchar("crmObjectType", { length: 64 }).notNull(),
+    crmObjectId: varchar("crmObjectId", { length: 128 }).notNull(),
+    payload: jsonb("payload").notNull(),
+    signatureValid: boolean("signatureValid").default(false).notNull(),
+    status: crmInboundStatusEnum("status").default("received").notNull(),
+    processingError: text("processingError"),
+    receivedAt: timestamp("receivedAt").defaultNow().notNull(),
+    processedAt: timestamp("processedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("crm_inbound_events_status_received_idx").on(t.status, t.receivedAt),
+    index("crm_inbound_events_object_idx").on(t.crmObjectType, t.crmObjectId),
+  ],
+);
+export type CrmInboundEvent = typeof crmInboundEvents.$inferSelect;
+export type InsertCrmInboundEvent = typeof crmInboundEvents.$inferInsert;
+
+/** Human-review queue for fields that deliberately have no automatic winner. */
+export const crmFieldConflicts = pgTable(
+  "crm_field_conflicts",
+  {
+    id: serial("id").primaryKey(),
+    crmObjectLinkId: integer("crmObjectLinkId").notNull(),
+    fieldName: varchar("fieldName", { length: 128 }).notNull(),
+    lanaiValue: jsonb("lanaiValue"),
+    crmValue: jsonb("crmValue"),
+    policy: crmFieldPolicyEnum("policy").notNull(),
+    status: crmConflictStatusEnum("status").default("open").notNull(),
+    resolvedByUserId: integer("resolvedByUserId"),
+    resolutionNote: text("resolutionNote"),
+    resolvedAt: timestamp("resolvedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("crm_field_conflicts_link_status_idx").on(
+      t.crmObjectLinkId,
+      t.status,
+    ),
+    index("crm_field_conflicts_status_created_idx").on(t.status, t.createdAt),
+  ],
+);
+export type CrmFieldConflict = typeof crmFieldConflicts.$inferSelect;
+export type InsertCrmFieldConflict = typeof crmFieldConflicts.$inferInsert;
 
 export const ledgerAccounts = pgTable(
   "ledger_accounts",

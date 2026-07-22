@@ -43,6 +43,7 @@ const MemberPortalEnhancedPage = lazy(
   () => import("./pages/MemberPortalEnhancedPage"),
 );
 const ClientProposalPage = lazy(() => import("./pages/ClientProposalPage"));
+const CrmSyncPage = lazy(() => import("./pages/CrmSyncPage"));
 import { Crown, Loader2 } from "lucide-react";
 import { Button } from "./components/ui/button";
 
@@ -194,6 +195,7 @@ function AdvisorRouter() {
               );
             }}
           </Route>
+          <Route path="/crm-sync" component={CrmSyncPage} />
           <Route path="/settings" component={SettingsPage} />
           <Route path="/404" component={NotFound} />
           <Route component={NotFound} />

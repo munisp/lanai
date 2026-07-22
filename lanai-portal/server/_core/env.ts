@@ -71,6 +71,16 @@ export const ENV = {
   stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? "",
   twentyCrmUrl: process.env.TWENTY_CRM_URL ?? "",
   twentyCrmApiToken: process.env.TWENTY_CRM_API_TOKEN ?? "",
+  twentyCrmSyncEnabled: requireEnvBoolean("TWENTY_CRM_SYNC_ENABLED", false),
+  twentyCrmWebhookSecret: process.env.TWENTY_CRM_WEBHOOK_SECRET ?? "",
+  twentyCrmMetadataBasePath:
+    process.env.TWENTY_CRM_METADATA_BASE_PATH ?? "/rest/metadata",
+  twentyCrmCoreApiBasePath:
+    process.env.TWENTY_CRM_CORE_API_BASE_PATH ?? "/rest",
+  twentyCrmMetadataBootstrapEnabled: requireEnvBoolean(
+    "TWENTY_CRM_METADATA_BOOTSTRAP_ENABLED",
+    false,
+  ),
   chatwootUrl: process.env.CHATWOOT_URL ?? "",
   chatwootToken:
     process.env.CHATWOOT_TOKEN ?? process.env.CHATWOOT_ACCESS_TOKEN ?? "",
@@ -145,4 +155,16 @@ if (ENV.isProduction) {
     );
   if (ENV.cookieSecret === "dev-secret-change-in-production")
     throw new Error("[env] JWT_SECRET must not use the development default");
+  if (ENV.twentyCrmSyncEnabled) {
+    const crmRequired = [
+      "TWENTY_CRM_URL",
+      "TWENTY_CRM_API_TOKEN",
+      "TWENTY_CRM_WEBHOOK_SECRET",
+    ];
+    const crmMissing = crmRequired.filter((key) => !process.env[key]);
+    if (crmMissing.length > 0)
+      throw new Error(
+        `[env] CRM synchronization enabled but missing: ${crmMissing.join(", ")}`,
+      );
+  }
 }

@@ -5,16 +5,17 @@
   "license": "MIT",
   "scripts": {
     "dev": "NODE_ENV=development tsx watch server/_core/index.ts",
-    "build": "vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist && esbuild server/workflows/workflows.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/workflows.js && esbuild server/workflows/worker.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/temporal-worker.js && esbuild server/scripts/migrate.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/migrate.js && esbuild server/scripts/bootstrapPermify.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/permify-bootstrap.js",
+    "build": "vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist && esbuild server/workflows/workflows.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/workflows.js && esbuild server/workflows/worker.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/temporal-worker.js && esbuild server/scripts/migrate.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/migrate.js && esbuild server/scripts/bootstrapPermify.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/permify-bootstrap.js && esbuild server/scripts/bootstrapTwentyMetadata.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/twenty-metadata-bootstrap.js",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest run --exclude server/smoke.test.ts --exclude server/smoke.phase2.test.ts --exclude 'server/*.external.test.ts' --exclude server/stripe.stripe-mock.test.ts",
-    "test:provider-contract": "vitest run server/crm.provider-contract.test.ts server/stripe.provider-contract.test.ts server/stripe.stripe-mock.test.ts",
+    "test:provider-contract": "vitest run server/crm.provider-contract.test.ts server/twenty.provider-contract.test.ts server/stripe.provider-contract.test.ts server/stripe.stripe-mock.test.ts",
     "test:integration": "bash scripts/test-integration.sh",
     "test:external": "bash scripts/test-external.sh",
     "test:all": "pnpm test && pnpm test:integration",
-    "db:push": "drizzle-kit generate && drizzle-kit migrate"
+    "db:push": "drizzle-kit generate && drizzle-kit migrate",
+    "crm:bootstrap-metadata": "tsx server/scripts/bootstrapTwentyMetadata.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1088.0",

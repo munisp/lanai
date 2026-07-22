@@ -5,7 +5,7 @@ The test suite is deliberately separated by **provider boundary**. This prevents
 | Command                       | Scope                                                                         | Required services or credentials                              | Intended trigger                             |
 | ----------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------- | -------------------------------------------- |
 | `pnpm test`                   | Isolated application and in-process provider-contract tests                   | None                                                          | Every local change and pull request          |
-| `pnpm test:provider-contract` | CRM proxy, local Stripe SDK fixture, and optional Stripe mock-server contract | None locally; Stripe mock endpoint in CI                      | Every pull request                           |
+| `pnpm test:provider-contract` | CRM proxy, Twenty adapter/projection/webhook, local Stripe SDK fixture, and optional Stripe mock-server contract | None locally; Stripe mock endpoint in CI | Every pull request |
 | `pnpm test:integration`       | PostgreSQL persistence and real Permify authorization smoke suites            | PostgreSQL and Permify                                        | Trusted local and CI runs                    |
 | `pnpm test:external`          | Dedicated Twenty test workspace and Stripe sandbox                            | PostgreSQL, Permify, **test-only** CRM and Stripe credentials | Protected `main`, scheduled, and manual runs |
 | `pnpm test:all`               | Isolated plus PostgreSQL/Permify integration tests                            | PostgreSQL and Permify                                        | Local pre-merge and internal CI              |
@@ -34,7 +34,9 @@ The integration harness automatically applies the checked-in Drizzle migrations,
 
 ## Provider-contract coverage
 
-The normal test suite uses an in-process Stripe HTTP fixture to verify request paths, bearer authentication, form serialization, and Checkout request fields. `test:provider-contract` additionally supports a real `stripe-mock` container for trusted CI runs:
+The normal test suite includes an in-process CRM proxy fixture and a typed Twenty adapter contract suite. The Twenty suite verifies the authenticated REST path, JSON payload serialization, idempotency header, bounded provider errors, safe field projections, and raw-body HMAC signature verification without requiring a live CRM credential. It deliberately does not substitute a mock for a protected live-workspace test.
+
+The normal suite also uses an in-process Stripe HTTP fixture to verify request paths, bearer authentication, form serialization, and Checkout request fields. `test:provider-contract` includes both credential-free CRM suites and additionally supports a real `stripe-mock` container for trusted CI runs:
 
 ```bash
 export RUN_STRIPE_MOCK_TESTS='1'
@@ -43,6 +45,21 @@ pnpm test:provider-contract
 ```
 
 `STRIPE_API_BASE_URL` is a test-only endpoint override. It rejects URLs with path components and should never be configured in a production environment.
+
+### CRM synchronization configuration
+
+The CRM synchronization feature remains disabled unless `TWENTY_CRM_SYNC_ENABLED='true'` and both `TWENTY_CRM_URL` and `TWENTY_CRM_API_TOKEN` are present. Inbound webhooks additionally require `TWENTY_CRM_WEBHOOK_SECRET`; the application verifies the HMAC over the unparsed request bytes before accepting an event. The integration database must have the complete checked-in Drizzle migration history, including `0003_fantastic_morph.sql`, which creates the durable CRM links, delivery outbox records, inbound event ledger, conflict records, and supporting indexes.
+
+Use the guarded metadata command only against an approved Twenty workspace and only after setting `TWENTY_CRM_METADATA_BOOTSTRAP_ENABLED='true'`:
+
+```bash
+export TWENTY_CRM_URL='https://<approved-workspace>'
+export TWENTY_CRM_API_TOKEN='<least-privilege-admin-key>'
+export TWENTY_CRM_METADATA_BOOTSTRAP_ENABLED='true'
+pnpm crm:bootstrap-metadata
+```
+
+The bootstrap operation is intentionally opt-in; it must not be run against an unreviewed production workspace.
 
 ## Protected external provider tests
 
@@ -89,4 +106,4 @@ The external workflow intentionally has no `pull_request_target` trigger and doe
 
 ## Expected results
 
-A passing internal run reports the isolated contract tests and the PostgreSQL/Permify smoke suite with no failures. A passing protected external run reports two Twenty CRM checks and four Stripe sandbox checks with no failures. If the external environment is disabled, the protected workflow is skipped rather than silently substituting mocks for real provider behavior.
+A passing internal run reports the isolated CRM and Stripe provider-contract tests plus the PostgreSQL/Permify smoke suite with no failures. A passing protected external run reports the live Twenty CRM checks and four Stripe sandbox checks with no failures. If the external environment is disabled, the protected workflow is skipped rather than silently substituting mocks for real provider behavior.

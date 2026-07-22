@@ -60,6 +60,7 @@ import {
   proposals,
 } from "../drizzle/schema";
 import { invokeLocalAi } from "./_core/localAi";
+import { emitCrmDomainEvent } from "./_core/crmEvent";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -294,6 +295,13 @@ export const memberProfileRouter = router({
           .insert(memberProfiles)
           .values({ memberId, ...(data as any), ...(timestampData as any) });
       }
+      await emitCrmDomainEvent({
+        aggregateType: "member",
+        aggregateId: memberId,
+        eventType: "profile_updated",
+        payload: { memberId },
+        idempotencyKey: `member:${memberId}:profile:${Date.now()}`,
+      });
       return { success: true, memberId };
     }),
 
@@ -334,6 +342,13 @@ export const memberProfileRouter = router({
       } else {
         await db.insert(memberProfiles).values({ memberId, ...data });
       }
+      await emitCrmDomainEvent({
+        aggregateType: "member",
+        aggregateId: memberId,
+        eventType: "revenue_updated",
+        payload: { memberId },
+        idempotencyKey: `member:${memberId}:revenue:${Date.now()}`,
+      });
       return { success: true };
     }),
 });
@@ -495,6 +510,13 @@ export const supplierServicesRouter = router({
             : undefined,
         })
         .returning();
+      await emitCrmDomainEvent({
+        aggregateType: "pricing_inquiry",
+        aggregateId: created.id,
+        eventType: "created",
+        payload: { pricingInquiryId: created.id },
+        idempotencyKey: `pricing-inquiry:${created.id}:created`,
+      });
       return created;
     }),
 
@@ -542,6 +564,13 @@ export const supplierServicesRouter = router({
           updatedAt: new Date(),
         })
         .where(eq(pricingInquiries.id, input.inquiryId));
+      await emitCrmDomainEvent({
+        aggregateType: "pricing_inquiry",
+        aggregateId: input.inquiryId,
+        eventType: `status_${input.status}`,
+        payload: { pricingInquiryId: input.inquiryId, status: input.status },
+        idempotencyKey: `pricing-inquiry:${input.inquiryId}:status:${input.status}:${Date.now()}`,
+      });
       return { success: true };
     }),
 });
@@ -645,6 +674,13 @@ export const invoicingRouter = router({
         sortOrder: idx,
       }));
       await db.insert(invoiceLineItems).values(lineItemsToInsert);
+      await emitCrmDomainEvent({
+        aggregateType: "invoice",
+        aggregateId: invoice.id,
+        eventType: "created",
+        payload: { invoiceId: invoice.id, invoiceType: invoice.invoiceType },
+        idempotencyKey: `invoice:${invoice.id}:created`,
+      });
 
       return invoice;
     }),
@@ -721,6 +757,13 @@ export const invoicingRouter = router({
         sortOrder: idx,
       }));
       await db.insert(invoiceLineItems).values(lineItemsToInsert);
+      await emitCrmDomainEvent({
+        aggregateType: "invoice",
+        aggregateId: invoice.id,
+        eventType: "created",
+        payload: { invoiceId: invoice.id, invoiceType: invoice.invoiceType },
+        idempotencyKey: `invoice:${invoice.id}:created`,
+      });
 
       return invoice;
     }),
@@ -837,6 +880,13 @@ export const invoicingRouter = router({
           .values(
             lineItems.map((item) => ({ ...item, invoiceId: invoice.id })),
           );
+        await emitCrmDomainEvent({
+          aggregateType: "invoice",
+          aggregateId: invoice.id,
+          eventType: "commission_reconciliation_generated",
+          payload: { invoiceId: invoice.id, supplierId, period: input.month },
+          idempotencyKey: `invoice:${invoice.id}:commission-reconciliation:${input.month}`,
+        });
         created.push({
           supplierId,
           invoiceId: invoice.id,
@@ -925,6 +975,13 @@ export const invoicingRouter = router({
           updatedAt: new Date(),
         })
         .where(eq(invoices.id, input.invoiceId));
+      await emitCrmDomainEvent({
+        aggregateType: "invoice",
+        aggregateId: input.invoiceId,
+        eventType: `status_${input.status}`,
+        payload: { invoiceId: input.invoiceId, status: input.status },
+        idempotencyKey: `invoice:${input.invoiceId}:status:${input.status}:${Date.now()}`,
+      });
       return { success: true };
     }),
 
@@ -1010,6 +1067,13 @@ export const celebrationsRouter = router({
           celebrationDate: new Date(input.celebrationDate),
         })
         .returning();
+      await emitCrmDomainEvent({
+        aggregateType: "celebration",
+        aggregateId: created.id,
+        eventType: "created",
+        payload: { celebrationId: created.id, memberId: created.memberId },
+        idempotencyKey: `celebration:${created.id}:created`,
+      });
       return created;
     }),
 
@@ -1056,6 +1120,13 @@ export const npsRouter = router({
           followUpRequired: category === "detractor",
         })
         .returning();
+      await emitCrmDomainEvent({
+        aggregateType: "nps_response",
+        aggregateId: created.id,
+        eventType: "submitted",
+        payload: { npsResponseId: created.id, memberId: created.memberId },
+        idempotencyKey: `nps:${created.id}:submitted`,
+      });
       return created;
     }),
 
@@ -1097,6 +1168,13 @@ export const npsRouter = router({
           followedUpByUserId: ctx.user.id,
         })
         .where(eq(npsResponses.id, input.npsId));
+      await emitCrmDomainEvent({
+        aggregateType: "nps_response",
+        aggregateId: input.npsId,
+        eventType: "follow_up_completed",
+        payload: { npsResponseId: input.npsId },
+        idempotencyKey: `nps:${input.npsId}:follow-up-completed`,
+      });
       return { success: true };
     }),
 
@@ -1162,6 +1240,13 @@ export const communicationHubRouter = router({
             : undefined,
         })
         .returning();
+      await emitCrmDomainEvent({
+        aggregateType: "communication",
+        aggregateId: created.id,
+        eventType: "logged",
+        payload: { communicationId: created.id, memberId: created.memberId },
+        idempotencyKey: `communication:${created.id}:logged`,
+      });
       return created;
     }),
 
@@ -1280,6 +1365,13 @@ export const communicationHubRouter = router({
           followUpDueAt,
         })
         .returning();
+      await emitCrmDomainEvent({
+        aggregateType: "communication",
+        aggregateId: created.id,
+        eventType: "analyzed",
+        payload: { communicationId: created.id, memberId: created.memberId },
+        idempotencyKey: `communication:${created.id}:analyzed`,
+      });
       return created;
     }),
 
@@ -1345,6 +1437,13 @@ export const communicationHubRouter = router({
         .update(communicationTimeline)
         .set({ followUpCompletedAt: new Date(), updatedAt: new Date() })
         .where(eq(communicationTimeline.id, input.entryId));
+      await emitCrmDomainEvent({
+        aggregateType: "communication",
+        aggregateId: input.entryId,
+        eventType: "follow_up_completed",
+        payload: { communicationId: input.entryId },
+        idempotencyKey: `communication:${input.entryId}:follow-up-completed`,
+      });
       return { success: true };
     }),
 
@@ -1571,6 +1670,13 @@ export const vipAmenitiesRouter = router({
         .insert(vipAmenities)
         .values({ ...input, requestedByUserId: ctx.user.id })
         .returning();
+      await emitCrmDomainEvent({
+        aggregateType: "vip_amenity",
+        aggregateId: created.id,
+        eventType: "requested",
+        payload: { amenityId: created.id, memberId: created.memberId },
+        idempotencyKey: `vip-amenity:${created.id}:requested`,
+      });
       return created;
     }),
 
@@ -1582,6 +1688,13 @@ export const vipAmenitiesRouter = router({
         .update(vipAmenities)
         .set({ confirmedAt: new Date() })
         .where(eq(vipAmenities.id, input.amenityId));
+      await emitCrmDomainEvent({
+        aggregateType: "vip_amenity",
+        aggregateId: input.amenityId,
+        eventType: "confirmed",
+        payload: { amenityId: input.amenityId },
+        idempotencyKey: `vip-amenity:${input.amenityId}:confirmed`,
+      });
       return { success: true };
     }),
 
@@ -1593,6 +1706,13 @@ export const vipAmenitiesRouter = router({
         .update(vipAmenities)
         .set({ deliveredAt: new Date() })
         .where(eq(vipAmenities.id, input.amenityId));
+      await emitCrmDomainEvent({
+        aggregateType: "vip_amenity",
+        aggregateId: input.amenityId,
+        eventType: "delivered",
+        payload: { amenityId: input.amenityId },
+        idempotencyKey: `vip-amenity:${input.amenityId}:delivered`,
+      });
       return { success: true };
     }),
 });

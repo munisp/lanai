@@ -17,6 +17,7 @@ import { registerStripeWebhook } from "../stripeRouter";
 import { registerChatwootProxy } from "./chatwootProxy";
 import { ENV } from "./env";
 import { registerAiRoutes } from "./aiRoutes";
+import { registerTwentyWebhook } from "./twentyWebhook";
 import { assertDatabaseReady, closeDatabase } from "../db";
 import { dispatchOutboxBatch } from "./outbox";
 import { shutdownInfrastructure } from "./infrastructure";
@@ -135,9 +136,14 @@ async function startServer() {
     }
   });
 
-  // ── Stripe webhook MUST be registered with raw body BEFORE express.json() ─
+  // ── Signed webhooks MUST be registered with raw body BEFORE express.json() ─
   app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
   registerStripeWebhook(app);
+  app.use(
+    "/api/crm/twenty/webhook",
+    express.raw({ type: "application/json", limit: "2mb" }),
+  );
+  registerTwentyWebhook(app);
 
   // ── Body parsers ──────────────────────────────────────────────────────────
   app.use(express.json({ limit: "50mb" }));

@@ -20,6 +20,7 @@ import {
   Star,
   CheckSquare,
   MessageSquare,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -98,6 +99,7 @@ const NAV_ITEMS = [
     label: "Member Portal",
     group: "system",
   },
+  { href: "/crm-sync", icon: RefreshCw, label: "CRM Sync", group: "system" },
   { href: "/settings", icon: Settings, label: "Settings", group: "system" },
 ];
 
