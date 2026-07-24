@@ -92,6 +92,7 @@ export default function Dashboard() {
     { id: string; title: string; createdAt: string }[]
   >([]);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const { data: envConfig } = trpc.system.env.useQuery();
   const {
     data: operational,
     isLoading: operationalLoading,
@@ -102,12 +103,14 @@ export default function Dashboard() {
     setLoading(true);
     setError(null);
     try {
-      const [statsData, notesData] = await Promise.all([
-        fetchDashboardStats(),
-        fetchRecentNotes(6),
-      ]);
-      setStats(statsData);
-      setNotes(notesData.notes);
+      if (envConfig?.crmEnabled) {
+        const [statsData, notesData] = await Promise.all([
+          fetchDashboardStats(),
+          fetchRecentNotes(6),
+        ]);
+        setStats(statsData);
+        setNotes(notesData.notes);
+      }
       await refetchOperational();
       setLastRefresh(new Date());
     } catch (e) {
@@ -115,7 +118,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [refetchOperational]);
+  }, [refetchOperational, envConfig?.crmEnabled]);
 
   useEffect(() => {
     const h = new Date().getHours();
@@ -123,9 +126,9 @@ export default function Dashboard() {
     else if (h < 18) setGreeting("Good afternoon");
     else setGreeting("Good evening");
     const t = setInterval(() => setTime(new Date()), 60000);
-    load();
+    if (envConfig !== undefined) load();
     return () => clearInterval(t);
-  }, [load]);
+  }, [load, envConfig]);
 
   const statCards: StatCard[] = [
     {
@@ -237,6 +240,16 @@ export default function Dashboard() {
             <button onClick={load} className="underline ml-1">
               Retry
             </button>
+          </span>
+        </div>
+      )}
+
+      {envConfig && !envConfig.crmEnabled && (
+        <div className="flex items-center gap-3 p-3 bg-muted border border-border rounded-lg text-muted-foreground text-sm">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>
+            CRM integration is not configured in this environment — client
+            and pipeline stats below are unavailable.
           </span>
         </div>
       )}

@@ -1,0 +1,99 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Root is config/, not config/k8s/, because kustomize refuses to load
+# resources from outside its root directory — and this set spans
+# config/k8s/, config/apisix/, config/postgres/, config/keycloak/, etc.
+
+namespace: lanai
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: lanai
+    includeSelectors: false
+
+# Every generated ConfigMap/Secret is referenced elsewhere in this manifest
+# set by its literal name (e.g. `secretKeyRef: { name: lanai-secrets }`,
+# including inside the Dapr Component CRD, which kustomize's automatic
+# name-reference rewriting doesn't reach). Disabling the hash suffix keeps
+# those names stable and correct; the trade-off is that changing a mounted
+# config/secret file no longer auto-restarts the pods using it — after
+# editing one, run `kubectl rollout restart deployment/<name> -n lanai`.
+generatorOptions:
+  disableNameSuffixHash: true
+
+resources:
+  - apisix/namespace.yaml
+  - apisix/certificate.yaml
+  - apisix/apisixtls.yaml
+  - apisix/apisixroute.yaml
+  - k8s/env-configmap.yaml
+  - k8s/dapr-components.yaml
+  - k8s/data-tier.yaml
+  - k8s/jobs.yaml
+  - k8s/platform-tier.yaml
+  - k8s/ai-tier.yaml
+  - k8s/app-tier.yaml
+
+# Generated straight from the docker-compose config files so they stay in
+# sync with compose instead of being hand-duplicated. configMapGenerator
+# appends a content hash to each name and Deployments referencing it get
+# rolled automatically on change — but that means anything mounting these by
+# a literal name (there is none here; all references go through the
+# generator-managed name) must go through this file, not a hardcoded name.
+configMapGenerator:
+  - name: postgres-init-script
+    files: [postgres/00-create-databases.sh]
+  - name: keycloak-realm
+    files: [keycloak/lanai-realm.json]
+  - name: permify-schema
+    files: [permify/schema.perm]
+# trino-iceberg-catalog (lakehouse/trino/catalog/iceberg.properties) is no
+# longer generated here — trino/lakehouse-ingest/ollama out of current scope
+# (lanai-portal + postgres + keycloak + permify only).
+# prometheus-config (monitoring/prometheus.yml) is no longer generated here
+# — prometheus/grafana were removed (monitoring not needed yet).
+# apisix/config.yaml and apisix/routes/lanai-routes.yaml are no longer
+# generated here — they configured the in-namespace apisix+openappsec data
+# plane, which was removed (see apisix/apisixroute.yaml's header comment).
+# The files are left on disk in case that decision gets revisited.
+
+# k8s/secrets/.env.secrets is gitignored — copy
+# k8s/secrets/.env.secrets.example, fill in real values, and it feeds this
+# generator directly. Never commit the real file. See k8s/README.md for the
+# full apply sequence.
+secretGenerator:
+  - name: lanai-secrets
+    envs: [k8s/secrets/.env.secrets]
+
+# Placeholder tag for the image this deployment scope actually uses —
+# before applying, run `kustomize edit set image` with the actual pushed
+# tag (see k8s/README.md), same date-stamped-tag convention as the other
+# services on this cluster. lanai-ai-gateway/lakehouse-ingest images aren't
+# referenced by any manifest right now (out of current scope) so aren't
+# listed here — add them back alongside their Deployments if that changes.
+images:
+  - name: lanai-portal
+    newName: registry.digitalocean.com/talentgraph-auth/lanai-portal
+    newTag: kasi-20260724-0755
+  - name: lanai-ai-gateway
+    newName: registry.digitalocean.com/talentgraph-auth/lanai-ai-gateway
+    newTag: kasi-20260724-0755
+
+# DOCR is a private registry — every pod needs this pull secret. Applies to
+# all Deployments/Jobs; harmless no-op on the ones pulling public images.
+# `talentgraph-auth-pull` is the same pull-secret name already used by other
+# namespaces on this cluster (e.g. payment-switch-demo, tourismpay) — see
+# k8s/README.md to either copy it into `lanai` or create it fresh.
+patches:
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: add
+        path: /spec/template/spec/imagePullSecrets
+        value: [{ name: talentgraph-auth-pull }]
+  - target:
+      kind: Job
+    patch: |-
+      - op: add
+        path: /spec/template/spec/imagePullSecrets
+        value: [{ name: talentgraph-auth-pull }]

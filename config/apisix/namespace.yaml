@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lanai
+  labels:
+    app.kubernetes.io/part-of: lanai
+    environment: kasi-demo
+

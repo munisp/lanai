@@ -1,0 +1,19 @@
+apiVersion: apisix.apache.org/v2
+kind: ApisixTls
+metadata:
+  name: lanai-tls
+  namespace: lanai
+spec:
+  ingressClassName: apisix
+  hosts:
+    - lanai.upi.dev
+    - www.lanai.upi.dev
+    - auth.lanai.upi.dev
+    - api.lanai.upi.dev
+    - admin.lanai.upi.dev
+    - inbox.lanai.upi.dev
+    - member.lanai.upi.dev
+  secret:
+    name: lanai-cert
+    namespace: lanai
+

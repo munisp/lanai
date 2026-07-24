@@ -1,0 +1,19 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: lanai-cert
+  namespace: lanai
+spec:
+  secretName: lanai-cert
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - lanai.upi.dev
+    - www.lanai.upi.dev
+    - auth.lanai.upi.dev
+    - api.lanai.upi.dev
+    - admin.lanai.upi.dev
+    - inbox.lanai.upi.dev
+    - member.lanai.upi.dev
+

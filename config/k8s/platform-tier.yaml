@@ -1,0 +1,130 @@
+# Kubernetes supports $(VAR_NAME) expansion inside an env[].value when the
+# referenced var appears earlier in the same env list — used throughout this
+# file to build domain-derived / secret-derived values, mirroring
+# docker-compose's ${LANAI_DOMAIN} / ${SOME_PASSWORD} interpolation.
+
+# ---------------------------------------------------------------- keycloak --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  labels: { app: keycloak }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: keycloak } }
+  template:
+    metadata: { labels: { app: keycloak } }
+    spec:
+      # The keycloak-realm ConfigMap is a template — ${LANAI_DOMAIN}-style
+      # placeholders in it are NOT substituted by Keycloak itself (mounting
+      # it raw makes realm import fail: "Invalid client lanai-portal: A
+      # redirect URI is not a valid URI"). docker-compose.yml already has an
+      # envsubst render step (service keycloak-realm-render) for exactly
+      # this; this initContainer does the same thing, rendering into an
+      # emptyDir the main container imports from instead of the ConfigMap
+      # directly.
+      initContainers:
+        - name: realm-render
+          image: alpine:3.20
+          env:
+            - name: LANAI_DOMAIN
+              valueFrom: { configMapKeyRef: { name: lanai-env, key: LANAI_DOMAIN } }
+            - name: KEYCLOAK_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: KEYCLOAK_CLIENT_SECRET } }
+            - { name: OAUTH2_PROXY_CLIENT_SECRET, value: "unused-oauth2-proxy-secret" }
+            - { name: APISIX_KEYCLOAK_SECRET, value: "unused-apisix-keycloak-secret" }
+            - { name: SMTP_HOST, value: "" }
+            - { name: SMTP_PORT, value: "587" }
+            - { name: SMTP_USER, value: "" }
+            - { name: SMTP_PASSWORD, value: "" }
+          volumeMounts:
+            - { name: realm-template, mountPath: /template/lanai-realm.json, subPath: lanai-realm.json }
+            - { name: realm-import, mountPath: /out }
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              apk add --no-cache gettext >/dev/null
+              envsubst < /template/lanai-realm.json > /out/lanai-realm.json
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.0.7
+          args: ["start", "--import-realm", "--http-enabled=true", "--proxy-headers=xforwarded"]
+          ports: [{ containerPort: 8080 }, { containerPort: 9000 }]
+          env:
+            - { name: KC_DB, value: "postgres" }
+            - { name: KC_DB_URL, value: "jdbc:postgresql://postgres:5432/keycloak" }
+            - { name: KC_DB_USERNAME, value: "keycloak" }
+            - name: KC_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: KEYCLOAK_DB_PASSWORD } }
+            - name: LANAI_DOMAIN
+              valueFrom: { configMapKeyRef: { name: lanai-env, key: LANAI_DOMAIN } }
+            # Must be a full URL (scheme+host), not a bare hostname — same
+            # Keycloak 26 hostname-v2 quirk we hit in local dev. A bare
+            # hostname left Keycloak inferring the wrong port (:9443) for
+            # its own issuer/redirect URLs from proxy headers, which would
+            # mismatch lanai-portal's KEYCLOAK_ISSUER_URL (no port) during
+            # token verification.
+            - { name: KC_HOSTNAME, value: "https://auth.$(LANAI_DOMAIN)" }
+            - { name: KC_HOSTNAME_STRICT, value: "true" }
+            - { name: KC_HEALTH_ENABLED, value: "true" }
+            - { name: KC_METRICS_ENABLED, value: "true" }
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: KEYCLOAK_ADMIN_USER } }
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: KEYCLOAK_ADMIN_PASSWORD } }
+          volumeMounts:
+            - { name: realm-import, mountPath: /opt/keycloak/data/import }
+          readinessProbe:
+            httpGet: { path: /health/ready, port: 9000 }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 15
+          # initialDelaySeconds + periodSeconds*failureThreshold = 460s. The
+          # previous 165s deadline was killing Keycloak mid-boot (augmentation
+          # alone took 66-72s, then cache init + 148 schema migrations +
+          # realm import on top of that) — a liveness kill mid-import left
+          # the realm half-imported, which Keycloak then permanently skips
+          # re-importing on the next boot instead of retrying.
+          livenessProbe:
+            httpGet: { path: /health/live, port: 9000 }
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 20
+          resources:
+            requests: { cpu: 300m, memory: 768Mi }
+            limits: { cpu: 600m, memory: 1536Mi }
+      volumes:
+        - name: realm-template
+          configMap: { name: keycloak-realm }
+        - name: realm-import
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata: { name: keycloak }
+spec:
+  selector: { app: keycloak }
+  ports:
+    - { name: http, port: 8080, targetPort: 8080 }
+    - { name: management, port: 9000, targetPort: 9000 }
+
+# permify and temporal are NOT self-hosted here — this cluster already runs
+# shared instances (namespaces `permify`, `temporal`), wired into
+# app-tier.yaml via their in-cluster DNS names instead:
+#   permify.permify.svc.cluster.local:3478 (grpc) / :3476 (http)
+#   temporal-frontend.temporal.svc.cluster.local:7233
+# temporal-ui also already exists cluster-wide (temporal-web.temporal.svc,
+# port 8080) — not duplicated here.
+
+# trino/lakehouse-ingest/ollama are intentionally not deployed — current
+# scope is lanai-portal + postgres + keycloak + permify only. See git
+# history to bring the lakehouse/AI stack back.
+
+# dapr-placement is NOT self-hosted here — this cluster runs a real Dapr
+# control plane in namespace `dapr-system` (placement, sentry,
+# sidecar-injector, scheduler). app-tier.yaml uses the sidecar-injector via
+# pod annotations instead of a hand-rolled daprd sidecar pointed at a
+# self-hosted placement service.
+
+# prometheus/grafana intentionally removed for now (monitoring not needed
+# yet) — see git history to bring them back later.

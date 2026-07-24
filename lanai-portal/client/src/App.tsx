@@ -80,7 +80,7 @@ function AdvisorPortalGuard({ children }: { children: React.ReactNode }) {
             Lanai Advisor Portal
           </h1>
           <p className="text-gray-500 text-sm mb-8">
-            Sign in with your Manus account to access the advisor dashboard.
+            Sign in to access the advisor dashboard.
           </p>
           <Button
             className="w-full text-white gap-2"
@@ -244,7 +244,7 @@ function App() {
                   <MemberPortalEnhancedPage />
                 </MemberPortalGuard>
               </Route>
-              {/* Advisor portal — full sidebar layout, gated by Manus OAuth */}
+              {/* Advisor portal — full sidebar layout, gated by Keycloak OAuth */}
               <Route component={AdvisorRouter} />
             </Switch>
             {/* Floating Chatwoot widget — available on all pages */}

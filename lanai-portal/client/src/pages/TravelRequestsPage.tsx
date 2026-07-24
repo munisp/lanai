@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { fetchOpportunities, stageLabel, stageColor, timeAgo, formatCurrency, type CRMOpportunity } from "@/lib/crmApi";
+import { trpc } from "@/lib/trpc";
 
 const STAGES = ["ALL", "NEW", "SCREENING", "MEETING", "PROPOSAL", "CUSTOMER", "CLOSED_WON", "CLOSED_LOST"];
 
@@ -18,8 +19,13 @@ export default function TravelRequestsPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { data: envConfig } = trpc.system.env.useQuery();
 
   const load = useCallback(async () => {
+    if (!envConfig?.crmEnabled) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -31,9 +37,9 @@ export default function TravelRequestsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [envConfig?.crmEnabled]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (envConfig !== undefined) load(); }, [load, envConfig]);
 
   const filtered = opportunities.filter(o => {
     const q = search.toLowerCase();

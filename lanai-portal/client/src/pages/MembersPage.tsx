@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { fetchOpportunities, formatCurrency, timeAgo, type CRMOpportunity } from "@/lib/crmApi";
+import { trpc } from "@/lib/trpc";
 
 // Assign tier based on pipeline value
 function getTier(amountMicros: number): "Platinum" | "Gold" | "Silver" {
@@ -28,8 +29,13 @@ export default function MembersPage() {
   const [members, setMembers] = useState<CRMOpportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { data: envConfig } = trpc.system.env.useQuery();
 
   const load = useCallback(async () => {
+    if (!envConfig?.crmEnabled) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -42,9 +48,9 @@ export default function MembersPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [envConfig?.crmEnabled]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (envConfig !== undefined) load(); }, [load, envConfig]);
 
   const filtered = members.filter(m => {
     const q = search.toLowerCase();

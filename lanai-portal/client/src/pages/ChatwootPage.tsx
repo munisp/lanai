@@ -35,19 +35,25 @@ export default function ChatwootPage() {
   const [statusFilter, setStatusFilter] = useState("open");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const { data: envConfig } = trpc.system.env.useQuery();
+
   const { data: rawConvs = [], isLoading: convsLoading, refetch: refetchConvs } =
-    trpc.chatwoot.listConversations.useQuery();
+    trpc.chatwoot.listConversations.useQuery(undefined, {
+      enabled: !!envConfig?.chatwootEnabled,
+    });
   const conversations = rawConvs as LocalConv[];
 
   const { data: rawDetail, refetch: refetchDetail } =
     trpc.chatwoot.getConversation.useQuery(
       { chatwootId: selectedChatwootId! },
-      { enabled: !!selectedChatwootId }
+      { enabled: !!selectedChatwootId && !!envConfig?.chatwootEnabled }
     );
   const convDetail = rawDetail as (LocalConv & { messages: LocalMsg[] }) | null | undefined;
   const messages: LocalMsg[] = convDetail?.messages ?? [];
 
-  const { data: rawStats } = trpc.chatwoot.getStats.useQuery();
+  const { data: rawStats } = trpc.chatwoot.getStats.useQuery(undefined, {
+    enabled: !!envConfig?.chatwootEnabled,
+  });
   const stats = rawStats as { open: number; pending: number; resolved: number; unresponded: number; total: number } | undefined;
 
   const sendMutation = trpc.chatwoot.sendMessage.useMutation({

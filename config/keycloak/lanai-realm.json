@@ -42,11 +42,13 @@
         "https://${LANAI_DOMAIN}/*",
         "https://admin.${LANAI_DOMAIN}/*",
         "https://member.${LANAI_DOMAIN}/*",
-        "https://inbox.${LANAI_DOMAIN}/*"
+        "https://inbox.${LANAI_DOMAIN}/*",
+        "http://localhost:3001/*"
       ],
       "webOrigins": [
         "https://${LANAI_DOMAIN}",
         "https://admin.${LANAI_DOMAIN}",
+        "http://localhost:3001",
         "https://member.${LANAI_DOMAIN}",
         "https://inbox.${LANAI_DOMAIN}"
       ],
@@ -59,6 +61,20 @@
       "publicClient": false,
       "frontchannelLogout": false,
       "protocol": "openid-connect",
+      "defaultClientScopes": [
+        "profile",
+        "email",
+        "roles",
+        "web-origins",
+        "acr",
+        "groups"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ],
       "attributes": {
         "access.token.lifespan": "300",
         "client.session.idle.timeout": "1800",
@@ -67,6 +83,17 @@
         "pkce.code.challenge.method": "S256"
       },
       "protocolMappers": [
+        {
+          "name": "audience-lanai-portal",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "lanai-portal",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        },
         {
           "name": "groups",
           "protocol": "openid-connect",
@@ -261,5 +288,31 @@
     "PERMISSION_TOKEN", "INTROSPECT_TOKEN", "INTROSPECT_TOKEN_ERROR"
   ],
   "adminEventsEnabled": true,
-  "adminEventsDetailsEnabled": true
+  "adminEventsDetailsEnabled": true,
+  "clientScopes": [
+    {
+      "name": "groups",
+      "description": "Group membership",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "groups"
+          }
+        }
+      ]
+    }
+  ]
 }

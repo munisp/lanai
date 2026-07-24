@@ -39,10 +39,15 @@ export function getSessionCookieOptions(
   //       ? hostname
   //       : undefined;
 
+  // Browsers reject SameSite=None cookies outright unless Secure is also
+  // set, so that combination only actually works over HTTPS. Falling back
+  // to Lax over plain HTTP (local dev) keeps the cookie from being silently
+  // dropped instead of just being broken.
+  const secure = isSecureRequest(req);
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
-    secure: isSecureRequest(req),
+    sameSite: secure ? "none" : "lax",
+    secure,
   };
 }

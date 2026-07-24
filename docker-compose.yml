@@ -7,6 +7,7 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  keycloak_import:
   caddy_data:
   caddy_config:
   tigerbeetle_data:
@@ -66,6 +67,34 @@ services:
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
 
+  # config/keycloak/lanai-realm.json is a template — ${LANAI_DOMAIN}-style
+  # placeholders in it are NOT substituted by Keycloak itself (a raw
+  # bind-mount of the template previously made realm import fail outright:
+  # "Invalid client lanai-portal: A redirect URI is not a valid URI"). This
+  # renders it with envsubst into a shared volume that keycloak imports from
+  # instead of the template directly.
+  keycloak-realm-render:
+    image: alpine:3.20
+    restart: "no"
+    networks: [app-net]
+    environment:
+      LANAI_DOMAIN: ${LANAI_DOMAIN:?LANAI_DOMAIN is required}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:?KEYCLOAK_CLIENT_SECRET is required}
+      OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_PROXY_CLIENT_SECRET:-unused-oauth2-proxy-secret}
+      APISIX_KEYCLOAK_SECRET: ${APISIX_KEYCLOAK_SECRET:-unused-apisix-keycloak-secret}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+    volumes:
+      - ./config/keycloak/lanai-realm.json:/template/lanai-realm.json:ro
+      - keycloak_import:/out
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        apk add --no-cache gettext >/dev/null
+        envsubst < /template/lanai-realm.json > /out/lanai-realm.json
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.0.7
     restart: unless-stopped
@@ -79,6 +108,7 @@ services:
       ]
     depends_on:
       postgres: { condition: service_healthy }
+      keycloak-realm-render: { condition: service_completed_successfully }
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
@@ -91,7 +121,7 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:?KEYCLOAK_ADMIN_USER is required}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is required}
     volumes:
-      - ./config/keycloak/lanai-realm.json:/opt/keycloak/data/import/lanai-realm.json:ro
+      - keycloak_import:/opt/keycloak/data/import:ro
     healthcheck:
       test:
         [

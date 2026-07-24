@@ -6,7 +6,7 @@ import { sdk } from "./sdk";
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
   res: CreateExpressContextOptions["res"];
-  /** Authenticated advisor (Manus OAuth). Null for unauthenticated or member requests. */
+  /** Authenticated advisor (Keycloak OAuth). Null for unauthenticated or member requests. */
   user: User | null;
   /** Authenticated member (client portal). Null for unauthenticated or advisor requests. */
   member: Member | null;

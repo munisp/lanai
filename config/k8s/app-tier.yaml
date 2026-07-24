@@ -1,0 +1,140 @@
+# lanai-portal gets its Dapr sidecar injected by the cluster's real Dapr
+# control plane (namespace dapr-system) via the dapr.io/* pod annotations
+# below — the injector already knows this cluster's placement/sentry/
+# scheduler addresses, so no hand-rolled daprd container is needed (an
+# earlier version of this file had one left over pointing at a self-hosted
+# dapr-placement:50005 service that no longer exists — removed).
+#
+# DAPR_API_TOKEN is set even though the shared control plane's enforcement
+# of it is unconfirmed: server/_core/env.ts refuses to boot in production
+# without it present at all (unrelated to whether Dapr actually checks it).
+#
+# Current scope: lanai-portal + postgres + keycloak + permify + lanai-ai-gateway
+# (see ai-tier.yaml — ollama + lanai-ai-gateway, backing morning briefings,
+# proposals, client intelligence, WhatsApp drafting). temporal-worker and the
+# lakehouse stack are still not deployed — see git history.
+# LAKEHOUSE_INGEST_URL below points at a service name that doesn't exist in
+# this scope; that's fine, it's only required to be *present* at boot
+# (env.ts's production required-vars check), not reachable — it's only
+# actually called if a feature that uses it is invoked.
+#
+# Uses the cluster-wide shared redis/temporal/permify/tigerbeetle/fluvio —
+# see data-tier.yaml/platform-tier.yaml for what's still self-hosted.
+# TEMPORAL_NAMESPACE is "lanai", not "default" — see jobs.yaml's
+# temporal-namespace-register Job, since "default" would collide with every
+# other app sharing this Temporal instance. TIGERBEETLE_CLUSTER_ID/ADDRESS
+# and the ledger/transfer-code numbers below are UNVERIFIED — confirm them
+# against `kubectl get configmap tigerbeetle-config -n tigerbeetle -o yaml`
+# and whoever tracks ledger/code allocation on this cluster before relying
+# on this for real money movement.
+#
+# First rollout: lanai-portal may CrashLoopBackOff a few times until the
+# db-migrate / permify-bootstrap Jobs finish — that's expected and
+# self-heals via the default restartPolicy.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lanai-portal
+  labels: { app: lanai-portal }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: lanai-portal } }
+  template:
+    metadata:
+      labels: { app: lanai-portal }
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "lanai-portal"
+        dapr.io/app-port: "3001"
+    spec:
+      containers:
+        - name: lanai-portal
+          image: lanai-portal
+          ports: [{ containerPort: 3001 }]
+          env:
+            - { name: NODE_ENV, value: "production" }
+            - { name: PORT, value: "3001" }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: POSTGRES_PASSWORD } }
+            - { name: DATABASE_URL, value: "postgres://lanai:$(POSTGRES_PASSWORD)@postgres:5432/lanai" }
+            - name: JWT_SECRET
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: JWT_SECRET } }
+            - name: REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: REDIS_PASSWORD } }
+            - { name: REDIS_URL, value: "redis://:$(REDIS_PASSWORD)@redis-master.redis.svc.cluster.local:6379" }
+            - { name: KEYCLOAK_REALM, value: "lanai" }
+            - name: LANAI_DOMAIN
+              valueFrom: { configMapKeyRef: { name: lanai-env, key: LANAI_DOMAIN } }
+            - { name: KEYCLOAK_ISSUER_URL, value: "https://auth.$(LANAI_DOMAIN)/realms/lanai" }
+            - { name: KEYCLOAK_INTERNAL_ISSUER_URL, value: "http://keycloak:8080/realms/lanai" }
+            - { name: KEYCLOAK_CLIENT_ID, value: "lanai-portal" }
+            - name: KEYCLOAK_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: KEYCLOAK_CLIENT_SECRET } }
+            - { name: KEYCLOAK_REDIRECT_URI, value: "https://$(LANAI_DOMAIN)/api/oauth/callback" }
+            - name: KEYCLOAK_ADMIN_CLIENT_ID
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: KEYCLOAK_ADMIN_CLIENT_ID } }
+            - name: KEYCLOAK_ADMIN_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: KEYCLOAK_ADMIN_CLIENT_SECRET } }
+            - { name: PERMIFY_GRPC_ADDRESS, value: "permify.permify.svc.cluster.local:3478" }
+            - { name: PERMIFY_TENANT_ID, value: "lanai" }
+            - { name: PERMIFY_INSECURE, value: "true" }
+            - { name: TIGERBEETLE_ADDRESS, value: "tigerbeetle-0.tigerbeetle-headless.tigerbeetle.svc.cluster.local:3000,tigerbeetle-1.tigerbeetle-headless.tigerbeetle.svc.cluster.local:3000,tigerbeetle-2.tigerbeetle-headless.tigerbeetle.svc.cluster.local:3000" }
+            - { name: TIGERBEETLE_CLUSTER_ID, value: "233240165285264747596733200182526600436" }
+            - { name: TIGERBEETLE_LEDGER, value: "1" }
+            - { name: TIGERBEETLE_TRANSFER_CODE, value: "1" }
+            - { name: DAPR_HOST, value: "127.0.0.1" }
+            - { name: DAPR_HTTP_PORT, value: "3500" }
+            - name: DAPR_API_TOKEN
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: DAPR_API_TOKEN } }
+            - { name: DAPR_STATE_STORE, value: "statestore" }
+            - { name: TEMPORAL_ADDRESS, value: "temporal-frontend.temporal.svc.cluster.local:7233" }
+            - { name: TEMPORAL_NAMESPACE, value: "lanai" }
+            - { name: TEMPORAL_TASK_QUEUE, value: "lanai-workflows" }
+            - { name: FLUVIO_ENDPOINT, value: "fluvio-sc-public.fluvio.svc.cluster.local:9003" }
+            - { name: AI_GATEWAY_URL, value: "http://lanai-ai-gateway:8100" }
+            - name: AI_GATEWAY_TOKEN
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: AI_GATEWAY_TOKEN } }
+            - name: OLLAMA_MODEL
+              valueFrom: { configMapKeyRef: { name: lanai-env, key: OLLAMA_MODEL } }
+            - { name: LAKEHOUSE_INGEST_URL, value: "http://lakehouse-ingest:8200" }
+            - name: LAKEHOUSE_INGEST_TOKEN
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: LAKEHOUSE_INGEST_TOKEN } }
+            - { name: APISIX_ADMIN_URL, value: "http://appsec-apisix-prod-admin.appsec-apisix-prod.svc.cluster.local:9180" }
+            - name: APISIX_ADMIN_KEY
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: APISIX_ADMIN_KEY } }
+            - { name: ALLOWED_ORIGINS, value: "https://$(LANAI_DOMAIN),https://member.$(LANAI_DOMAIN),https://admin.$(LANAI_DOMAIN)" }
+            - name: TWENTY_CRM_URL
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: TWENTY_CRM_URL, optional: true } }
+            - name: TWENTY_CRM_API_TOKEN
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: TWENTY_CRM_API_TOKEN, optional: true } }
+            - name: CHATWOOT_URL
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: CHATWOOT_URL, optional: true } }
+            - name: CHATWOOT_ACCESS_TOKEN
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: CHATWOOT_ACCESS_TOKEN, optional: true } }
+            - name: CHATWOOT_ACCOUNT_ID
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: CHATWOOT_ACCOUNT_ID, optional: true } }
+            - name: STRIPE_SECRET_KEY
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: STRIPE_SECRET_KEY, optional: true } }
+            - name: STRIPE_WEBHOOK_SECRET
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: STRIPE_WEBHOOK_SECRET, optional: true } }
+          readinessProbe:
+            httpGet: { path: /api/health, port: 3001 }
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            failureThreshold: 15
+          livenessProbe:
+            httpGet: { path: /api/health, port: 3001 }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { cpu: 500m, memory: 1024Mi }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: lanai-portal }
+spec:
+  selector: { app: lanai-portal }
+  ports: [{ port: 3001, targetPort: 3001 }]

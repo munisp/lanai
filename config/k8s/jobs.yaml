@@ -1,0 +1,120 @@
+# One-shot setup tasks. Each has a generous backoffLimit and OnFailure
+# restartPolicy so it just retries with backoff until its dependency
+# (postgres/permify) is reachable, instead of hand-rolling wait loops with
+# tools that may not exist in the base images.
+#
+# minio-init/ollama-model-init removed — out of current scope (lanai-portal
+# + postgres + keycloak + permify only). See git history to bring them back.
+
+apiVersion: batch/v1
+kind: Job
+metadata: { name: db-migrate }
+spec:
+  backoffLimit: 30
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: db-migrate
+          image: lanai-portal
+          # migrate.ts imports db.ts -> env.ts, which validates the entire
+          # production env var list at import time regardless of what the
+          # script actually uses — so this needs the same full env block as
+          # lanai-portal in app-tier.yaml, not just DATABASE_URL. Keep these
+          # two in sync; an earlier, smaller version of this list caused
+          # "[env] Production configuration missing: ..." crashes.
+          env:
+            - { name: NODE_ENV, value: "production" }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: POSTGRES_PASSWORD } }
+            - { name: DATABASE_URL, value: "postgres://lanai:$(POSTGRES_PASSWORD)@postgres:5432/lanai" }
+            - name: JWT_SECRET
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: JWT_SECRET } }
+            - name: REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: REDIS_PASSWORD } }
+            - { name: REDIS_URL, value: "redis://:$(REDIS_PASSWORD)@redis-master.redis.svc.cluster.local:6379" }
+            - { name: KEYCLOAK_REALM, value: "lanai" }
+            - name: LANAI_DOMAIN
+              valueFrom: { configMapKeyRef: { name: lanai-env, key: LANAI_DOMAIN } }
+            - { name: KEYCLOAK_ISSUER_URL, value: "https://auth.$(LANAI_DOMAIN)/realms/lanai" }
+            - { name: KEYCLOAK_INTERNAL_ISSUER_URL, value: "http://keycloak:8080/realms/lanai" }
+            - { name: KEYCLOAK_CLIENT_ID, value: "lanai-portal" }
+            - name: KEYCLOAK_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: KEYCLOAK_CLIENT_SECRET } }
+            - { name: KEYCLOAK_REDIRECT_URI, value: "https://$(LANAI_DOMAIN)/api/oauth/callback" }
+            - name: KEYCLOAK_ADMIN_CLIENT_ID
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: KEYCLOAK_ADMIN_CLIENT_ID } }
+            - name: KEYCLOAK_ADMIN_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: KEYCLOAK_ADMIN_CLIENT_SECRET } }
+            - { name: PERMIFY_GRPC_ADDRESS, value: "permify.permify.svc.cluster.local:3478" }
+            - { name: PERMIFY_TENANT_ID, value: "lanai" }
+            - { name: PERMIFY_INSECURE, value: "true" }
+            - { name: TIGERBEETLE_ADDRESS, value: "tigerbeetle-0.tigerbeetle-headless.tigerbeetle.svc.cluster.local:3000,tigerbeetle-1.tigerbeetle-headless.tigerbeetle.svc.cluster.local:3000,tigerbeetle-2.tigerbeetle-headless.tigerbeetle.svc.cluster.local:3000" }
+            - { name: TIGERBEETLE_CLUSTER_ID, value: "233240165285264747596733200182526600436" }
+            - { name: TIGERBEETLE_LEDGER, value: "1" }
+            - { name: TIGERBEETLE_TRANSFER_CODE, value: "1" }
+            - { name: DAPR_HOST, value: "127.0.0.1" }
+            - { name: DAPR_HTTP_PORT, value: "3500" }
+            - name: DAPR_API_TOKEN
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: DAPR_API_TOKEN } }
+            - { name: DAPR_STATE_STORE, value: "statestore" }
+            - { name: TEMPORAL_ADDRESS, value: "temporal-frontend.temporal.svc.cluster.local:7233" }
+            - { name: TEMPORAL_NAMESPACE, value: "lanai" }
+            - { name: TEMPORAL_TASK_QUEUE, value: "lanai-workflows" }
+            - { name: FLUVIO_ENDPOINT, value: "fluvio-sc-public.fluvio.svc.cluster.local:9003" }
+            - { name: AI_GATEWAY_URL, value: "http://lanai-ai-gateway:8100" }
+            - name: AI_GATEWAY_TOKEN
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: AI_GATEWAY_TOKEN } }
+            - name: OLLAMA_MODEL
+              valueFrom: { configMapKeyRef: { name: lanai-env, key: OLLAMA_MODEL } }
+            - { name: LAKEHOUSE_INGEST_URL, value: "http://lakehouse-ingest:8200" }
+            - name: LAKEHOUSE_INGEST_TOKEN
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: LAKEHOUSE_INGEST_TOKEN } }
+            - { name: APISIX_ADMIN_URL, value: "http://appsec-apisix-prod-admin.appsec-apisix-prod.svc.cluster.local:9180" }
+            - name: APISIX_ADMIN_KEY
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: APISIX_ADMIN_KEY } }
+          command: ["node", "dist/migrate.js"]
+---
+apiVersion: batch/v1
+kind: Job
+metadata: { name: permify-bootstrap }
+spec:
+  backoffLimit: 30
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: permify-bootstrap
+          image: lanai-portal
+          env:
+            - { name: PERMIFY_GRPC_ADDRESS, value: "permify.permify.svc.cluster.local:3478" }
+            - { name: PERMIFY_TENANT_ID, value: "lanai" }
+            - { name: PERMIFY_INSECURE, value: "true" }
+            - { name: PERMIFY_SCHEMA_FILE, value: "/app/config/permify-schema.perm" }
+          command: ["node", "dist/permify-bootstrap.js"]
+          volumeMounts:
+            - { name: permify-schema, mountPath: /app/config/permify-schema.perm, subPath: schema.perm }
+      volumes:
+        - name: permify-schema
+          configMap: { name: permify-schema }
+---
+# Temporal is the shared cluster-wide instance — "lanai" needs its own
+# Temporal namespace (Temporal's own tenancy concept) registered on it so
+# workflows don't land in "default" alongside every other app. Idempotent:
+# skips registration if the namespace already exists.
+apiVersion: batch/v1
+kind: Job
+metadata: { name: temporal-namespace-register }
+spec:
+  backoffLimit: 30
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: temporal-namespace-register
+          image: temporalio/admin-tools:1.26.2
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              tctl --address temporal-frontend.temporal.svc.cluster.local:7233 namespace describe lanai >/dev/null 2>&1 \
+                || tctl --address temporal-frontend.temporal.svc.cluster.local:7233 namespace register --retention 3 lanai

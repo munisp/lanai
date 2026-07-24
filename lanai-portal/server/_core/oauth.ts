@@ -15,6 +15,18 @@ function queryString(req: Request, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+// Express only populates req.cookies when the cookie-parser middleware is
+// registered, which this app doesn't use — every other cookie read in this
+// codebase (see authMiddleware.ts) parses req.headers.cookie manually.
+function readCookie(req: Request, name: string): string | undefined {
+  const cookieHeader = req.headers.cookie ?? "";
+  const match = cookieHeader
+    .split(";")
+    .map((c) => c.trim())
+    .find((c) => c.startsWith(`${name}=`));
+  return match ? match.slice(name.length + 1) : undefined;
+}
+
 function safeReturnTo(value: string | undefined): string {
   if (!value || !value.startsWith("/") || value.startsWith("//")) return "/";
   return value;
@@ -45,7 +57,7 @@ export function registerOAuthRoutes(app: Express) {
   app.get("/api/oauth/callback", async (req: Request, res: Response) => {
     const code = queryString(req, "code");
     const state = queryString(req, "state");
-    const stateCookie = req.cookies?.[OIDC_STATE_COOKIE] as string | undefined;
+    const stateCookie = readCookie(req, OIDC_STATE_COOKIE);
     if (!code || !state || !stateCookie || state !== stateCookie) {
       res.status(400).json({ error: "Invalid OIDC callback state" });
       return;

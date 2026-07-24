@@ -1,0 +1,78 @@
+# Mirrors config/caddy/Caddyfile's host/path routing (Caddy's edge role — TLS,
+# routing across lanai.upi.dev and its subdomains — is replaced in-cluster by
+# this cluster-wide APISIX Ingress Controller + cert-manager). There's no
+# in-namespace WAF/routing hop here (unlike the original design) — this
+# cluster's ingress (appsec-apisix-prod) already has openappsec attached, so
+# routes go directly to lanai-portal/lanai-ai-gateway/keycloak.
+#
+# NOTE: no plugins are applied on any rule below. An earlier version used
+# the request-id plugin on most rules, which broke ALL of them — this
+# shared cluster APISIX instance doesn't have that plugin in its allowlist,
+# and ApisixRoute sync fails for the entire object (all rules together) if
+# any single rule references an unsupported plugin ("unknown plugin
+# [request-id]" in the ingress controller logs). Confirm a plugin is
+# actually available on this instance before adding one back — the
+# per-route rate-limiting that used to live in
+# config/apisix/routes/lanai-routes.yaml (30/15min on oauth, 100/min on the
+# Stripe webhook, 1000/hr on the public api host, etc.) was never ported
+# over either, for the same reason.
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: lanai-web
+  namespace: lanai
+spec:
+  ingressClassName: apisix
+  http:
+    - name: portal-hosts
+      priority: 0
+      match:
+        hosts:
+          - lanai.upi.dev
+          - www.lanai.upi.dev
+          - admin.lanai.upi.dev
+          - inbox.lanai.upi.dev
+          - member.lanai.upi.dev
+        paths:
+          - /*
+      backends:
+        - serviceName: lanai-portal
+          servicePort: 3001
+
+    - name: auth-host
+      priority: 0
+      match:
+        hosts:
+          - auth.lanai.upi.dev
+        paths:
+          - /*
+      backends:
+        - serviceName: keycloak
+          servicePort: 8080
+
+    - name: api-host-ai-gateway
+      priority: 10
+      match:
+        hosts:
+          - api.lanai.upi.dev
+        paths:
+          - /internal/ai/*
+      backends:
+        - serviceName: lanai-ai-gateway
+          servicePort: 8100
+      plugins:
+        - name: proxy-rewrite
+          enable: true
+          config:
+            regex_uri: ["^/internal/ai/(.*)", "/$1"]
+
+    - name: api-host-default
+      priority: 0
+      match:
+        hosts:
+          - api.lanai.upi.dev
+        paths:
+          - /*
+      backends:
+        - serviceName: lanai-portal
+          servicePort: 3001

@@ -19,12 +19,12 @@ export default function ChatwootWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [config, setConfig] = useState<{ enabled: boolean; siteScriptId: string } | null>(null);
 
-  const { data: envConfig } = (trpc as any).system.env.useQuery();
+  const { data: envConfig } = trpc.system.env.useQuery();
 
   useEffect(() => {
     // Load config from system env or try to fetch from API
-    if ((envConfig as any)?.chatwootEnabled) {
-      setConfig({ enabled: true, siteScriptId: (envConfig as any).chatwootSiteScriptId ?? "" });
+    if (envConfig?.chatwootEnabled) {
+      setConfig({ enabled: true, siteScriptId: envConfig.chatwootSiteScriptId ?? "" });
     }
   }, [envConfig]);
 

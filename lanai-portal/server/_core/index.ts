@@ -84,6 +84,14 @@ async function startServer() {
       origin: (origin, callback) => {
         // Allow same-origin requests (no origin header)
         if (!origin) return callback(null, true);
+        // ALLOWED_ORIGINS=* reflects any request origin back instead of a
+        // literal "*" header, so it still works with credentials:true
+        // (browsers reject a literal wildcard alongside credentials).
+        // Temporary escape hatch — anyone with this set can be attacked via
+        // any site the logged-in user visits, since credentialed requests
+        // from any origin get allowed. Take it out once real ingress/DNS
+        // access replaces ad-hoc port-forward verification.
+        if (allowedOrigins.includes("*")) return callback(null, true);
         if (allowedOrigins.includes(origin)) return callback(null, true);
         callback(new Error(`CORS: origin ${origin} not allowed`));
       },

@@ -24,6 +24,10 @@ build/
 .env
 .env.local
 .env.*.local
+config/k8s/secrets/.env.secrets
+
+# Local dev override (host port mappings etc.) — not for production compose
+docker-compose.override.yml
 
 # OS
 .DS_Store

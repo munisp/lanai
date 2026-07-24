@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { fetchClients, timeAgo, type CRMPerson } from "@/lib/crmApi";
+import { trpc } from "@/lib/trpc";
 
 export default function ClientsPage() {
   const [search, setSearch] = useState("");
@@ -15,8 +16,13 @@ export default function ClientsPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { data: envConfig } = trpc.system.env.useQuery();
 
   const load = useCallback(async () => {
+    if (!envConfig?.crmEnabled) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -28,9 +34,9 @@ export default function ClientsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [envConfig?.crmEnabled]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (envConfig !== undefined) load(); }, [load, envConfig]);
 
   const filtered = clients.filter(c => {
     const q = search.toLowerCase();

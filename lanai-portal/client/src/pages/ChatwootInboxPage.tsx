@@ -267,10 +267,14 @@ export default function ChatwootInboxPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { data: conversations = [], isLoading: loadingConvs, refetch } = trpc.chatwoot.listConversations.useQuery();
+  const { data: envConfig } = trpc.system.env.useQuery();
+  const { data: conversations = [], isLoading: loadingConvs, refetch } = trpc.chatwoot.listConversations.useQuery(
+    undefined,
+    { enabled: !!envConfig?.chatwootEnabled }
+  );
   const { data: messages = [], isLoading: loadingMessages } = trpc.chatwoot.getMessages.useQuery(
     { conversationId: selectedConvId ?? 0 },
-    { enabled: selectedConvId !== null }
+    { enabled: selectedConvId !== null && !!envConfig?.chatwootEnabled }
   );
 
   const sendMutation = trpc.chatwoot.sendMessage.useMutation({

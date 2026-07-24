@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ENV } from "./env";
 import { notifyOwner } from "./notification";
 import { adminProcedure, publicProcedure, router } from "./trpc";
 
@@ -12,6 +13,14 @@ export const systemRouter = router({
     .query(() => ({
       ok: true,
     })),
+
+  // Public, non-secret runtime config the client needs before any auth check
+  // (e.g. ChatwootWidget renders on the pre-login screen too).
+  env: publicProcedure.query(() => ({
+    chatwootEnabled: Boolean(ENV.chatwootUrl && ENV.chatwootSiteScriptId),
+    chatwootSiteScriptId: ENV.chatwootSiteScriptId,
+    crmEnabled: Boolean(ENV.twentyCrmUrl && ENV.twentyCrmApiToken),
+  })),
 
   notifyOwner: adminProcedure
     .input(

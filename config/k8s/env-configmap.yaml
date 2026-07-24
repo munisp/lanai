@@ -1,0 +1,12 @@
+# Non-sensitive values shared across multiple workloads. Everything
+# credential/token-shaped lives in the lanai-secrets Secret instead
+# (see kustomization.yaml's secretGenerator).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lanai-env
+data:
+  LANAI_DOMAIN: "lanai.upi.dev"
+  OLLAMA_MODEL: "qwen2.5:3b"
+  OLLAMA_NUM_THREADS: "4"
+  OLLAMA_CONTEXT_WINDOW: "4096"

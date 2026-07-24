@@ -36,12 +36,15 @@ export default function WhatsAppPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [replyText, setReplyText] = useState("");
   const [drafting, setDrafting] = useState(false);
+  const { data: envConfig } = trpc.system.env.useQuery();
   const {
     data: conversations = [],
     isLoading,
     error,
     refetch,
-  } = trpc.chatwoot.listConversations.useQuery();
+  } = trpc.chatwoot.listConversations.useQuery(undefined, {
+    enabled: !!envConfig?.chatwootEnabled,
+  });
   const selected = useMemo(
     () =>
       (conversations as Conversation[]).find(

@@ -1,0 +1,90 @@
+# Stateful backing services. Single replica each (matches docker-compose);
+# `strategy: Recreate` is required on every Deployment mounting a
+# ReadWriteOnce PVC so the old pod releases the volume before the new one
+# claims it. Bump PVC sizes for real workloads — these are conservative
+# starting points. storageClassName is intentionally omitted so PVCs use
+# kasi-cluster's default StorageClass — if pods stay Pending on "no
+# persistent volumes available" or similar, run `kubectl get storageclass`
+# and add an explicit `storageClassName:` to each PVC in this file (and in
+# platform-tier.yaml / gateway.yaml) matching whatever's actually there.
+
+# ---------------------------------------------------------------- postgres --
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  labels: { app: postgres }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: postgres } }
+  template:
+    metadata: { labels: { app: postgres } }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16.6-bookworm
+          ports: [{ containerPort: 5432 }]
+          env:
+            - { name: POSTGRES_USER, value: "lanai" }
+            - { name: POSTGRES_DB, value: "lanai" }
+            # rook-ceph-block PVCs mount with a `lost+found` dir at the root
+            # (normal ext4 behavior on a fresh filesystem) — initdb refuses
+            # to initialize into a non-empty directory, so PGDATA needs to
+            # be a subdirectory of the mount, not the mount root itself.
+            - { name: PGDATA, value: "/var/lib/postgresql/data/pgdata" }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: POSTGRES_PASSWORD } }
+            - name: KEYCLOAK_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: KEYCLOAK_DB_PASSWORD } }
+            - name: TEMPORAL_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: TEMPORAL_DB_PASSWORD } }
+            - name: CHATWOOT_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: CHATWOOT_DB_PASSWORD } }
+            - name: PERMIFY_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: PERMIFY_DB_PASSWORD } }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+            - { name: init-script, mountPath: /docker-entrypoint-initdb.d }
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "lanai", "-d", "lanai"] }
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            exec: { command: ["pg_isready", "-U", "lanai", "-d", "lanai"] }
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { cpu: 500m, memory: 1024Mi }
+      volumes:
+        - { name: data, persistentVolumeClaim: { claimName: postgres-data } }
+        - name: init-script
+          configMap: { name: postgres-init-script }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: postgres }
+spec:
+  selector: { app: postgres }
+  ports: [{ port: 5432, targetPort: 5432 }]
+
+# redis, tigerbeetle, and fluvio are NOT self-hosted here — this cluster
+# already runs shared instances (namespaces `redis`, `tigerbeetle`, `fluvio`),
+# wired into app-tier.yaml via their in-cluster DNS names instead.
+#
+# minio/nessie (lakehouse storage/catalog) are intentionally not deployed —
+# current scope is lanai-portal + postgres + keycloak + permify only. See
+# git history to bring them back alongside trino/lakehouse-ingest/ollama.

@@ -21,8 +21,26 @@ import {
   CheckSquare,
   MessageSquare,
   RefreshCw,
+  Palmtree,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+function LogoMark({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-center rounded-md flex-shrink-0",
+        className,
+      )}
+      style={{ background: "oklch(0.72 0.13 85)" }}
+    >
+      <Palmtree
+        className="w-[60%] h-[60%]"
+        style={{ color: "oklch(0.18 0.06 145)" }}
+      />
+    </div>
+  );
+}
 
 const NAV_ITEMS = [
   // Overview
@@ -132,11 +150,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           collapsed && "justify-center px-3",
         )}
       >
-        <img
-          src="/manus-storage/lanai_logo_mark_81fa1679.png"
-          alt="Lanai"
-          className="w-8 h-8 object-contain flex-shrink-0"
-        />
+        <LogoMark className="w-8 h-8" />
         {!collapsed && (
           <div className="animate-fade-in">
             <div
@@ -220,15 +234,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         )}
         style={{ background: "oklch(0.18 0.06 145)" }}
       >
-        {/* Subtle texture overlay */}
-        <div
-          className="absolute inset-0 opacity-10 pointer-events-none"
-          style={{
-            backgroundImage: `url(/manus-storage/lanai_sidebar_texture_e855e839.jpg)`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
-        />
         <div className="relative z-10 flex flex-col h-full">
           <SidebarContent />
         </div>
@@ -280,11 +285,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
-            <img
-              src="/manus-storage/lanai_logo_mark_81fa1679.png"
-              alt="Lanai"
-              className="w-6 h-6 object-contain"
-            />
+            <LogoMark className="w-6 h-6" />
             <span
               className="font-semibold text-sm"
               style={{ fontFamily: "'Playfair Display', serif" }}

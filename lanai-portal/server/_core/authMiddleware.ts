@@ -12,7 +12,7 @@ import { getMemberSessionByToken, getMemberById } from "../db";
 const MEMBER_COOKIE = "lanai_member_session";
 
 /**
- * Require an authenticated advisor (Manus OAuth session).
+ * Require an authenticated advisor (Keycloak OAuth session).
  * Returns 401 if the caller is not a signed-in advisor.
  */
 export async function requireAdvisorAuth(

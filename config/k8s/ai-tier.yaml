@@ -1,0 +1,151 @@
+# Local CPU inference stack — mirrors docker-compose's ollama / ollama-model-init /
+# lanai-ai-gateway services. This is what AI_GATEWAY_URL in app-tier.yaml actually
+# points at now (http://lanai-ai-gateway:8100); until this file existed that env var
+# was set but nothing was listening, so every AI-backed feature (morning briefing,
+# proposals, client intelligence, WhatsApp drafting) 503'd at the network layer.
+#
+# Resource requests/limits below are a starting guess for a 3B-parameter model at
+# Q4 quantization (~2-3GB on disk, wants ~3-4GB RAM resident) — if the ollama pod
+# gets OOMKilled or stays Pending on insufficient node resources, adjust to match
+# whatever the kasi-cluster node pool actually has free.
+
+# ----------------------------------------------------------------- ollama --
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  labels: { app: ollama }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: ollama } }
+  template:
+    metadata: { labels: { app: ollama } }
+    spec:
+      containers:
+        - name: ollama
+          image: ollama/ollama:0.6.2
+          ports: [{ containerPort: 11434 }]
+          env:
+            - { name: OLLAMA_NUM_PARALLEL, value: "1" }
+            - { name: OLLAMA_MAX_LOADED_MODELS, value: "1" }
+            - { name: OLLAMA_KEEP_ALIVE, value: "15m" }
+          volumeMounts:
+            - { name: data, mountPath: /root/.ollama }
+          # ollama/ollama's image has no wget/curl — use the ollama CLI
+          # itself (the container's own entrypoint, guaranteed present) to
+          # hit the local server instead.
+          readinessProbe:
+            exec: { command: ["ollama", "list"] }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            exec: { command: ["ollama", "list"] }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests: { cpu: "1", memory: 3Gi }
+            limits: { cpu: "4", memory: 6Gi }
+      volumes:
+        - { name: data, persistentVolumeClaim: { claimName: ollama-data } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: ollama }
+spec:
+  selector: { app: ollama }
+  ports: [{ port: 11434, targetPort: 11434 }]
+
+# -------------------------------------------------------- ollama-model-init --
+# One-shot: pulls OLLAMA_MODEL into the ollama pod's PVC. Re-running this Job
+# after the model is already pulled is a fast no-op (ollama pull checks
+# existing layers first). Like db-migrate, this Job's pod template is
+# immutable once created — `kubectl delete job/ollama-model-init -n lanai`
+# before re-applying if you ever need to force a re-pull (e.g. OLLAMA_MODEL
+# changed).
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ollama-model-init
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: ollama-model-init
+          image: ollama/ollama:0.6.2
+          env:
+            - { name: OLLAMA_HOST, value: "http://ollama:11434" }
+            - name: OLLAMA_MODEL
+              valueFrom: { configMapKeyRef: { name: lanai-env, key: OLLAMA_MODEL } }
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              until ollama list >/dev/null 2>&1; do
+                echo "waiting for ollama..."; sleep 5
+              done
+              ollama pull "$OLLAMA_MODEL"
+
+# ---------------------------------------------------------- lanai-ai-gateway --
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lanai-ai-gateway
+  labels: { app: lanai-ai-gateway }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: lanai-ai-gateway } }
+  template:
+    metadata: { labels: { app: lanai-ai-gateway } }
+    spec:
+      containers:
+        - name: lanai-ai-gateway
+          image: lanai-ai-gateway
+          ports: [{ containerPort: 8100 }]
+          env:
+            - { name: OLLAMA_BASE_URL, value: "http://ollama:11434" }
+            - name: OLLAMA_MODEL
+              valueFrom: { configMapKeyRef: { name: lanai-env, key: OLLAMA_MODEL } }
+            - name: OLLAMA_NUM_THREADS
+              valueFrom: { configMapKeyRef: { name: lanai-env, key: OLLAMA_NUM_THREADS } }
+            - name: OLLAMA_CONTEXT_WINDOW
+              valueFrom: { configMapKeyRef: { name: lanai-env, key: OLLAMA_CONTEXT_WINDOW } }
+            - name: AI_GATEWAY_TOKEN
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: AI_GATEWAY_TOKEN } }
+          readinessProbe:
+            httpGet: { path: /health, port: 8100 }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet: { path: /health, port: 8100 }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            failureThreshold: 10
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 250m, memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: lanai-ai-gateway }
+spec:
+  selector: { app: lanai-ai-gateway }
+  ports: [{ port: 8100, targetPort: 8100 }]
