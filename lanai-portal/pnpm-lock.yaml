@@ -274,8 +274,8 @@ importers:
         specifier: 5.0.6
         version: 5.0.6
       '@types/google.maps':
-        specifier: ^3.65.2
-        version: 3.65.2
+        specifier: ^3.65.3
+        version: 3.65.3
       '@types/node':
         specifier: ^24.7.0
         version: 24.7.0
@@ -2376,8 +2376,8 @@ packages:
   '@types/google-protobuf@3.15.12':
     resolution: {integrity: sha512-40um9QqwHjRS92qnOaDpL7RmDK15NuZYo9HihiJRbYkMQZlWnuH8AdvbMy8/o6lgLmKbDUKa+OALCltHdbOTpQ==}
 
-  '@types/google.maps@3.65.2':
-    resolution: {integrity: sha512-e52bmOhGCQSNabFpL48iQlwJybq6rfns8NUVJ20MR7CdPlHQ2RmSCnPbJfrUYJfogrE4OiHQTZ4LXpop+eer1w==}
+  '@types/google.maps@3.65.3':
+    resolution: {integrity: sha512-tqbbx7MUtoDk+RwpZMymPDj6Skez0FhqDZNhLhS5UDmCx4D1dgP+BJOHTebiO/rhjJLa1f8te2p6mJJeFKVFOQ==}
 
   '@types/hast@3.0.5':
     resolution: {integrity: sha512-rp/ezSWaD1m44dPKICGhiskI13nVr7qTloFwDa/IYkhhf5nzwP+zIQcIJh3WIFSBOy/H1PzB40jPjMDksN4F+g==}
@@ -7181,7 +7181,7 @@ snapshots:
 
   '@types/google-protobuf@3.15.12': {}
 
-  '@types/google.maps@3.65.2': {}
+  '@types/google.maps@3.65.3': {}
 
   '@types/hast@3.0.5':
     dependencies:
