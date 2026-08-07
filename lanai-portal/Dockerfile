@@ -11,7 +11,10 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+# Limit install concurrency + Node heap so the build fits in constrained
+# (e.g. arm64/emulated) build hosts without exhausting memory.
+ENV NODE_OPTIONS=--max-old-space-size=1536
+RUN pnpm install --frozen-lockfile --child-concurrency=1 --network-concurrency=4
 
 COPY . .
 ARG VITE_APP_ID=lanai-portal

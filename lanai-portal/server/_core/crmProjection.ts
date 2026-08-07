@@ -65,7 +65,7 @@ export const CRM_FIELD_OWNERSHIP: Record<
     validUntil: "lanai_authoritative",
     selectedTier: "lanai_publish_only",
     clientFacingTotal: "lanai_publish_only",
-    currency: "lanai_publish_only",
+    lanaiCurrency: "lanai_publish_only",
   },
   trip: {
     name: "lanai_publish_only",
@@ -75,7 +75,7 @@ export const CRM_FIELD_OWNERSHIP: Record<
     startDate: "lanai_publish_only",
     endDate: "lanai_publish_only",
     totalAmount: "lanai_publish_only",
-    currency: "lanai_publish_only",
+    lanaiCurrency: "lanai_publish_only",
   },
   supplier_inquiry: {
     name: "lanai_publish_only",
@@ -90,7 +90,7 @@ export const CRM_FIELD_OWNERSHIP: Record<
     invoiceNumber: "lanai_publish_only",
     status: "lanai_authoritative",
     totalAmount: "lanai_publish_only",
-    currency: "lanai_publish_only",
+    lanaiCurrency: "lanai_publish_only",
     dueDate: "lanai_authoritative",
   },
   commission_reconciliation: {
@@ -99,12 +99,12 @@ export const CRM_FIELD_OWNERSHIP: Record<
     period: "lanai_authoritative",
     status: "lanai_authoritative",
     totalAmount: "lanai_publish_only",
-    currency: "lanai_publish_only",
+    lanaiCurrency: "lanai_publish_only",
   },
   experience_moment: {
     name: "lanai_publish_only",
     lanaiExperienceId: "lanai_authoritative",
-    type: "lanai_publish_only",
+    lanaiType: "lanai_publish_only",
     scheduledAt: "lanai_authoritative",
     status: "lanai_authoritative",
     npsScore: "lanai_publish_only",
@@ -237,7 +237,7 @@ export function travelRequestProjection(input: {
   tier?: string | null;
   status: string;
   budget?: string | number | null;
-  currency?: string | null;
+  lanaiCurrency?: string | null;
 }): Record<string, unknown> {
   return omitUndefined({
     name: `Lanai request #${input.travelRequestId}: ${text(input.destination, 120) ?? "Travel"}`,
@@ -248,7 +248,7 @@ export function travelRequestProjection(input: {
     membershipTier: text(input.tier, 32),
     lanaiRequestStatus: input.status,
     amount: numeric(input.budget),
-    currency: text(input.currency, 8),
+    lanaiCurrency: text(input.lanaiCurrency, 8),
   });
 }
 
@@ -260,7 +260,7 @@ export function proposalProjection(input: {
   validUntil?: Date | null;
   selectedTier?: string | null;
   totalPrice?: string | number | null;
-  currency?: string | null;
+  lanaiCurrency?: string | null;
 }): Record<string, unknown> {
   return omitUndefined({
     name: text(input.title, 255),
@@ -270,7 +270,7 @@ export function proposalProjection(input: {
     validUntil: isoDate(input.validUntil),
     selectedTier: text(input.selectedTier, 128),
     clientFacingTotal: numeric(input.totalPrice),
-    currency: text(input.currency, 8),
+    lanaiCurrency: text(input.lanaiCurrency, 8),
   });
 }
 
@@ -281,7 +281,7 @@ export function tripProjection(input: {
   checkIn?: Date | null;
   checkOut?: Date | null;
   totalAmount?: string | number | null;
-  currency?: string | null;
+  lanaiCurrency?: string | null;
 }): Record<string, unknown> {
   return omitUndefined({
     name: `Lanai trip #${input.bookingId}${input.destination ? `: ${text(input.destination, 120)}` : ""}`,
@@ -291,7 +291,7 @@ export function tripProjection(input: {
     startDate: isoDate(input.checkIn),
     endDate: isoDate(input.checkOut),
     totalAmount: numeric(input.totalAmount),
-    currency: text(input.currency, 8),
+    lanaiCurrency: text(input.lanaiCurrency, 8),
   });
 }
 
@@ -315,7 +315,7 @@ export function invoiceProjection(input: {
   invoiceNumber: string;
   status: string;
   totalAmount: string | number;
-  currency?: string | null;
+  lanaiCurrency?: string | null;
   dueDate?: Date | null;
   reconciliationPeriod?: string | null;
   isCommission: boolean;
@@ -327,7 +327,7 @@ export function invoiceProjection(input: {
     period: text(input.reconciliationPeriod, 7),
     status: input.status,
     totalAmount: numeric(input.totalAmount),
-    currency: text(input.currency, 8),
+    lanaiCurrency: text(input.lanaiCurrency, 8),
     dueDate: isoDate(input.dueDate),
   });
 }
@@ -357,7 +357,7 @@ export function experienceProjection(input: {
   return omitUndefined({
     name: `Lanai ${input.type.replace("_", " ")} #${input.experienceId}`,
     lanaiExperienceId: String(input.experienceId),
-    type: input.type,
+    lanaiType: input.type,
     scheduledAt: isoDate(input.scheduledAt),
     status: input.status,
     npsScore: numeric(input.npsScore),

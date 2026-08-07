@@ -387,11 +387,26 @@ export async function createChatwootMessage(
   data: InsertChatwootMessage,
 ): Promise<number> {
   const db = await getDb();
+  // Upsert on chatwootId so concurrent syncs can never create duplicate
+  // mirror rows (chatwootId is globally unique per message).
   const result = await db
     .insert(chatwootMessages)
     .values(data)
+    .onConflictDoNothing({ target: chatwootMessages.chatwootId })
     .returning({ id: chatwootMessages.id });
   return result[0]?.id ?? 0;
+}
+
+export async function getChatwootMessageByChatwootId(
+  chatwootId: string,
+): Promise<ChatwootMessage | null> {
+  const db = await getDb();
+  const results = await db
+    .select()
+    .from(chatwootMessages)
+    .where(eq(chatwootMessages.chatwootId, chatwootId))
+    .limit(1);
+  return results[0] ?? null;
 }
 
 export async function listChatwootMessages(

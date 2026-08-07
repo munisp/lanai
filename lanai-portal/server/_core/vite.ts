@@ -11,6 +11,9 @@ export async function setupVite(app: Express, server: Server) {
     middlewareMode: true,
     hmr: { server },
     allowedHosts: true as const,
+    // Preserve the proxy routes from vite.config.ts (AI pillars, CRM, etc.)
+    // which would otherwise be dropped when overriding the server options.
+    proxy: viteConfig.server?.proxy,
   };
 
   const vite = await createViteServer({

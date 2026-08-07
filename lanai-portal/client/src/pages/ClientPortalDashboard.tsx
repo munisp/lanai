@@ -32,15 +32,32 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
-import {
-  stageLabel,
-  stageColor,
-  formatCurrency,
-  type CRMOpportunity,
-} from "@/lib/crmApi";
 import MemberBillingPage from "./MemberBillingPage";
 
 type Tab = "trips" | "request" | "documents" | "messages" | "billing";
+
+type TravelRequest = {
+  id: number;
+  destination: string;
+  dates: string;
+  budget?: string | null;
+  status: string;
+  notes?: string | null;
+  createdAt?: string | Date;
+};
+
+const TRAVEL_STATUS: Record<string, { label: string; color: string }> = {
+  new: { label: "New", color: "bg-blue-50 text-blue-700" },
+  in_progress: { label: "In Progress", color: "bg-amber-50 text-amber-700" },
+  proposal_sent: { label: "Proposal Sent", color: "bg-purple-50 text-purple-700" },
+  booked: { label: "Booked", color: "bg-emerald-50 text-emerald-700" },
+  completed: { label: "Completed", color: "bg-gray-100 text-gray-600" },
+  cancelled: { label: "Cancelled", color: "bg-red-50 text-red-600" },
+};
+
+function travelStatus(t: string) {
+  return TRAVEL_STATUS[t] ?? { label: t.replace(/_/g, " "), color: "bg-gray-100 text-gray-600" };
+}
 
 export default function ClientPortalDashboard() {
   const [, navigate] = useLocation();
@@ -60,26 +77,27 @@ export default function ClientPortalDashboard() {
     },
   });
 
-  // ── Trips (member-scoped) ─────────────────────────────────────────────────
-  const { data: tripsData, isLoading: loadingTrips } =
-    trpc.memberPortal.myTrips.useQuery(undefined, { enabled: !!member });
-  const trips: CRMOpportunity[] = (tripsData?.trips ?? []) as CRMOpportunity[];
+  // ── Trips (member-scoped, Postgres-backed) ───────────────────────────────
+  const { data: trips = [], isLoading: loadingTrips } =
+    trpc.travelRequests.myRequests.useQuery(undefined, { enabled: !!member });
 
   // ── Travel request ────────────────────────────────────────────────────────
   const [reqDestination, setReqDestination] = useState("");
   const [reqDates, setReqDates] = useState("");
   const [reqBudget, setReqBudget] = useState("");
+  const [reqPax, setReqPax] = useState("1");
   const [reqNotes, setReqNotes] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
-  const submitRequestMutation = trpc.memberPortal.submitRequest.useMutation({
+  const submitRequestMutation = trpc.travelRequests.create.useMutation({
     onSuccess: () => {
       setSubmitted(true);
       setReqDestination("");
       setReqDates("");
       setReqBudget("");
+      setReqPax("1");
       setReqNotes("");
-      utils.memberPortal.myTrips.invalidate();
+      utils.travelRequests.myRequests.invalidate();
     },
   });
 
@@ -124,10 +142,10 @@ export default function ClientPortalDashboard() {
     e.preventDefault();
     submitRequestMutation.mutate({
       destination: reqDestination,
-      travelDate: reqDates || undefined,
-      budgetGBP: reqBudget ? parseInt(reqBudget.replace(/\D/g, "")) : undefined,
+      dates: reqDates || "Flexible",
+      pax: Math.max(1, Number(reqPax) || 1),
+      budget: reqBudget || undefined,
       notes: reqNotes || undefined,
-      origin: window.location.origin,
     });
   };
 
@@ -283,31 +301,19 @@ export default function ClientPortalDashboard() {
                         </div>
                         <div>
                           <h3 className="font-semibold text-gray-900">
-                            {trip.name}
+                            {trip.destination}
                           </h3>
                           <div className="flex items-center gap-3 mt-1">
-                            {trip.closeDate && (
-                              <span className="flex items-center gap-1 text-xs text-gray-500">
-                                <Calendar className="w-3 h-3" />
-                                {new Date(trip.closeDate).toLocaleDateString(
-                                  "en-GB",
-                                  {
-                                    day: "numeric",
-                                    month: "long",
-                                    year: "numeric",
-                                  },
-                                )}
-                              </span>
-                            )}
-                            {trip.amount?.amountMicros ? (
+                            <span className="flex items-center gap-1 text-xs text-gray-500">
+                              <Calendar className="w-3 h-3" />
+                              {trip.dates}
+                            </span>
+                            {trip.budget ? (
                               <span
                                 className="text-xs font-mono font-medium"
                                 style={{ color: "oklch(0.35 0.09 145)" }}
                               >
-                                {formatCurrency(
-                                  trip.amount.amountMicros,
-                                  trip.amount.currencyCode,
-                                )}
+                                £{trip.budget}
                               </span>
                             ) : null}
                           </div>
@@ -316,15 +322,17 @@ export default function ClientPortalDashboard() {
                       <span
                         className={cn(
                           "text-xs px-2 py-0.5 rounded-full font-medium shrink-0",
-                          stageColor(trip.stage),
+                          travelStatus(trip.status).color,
                         )}
                       >
-                        {stageLabel(trip.stage)}
+                        {travelStatus(trip.status).label}
                       </span>
                     </div>
                     <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
                       <span className="text-xs text-gray-400">
-                        Your advisor is managing this request
+                        {trip.notes
+                          ? trip.notes
+                          : "Your advisor is managing this request"}
                       </span>
                       <button className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
                         View details <ChevronRight className="w-3 h-3" />
@@ -420,6 +428,20 @@ export default function ClientPortalDashboard() {
                     value={reqBudget}
                     onChange={(e) => setReqBudget(e.target.value)}
                     placeholder="e.g. 25000"
+                    className="border-gray-200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wider">
+                    Number of Travellers
+                  </label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={reqPax}
+                    onChange={(e) => setReqPax(e.target.value)}
+                    placeholder="e.g. 2"
                     className="border-gray-200"
                   />
                 </div>

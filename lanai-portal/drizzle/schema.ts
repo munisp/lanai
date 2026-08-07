@@ -224,6 +224,32 @@ export const members = pgTable(
 export type Member = typeof members.$inferSelect;
 export type InsertMember = typeof members.$inferInsert;
 
+// ─── Core: Clients (Postgres-backed) ─────────────────────────────────────────
+
+export const clients = pgTable(
+  "clients",
+  {
+    id: serial("id").primaryKey(),
+    firstName: varchar("firstName", { length: 128 }).notNull(),
+    lastName: varchar("lastName", { length: 128 }).notNull(),
+    email: varchar("email", { length: 320 }).notNull().unique(),
+    phone: varchar("phone", { length: 64 }),
+    city: varchar("city", { length: 128 }),
+    country: varchar("country", { length: 128 }),
+    company: varchar("company", { length: 255 }),
+    notes: text("notes"),
+    assignedAdvisorId: integer("assignedAdvisorId"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("clients_email_idx").on(t.email),
+    index("clients_assignedAdvisor_idx").on(t.assignedAdvisorId),
+  ],
+);
+export type Client = typeof clients.$inferSelect;
+export type InsertClient = typeof clients.$inferInsert;
+
 // ─── Core: Member Sessions ────────────────────────────────────────────────────
 
 export const memberSessions = pgTable(
@@ -1802,7 +1828,12 @@ export const chatwootMessages = pgTable(
     isTemplate: boolean("isTemplate").default(false).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
-  (t) => [index("chatwoot_msg_conversationId_idx").on(t.conversationId)],
+  (t) => [
+    index("chatwoot_msg_conversationId_idx").on(t.conversationId),
+    // A Chatwoot message id is globally unique — enforce it so concurrent
+    // syncs can never insert duplicate mirror rows.
+    uniqueIndex("chatwoot_msg_chatwootId_unique").on(t.chatwootId),
+  ],
 );
 
 export type ChatwootMessage = typeof chatwootMessages.$inferSelect;

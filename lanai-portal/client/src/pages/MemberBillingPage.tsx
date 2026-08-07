@@ -59,9 +59,9 @@ function CardBrand({ brand }: { brand: string }) {
 export default function MemberBillingPage() {
   const utils = trpc.useUtils();
 
-  const { data: subData, isLoading: subLoading } =
+  const { data: subData, isLoading: subLoading, error: subError } =
     trpc.memberPayments.getSubscription.useQuery();
-  const { data: pmData, isLoading: pmLoading } =
+  const { data: pmData, isLoading: pmLoading, error: pmError } =
     trpc.memberPayments.getPaymentMethods.useQuery();
   const { data: plansData, isLoading: plansLoading } =
     trpc.memberPayments.plans.useQuery();
@@ -91,12 +91,48 @@ export default function MemberBillingPage() {
     onError: (err) => toast.error(err.message),
   });
 
+  // Stripe may not be configured in a demo/local environment — surface a
+  // friendly notice instead of raw errors so the page never looks broken.
+  const stripeUnavailable =
+    !!subError ||
+    !!pmError ||
+    !!createCheckout.error ||
+    !!billingPortal.error ||
+    !!cancelSub.error;
+
   const isLoading = subLoading || pmLoading || plansLoading;
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-24">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (stripeUnavailable) {
+    return (
+      <div className="max-w-3xl mx-auto space-y-6 py-8 px-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Billing & Membership</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Manage your Lanai membership subscription and payment methods.
+          </p>
+        </div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center">
+          <ShieldCheck className="w-10 h-10 mx-auto mb-3 text-amber-500" />
+          <h2 className="text-lg font-semibold text-amber-900">
+            Online payments are not configured yet
+          </h2>
+          <p className="text-sm text-amber-800 mt-2 max-w-md mx-auto">
+            The Stripe payment gateway is not set up in this environment, so
+            subscriptions and card payments are unavailable. Please contact your
+            Lanai advisor to arrange your membership.
+          </p>
+        </div>
+        <div className="rounded-xl border border-border bg-muted/40 p-4 text-center text-xs text-muted-foreground">
+          Your membership tier and concierge services remain fully active.
+        </div>
       </div>
     );
   }

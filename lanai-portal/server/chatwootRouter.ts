@@ -14,6 +14,7 @@ import {
   getConversationsForContact,
   createConversation,
   syncConversations as syncChatwootConversations,
+  syncConversationMessages,
 } from "./chatwootService";
 import {
   createChatwootConversation,
@@ -146,7 +147,9 @@ export const chatwootRouter = router({
 
   /** Gets conversations for the authenticated member. */
   myConversations: memberProcedure.query(async ({ ctx }) => {
-    // In production: fetch from Chatwoot using member's contact ID
+    // Refresh the local mirror from Chatwoot so AI auto-replies and latest
+    // messages show up for the member.
+    await syncChatwootConversations().catch(() => {});
     const convs = await listChatwootConversations();
     return convs.filter((c) => c.memberId === ctx.member.id);
   }),
@@ -168,31 +171,43 @@ export const chatwootRouter = router({
         const remoteConversationId = Number(
           existing.chatwootId.replace(/^conv_/, ""),
         );
-        if (!Number.isInteger(remoteConversationId))
-          throw new Error(
-            "Persisted Chatwoot conversation identifier is invalid",
-          );
-        const remote = await sendMessage(
-          remoteConversationId,
-          input.content,
-          "incoming",
-        );
-        await createChatwootMessage({
-          chatwootId: `msg_${remote.messageId}`,
-          conversationId: existing.id,
-          messageType: "inbound",
-          content: input.content,
-          attachmentUrl: null,
-          isTemplate: false,
-        });
-        await updateChatwootConversation(existing.chatwootId, {
-          lastMessage: input.content,
-          updatedAt: new Date(),
-        });
-        return {
-          conversationId: existing.id,
-          chatwootConversationId: existing.chatwootId,
-        };
+        if (Number.isInteger(remoteConversationId)) {
+          try {
+            const remote = await sendMessage(
+              remoteConversationId,
+              input.content,
+              "incoming",
+            );
+            await createChatwootMessage({
+              chatwootId: `msg_${remote.messageId}`,
+              conversationId: existing.id,
+              messageType: "inbound",
+              content: input.content,
+              attachmentUrl: null,
+              isTemplate: false,
+            });
+            await updateChatwootConversation(existing.chatwootId, {
+              lastMessage: input.content,
+              updatedAt: new Date(),
+            });
+            return {
+              conversationId: existing.id,
+              chatwootConversationId: existing.chatwootId,
+            };
+          } catch (err) {
+            // The mirrored Chatwoot conversation may no longer exist remotely
+            // (e.g. Chatwoot was reset). Mark the stale local mirror resolved
+            // and fall through to create a fresh conversation.
+            console.warn(
+              "[Chatwoot] Existing conversation send failed, recreating:",
+              err instanceof Error ? err.message : err,
+            );
+            await updateChatwootConversation(existing.chatwootId, {
+              status: "resolved",
+              updatedAt: new Date(),
+            });
+          }
+        }
       }
 
       const contact = await syncContactForMember(
@@ -243,6 +258,19 @@ export const chatwootRouter = router({
       }),
     )
     .query(async ({ input }) => {
+      // Sync the full thread from Chatwoot into the local mirror so AI
+      // auto-replies appear in the member's view.
+      const conv = (await listChatwootConversations()).find(
+        (c) => c.id === input.conversationId,
+      );
+      if (conv) {
+        const remoteId = Number(conv.chatwootId.replace(/^conv_/, ""));
+        if (Number.isInteger(remoteId)) {
+          await syncConversationMessages(input.conversationId, remoteId).catch(
+            () => {},
+          );
+        }
+      }
       return listChatwootMessages(input.conversationId);
     }),
 

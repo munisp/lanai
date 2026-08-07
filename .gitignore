@@ -24,7 +24,10 @@ build/
 .env
 .env.local
 .env.*.local
-config/k8s/secrets/.env.secrets
+# The secrets file is SOPS/age-encrypted before commit — the encrypted version
+# IS tracked so it can be pushed to GitHub. Only the plaintext (after `sops -d`)
+# must never be committed.
+config/k8s/secrets/.env.secrets.plain
 
 # Local dev override (host port mappings etc.) — not for production compose
 docker-compose.override.yml
@@ -41,3 +44,11 @@ Thumbs.db
 
 # Patches (keep in repo)
 !patches/
+
+# Runtime logs
+lanai_ai/logs/
+
+# Generated presentation artifacts (source outline stays tracked)
+lanai_recommendations_presentation/*.pdf
+lanai_recommendations_presentation/*.pptx
+lanai_recommendations_presentation/*.html

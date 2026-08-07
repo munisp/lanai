@@ -15,6 +15,8 @@ import {
   DollarSign,
 } from "lucide-react";
 import { useState } from "react";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -607,6 +609,84 @@ function CommissionReconciliationDialog({
   );
 }
 
+// ─── Invoice PDF download ─────────────────────────────────────────────────────
+function downloadInvoicePdf(invoice: {
+  invoiceNumber: string;
+  invoiceType: string;
+  status: string;
+  currency: string;
+  totalAmount: string;
+  dueDate?: string | null;
+  createdAt?: string | Date;
+  notes?: string | null;
+  lineItems?: Array<{
+    description: string;
+    quantity: string;
+    unitPrice: string;
+    totalPrice: string;
+  }>;
+}) {
+  const doc = new jsPDF();
+  const currency = invoice.currency || "£";
+
+  doc.setFontSize(18);
+  doc.setFont("helvetica", "bold");
+  doc.text("Lanai Lifestyle", 14, 20);
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "normal");
+  doc.text("Invoice", 14, 28);
+  doc.setFontSize(10);
+  doc.text(
+    `${invoice.invoiceType === "commission" ? "Commission" : "Client"} Invoice`,
+    14,
+    34,
+  );
+  doc.text(`Invoice #: ${invoice.invoiceNumber}`, 14, 42);
+  doc.text(`Status: ${invoice.status}`, 14, 48);
+  doc.text(
+    `Issued: ${invoice.createdAt ? new Date(invoice.createdAt).toLocaleDateString("en-GB") : "—"}`,
+    14,
+    54,
+  );
+  if (invoice.dueDate)
+    doc.text(
+      `Due: ${new Date(invoice.dueDate).toLocaleDateString("en-GB")}`,
+      14,
+      60,
+    );
+
+  const lineItems = invoice.lineItems ?? [];
+  autoTable(doc, {
+    startY: 70,
+    head: [["Description", "Qty", "Unit Price", "Total"]],
+    body: lineItems.map((li) => [
+      li.description,
+      li.quantity,
+      `${currency}${li.unitPrice}`,
+      `${currency}${li.totalPrice}`,
+    ]),
+    theme: "striped",
+    headStyles: { fillColor: [35, 90, 65] },
+  });
+
+  const finalY = (doc as unknown as { lastAutoTable?: { finalY: number } })
+    .lastAutoTable?.finalY ?? 70 + lineItems.length * 10;
+  doc.setFontSize(12);
+  doc.setFont("helvetica", "bold");
+  doc.text(
+    `Total: ${currency}${parseFloat(invoice.totalAmount).toLocaleString()}`,
+    14,
+    finalY + 10,
+  );
+  if (invoice.notes) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(`Notes: ${invoice.notes}`, 14, finalY + 20, { maxWidth: 180 });
+  }
+
+  doc.save(`invoice-${invoice.invoiceNumber}.pdf`);
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function InvoicingPage() {
   const [search, setSearch] = useState("");
@@ -907,7 +987,19 @@ export default function InvoicingPage() {
                       <CheckCircle className="w-3.5 h-3.5" /> Mark as Paid
                     </Button>
                   )}
-                  <Button variant="outline" size="sm" className="gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() =>
+                      viewingInvoice &&
+                      downloadInvoicePdf(
+                        viewingInvoice as unknown as Parameters<
+                          typeof downloadInvoicePdf
+                        >[0],
+                      )
+                    }
+                  >
                     <Download className="w-3.5 h-3.5" /> Download PDF
                   </Button>
                 </div>

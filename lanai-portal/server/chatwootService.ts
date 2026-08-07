@@ -15,6 +15,7 @@ import {
   listChatwootConversations,
   createChatwootMessage,
   listChatwootMessages,
+  getChatwootMessageByChatwootId,
   getMemberByEmail,
 } from "./db";
 import type {
@@ -232,13 +233,12 @@ export async function createConversation(
   content: string,
   messageType: "incoming" | "outgoing" = "incoming",
 ): Promise<{ conversationId: number; messageId: number }> {
-  const res = await chatwootRequest(`/contacts/${contactId}/conversations`, {
+  const res = await chatwootRequest(`/conversations`, {
     method: "POST",
     body: JSON.stringify({
+      contact_id: contactId,
       inbox_id: inboxId,
-      content,
-      message_type: messageType,
-      private: false,
+      message: { content },
     }),
   });
   const data = (await res.json()) as { id: number; messages: { id: number }[] };
@@ -313,14 +313,17 @@ export async function syncConversations(): Promise<number> {
 
       // Sync messages
       if (lastMsg) {
+        const isIncoming =
+          lastMsg.message_type === "incoming" ||
+          lastMsg.message_type === 0 ||
+          lastMsg.message_type === "0";
         await createChatwootMessage({
           chatwootId: `msg_${lastMsg.id}`,
           conversationId:
             existing?.id ??
             (await getChatwootConversationByChatwootId(localChatwootId))?.id ??
             0,
-          messageType:
-            lastMsg.message_type === "incoming" ? "inbound" : "outbound",
+          messageType: isIncoming ? "inbound" : "outbound",
           content: lastMsg.content,
           attachmentUrl: lastMsg.attachments?.[0]?.file_url ?? null,
           isTemplate: lastMsg.content_type === "template",
@@ -335,6 +338,46 @@ export async function syncConversations(): Promise<number> {
 }
 
 // ── Messaging ───────────────────────────────────────────────────────────────
+
+/**
+ * Syncs the full message thread of a single Chatwoot conversation into the
+ * local mirror. Used by the member portal so AI auto-replies (and any other
+ * outbound messages) posted directly to Chatwoot appear in the member's view.
+ * Idempotent — existing messages are skipped by chatwootId.
+ */
+export async function syncConversationMessages(
+  localConversationId: number,
+  chatwootConversationId: number,
+): Promise<number> {
+  const res = await chatwootRequest(
+    `/conversations/${chatwootConversationId}/messages`,
+  );
+  const data = (await res.json()) as { payload: ChatwootApiMessage[] };
+  const messages = data.payload ?? [];
+
+  let synced = 0;
+  for (const msg of messages) {
+    const chatwootId = `msg_${msg.id}`;
+    const existing = await getChatwootMessageByChatwootId(chatwootId);
+    if (existing) continue;
+    // Chatwoot's messages API returns message_type as an integer (0=incoming,
+    // 1=outgoing) while webhooks use the string form — handle both.
+    const isIncoming =
+      msg.message_type === "incoming" ||
+      msg.message_type === 0 ||
+      msg.message_type === "0";
+    await createChatwootMessage({
+      chatwootId,
+      conversationId: localConversationId,
+      messageType: isIncoming ? "inbound" : "outbound",
+      content: msg.content ?? "",
+      attachmentUrl: msg.attachments?.[0]?.file_url ?? null,
+      isTemplate: msg.content_type === "template",
+    });
+    synced++;
+  }
+  return synced;
+}
 
 /**
  * Sends a message on an existing conversation.

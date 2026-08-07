@@ -26,6 +26,11 @@ import type { Express, Request, Response } from "express";
 export function createStripeClient(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) throw new Error("STRIPE_SECRET_KEY is not configured");
+  if (key.includes("...") || key.length < 20) {
+    throw new Error(
+      "STRIPE_SECRET_KEY looks like a placeholder. Set a real Stripe test key (sk_test_...) in the .env file to enable payments.",
+    );
+  }
 
   const endpointOverride = process.env.STRIPE_API_BASE_URL;
   const options: Stripe.StripeConfig = { apiVersion: "2026-06-24.dahlia" };

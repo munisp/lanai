@@ -5,6 +5,10 @@
 # cluster's ingress (appsec-apisix-prod) already has openappsec attached, so
 # routes go directly to lanai-portal/lanai-ai-gateway/keycloak.
 #
+# Domains: the demo/end-user domain is lanai.newfire.app (dot subdomains,
+# matching the cluster convention used by sibling apps such as 54agent).
+# The legacy lanai.upi.dev hosts are kept for backward compatibility.
+#
 # NOTE: no plugins are applied on any rule below. An earlier version used
 # the request-id plugin on most rules, which broke ALL of them — this
 # shared cluster APISIX instance doesn't have that plugin in its allowlist,
@@ -33,6 +37,11 @@ spec:
           - admin.lanai.upi.dev
           - inbox.lanai.upi.dev
           - member.lanai.upi.dev
+          - lanai.newfire.app
+          - www.lanai.newfire.app
+          - admin.lanai.newfire.app
+          - inbox.lanai.newfire.app
+          - member.lanai.newfire.app
         paths:
           - /*
       backends:
@@ -44,6 +53,7 @@ spec:
       match:
         hosts:
           - auth.lanai.upi.dev
+          - auth.lanai.newfire.app
         paths:
           - /*
       backends:
@@ -55,6 +65,7 @@ spec:
       match:
         hosts:
           - api.lanai.upi.dev
+          - api.lanai.newfire.app
         paths:
           - /internal/ai/*
       backends:
@@ -66,11 +77,24 @@ spec:
           config:
             regex_uri: ["^/internal/ai/(.*)", "/$1"]
 
+    - name: api-host-whatsapp-webhook
+      priority: 10
+      match:
+        hosts:
+          - api.lanai.upi.dev
+          - api.lanai.newfire.app
+        paths:
+          - /webhook/whatsapp
+      backends:
+        - serviceName: lanai-whatsapp-bridge
+          servicePort: 5555
+
     - name: api-host-default
       priority: 0
       match:
         hosts:
           - api.lanai.upi.dev
+          - api.lanai.newfire.app
         paths:
           - /*
       backends:

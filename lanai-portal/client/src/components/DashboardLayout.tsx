@@ -22,8 +22,10 @@ import {
   MessageSquare,
   RefreshCw,
   Palmtree,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 function LogoMark({ className }: { className?: string }) {
   return (
@@ -138,6 +140,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { logout } = useAuth();
 
   const groups = Array.from(new Set(NAV_ITEMS.map((i) => i.group)));
 
@@ -220,6 +223,20 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
         )}
       </div>
+
+      {/* Logout */}
+      <button
+        onClick={() => logout()}
+        className={cn(
+          "flex items-center gap-3 w-full px-5 py-3 border-t border-sidebar-border",
+          "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors",
+          collapsed && "justify-center px-3",
+        )}
+        title="Log out"
+      >
+        <LogOut className="w-5 h-5 flex-shrink-0" />
+        {!collapsed && <span className="text-sm">Log out</span>}
+      </button>
     </div>
   );
 
@@ -293,6 +310,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               Lanai Lifestyle
             </span>
           </div>
+          <button
+            onClick={() => logout()}
+            className="ml-auto p-1.5 rounded-md hover:bg-muted transition-colors"
+            title="Log out"
+          >
+            <LogOut className="w-5 h-5" />
+          </button>
         </header>
 
         {/* Page Content */}

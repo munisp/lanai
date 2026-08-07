@@ -107,7 +107,9 @@ function FrequentFlyerSection({ memberId }: { memberId: number }) {
     data: profileData,
     isLoading,
     refetch,
-  } = trpc.memberProfile.get.useQuery({ memberId });
+  } = trpc.memberProfile.myProfile.useQuery(undefined, {
+    enabled: memberId > 0,
+  });
   const ffNumbers =
     (
       profileData as {
@@ -119,7 +121,7 @@ function FrequentFlyerSection({ memberId }: { memberId: number }) {
   const [number, setNumber] = useState("");
   const [tier, setTier] = useState("");
 
-  const upsertProfile = trpc.memberProfile.upsert.useMutation({
+  const upsertProfile = trpc.memberProfile.updateMe.useMutation({
     onSuccess: () => {
       toast.success("FF number added");
       setAdding(false);
@@ -133,7 +135,7 @@ function FrequentFlyerSection({ memberId }: { memberId: number }) {
     const updated = ffNumbers.filter(
       (_: { airline: string; number: string }, i: number) => i !== id,
     );
-    upsertProfile.mutate({ memberId, frequentFlyerNumbers: updated });
+    upsertProfile.mutate({ frequentFlyerNumbers: updated });
   };
 
   return (
@@ -202,7 +204,6 @@ function FrequentFlyerSection({ memberId }: { memberId: number }) {
                   style={{ background: "oklch(0.35 0.09 145)" }}
                   onClick={() =>
                     upsertProfile.mutate({
-                      memberId,
                       frequentFlyerNumbers: [
                         ...ffNumbers,
                         { airline: program, number },
@@ -245,7 +246,9 @@ function FamilySection({ memberId }: { memberId: number }) {
     data: family,
     isLoading,
     refetch,
-  } = trpc.familyMembers.list.useQuery({ memberId });
+  } = trpc.familyMembers.myFamily.useQuery(undefined, {
+    enabled: memberId > 0,
+  });
   const [adding, setAdding] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -254,14 +257,14 @@ function FamilySection({ memberId }: { memberId: number }) {
   const [dietary, setDietary] = useState("");
   const [passportExpiry, setPassportExpiry] = useState("");
 
-  const add = trpc.familyMembers.add.useMutation({
+  const add = trpc.familyMembers.addMine.useMutation({
     onSuccess: () => {
       toast.success("Family member added");
       setAdding(false);
       refetch();
     },
   });
-  const remove = trpc.familyMembers.remove.useMutation({
+  const remove = trpc.familyMembers.removeMine.useMutation({
     onSuccess: () => {
       toast.success("Removed");
       refetch();
@@ -401,7 +404,6 @@ function FamilySection({ memberId }: { memberId: number }) {
                   style={{ background: "oklch(0.35 0.09 145)" }}
                   onClick={() =>
                     add.mutate({
-                      memberId,
                       name: `${firstName} ${lastName}`.trim(),
                       relationship,
                       dateOfBirth: dob || undefined,
@@ -499,15 +501,16 @@ function InvoicesSection({ memberId: _memberId }: { memberId: number }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function MemberPortalEnhancedPage() {
-  const { data: session } = trpc.auth.me.useQuery();
-  const memberId =
-    (session as { member?: { id: number } } | null)?.member?.id ?? 0;
+  const { data: member } = trpc.memberAuth.me.useQuery();
+  const memberId = member?.id ?? 0;
 
   const {
     data: profile,
     isLoading,
     refetch,
-  } = trpc.memberProfile.get.useQuery({ memberId }, { enabled: memberId > 0 });
+  } = trpc.memberProfile.myProfile.useQuery(undefined, {
+    enabled: memberId > 0,
+  });
   const [editing, setEditing] = useState(false);
 
   // Editable fields
@@ -523,7 +526,7 @@ export default function MemberPortalEnhancedPage() {
   const [conciergeNotes, setConciergeNotes] = useState("");
   const [roomPreferences, setRoomPreferences] = useState("");
 
-  const updateProfile = trpc.memberProfile.upsert.useMutation({
+  const updateProfile = trpc.memberProfile.updateMe.useMutation({
     onSuccess: () => {
       toast.success("Profile updated");
       setEditing(false);
@@ -534,7 +537,6 @@ export default function MemberPortalEnhancedPage() {
 
   const handleSave = () => {
     updateProfile.mutate({
-      memberId,
       dateOfBirth: dateOfBirth || undefined,
       passportExpiry: passportExpiry || undefined,
       dietaryRequirements: dietaryRequirements

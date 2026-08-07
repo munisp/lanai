@@ -18,6 +18,7 @@ import { sendInvitationEmail } from "./email";
 import { memberPaymentsRouter } from "./stripeRouter";
 import { chatwootRouter } from "./chatwootRouter";
 import { crmSyncRouter } from "./crmSyncRouter";
+import { clientsRouter } from "./clientsRouter";
 import { syncContactForMember } from "./chatwootService";
 import { dispatchOutboxBatch, enqueueDomainEvent } from "./_core/outbox";
 import {
@@ -519,6 +520,9 @@ export const appRouter = router({
     }),
   }),
 
+  // ── Advisor: client management (Postgres) ───────────────────────────────────
+  clients: clientsRouter,
+
   // ── Advisor: member management ──────────────────────────────────────────────
   members: router({
     /** List all members — any advisor can view. */
@@ -530,12 +534,86 @@ export const appRouter = router({
         name: m.name,
         tier: m.tier,
         crmPersonId: m.crmPersonId,
+        phone: m.phone,
+        nationality: m.nationality,
         onboardingComplete: m.onboardingComplete,
         active: m.active,
         createdAt: m.createdAt,
         lastSignedIn: m.lastSignedIn,
       }));
     }),
+
+    /**
+     * Create a member record directly in Postgres.
+     * The member can then be invited to set a PIN / onboard via the portal.
+     */
+    create: protectedProcedure
+      .input(
+        z.object({
+          email: z.string().email(),
+          name: z.string().min(1).max(255),
+          tier: z.enum(["platinum", "gold", "silver"]).default("gold"),
+          phone: z.string().max(64).optional(),
+          nationality: z.string().max(128).optional(),
+          assignedAdvisorId: z.number().int().positive().optional(),
+          origin: z.string().url("Must pass window.location.origin"),
+        }),
+      )
+      .mutation(async ({ input, ctx }) => {
+        const existing = await getMemberByEmail(input.email.toLowerCase());
+        if (existing) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "A member with this email already exists.",
+          });
+        }
+        const memberId = await createMember({
+          email: input.email,
+          name: input.name,
+          tier: input.tier,
+          phone: input.phone ?? null,
+          nationality: input.nationality ?? null,
+          assignedAdvisorId: input.assignedAdvisorId ?? ctx.user.id,
+          onboardingComplete: false,
+          active: true,
+        });
+        if (!memberId) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Member could not be created.",
+          });
+        }
+        // Create an invitation so the member can set a PIN and log in.
+        const token = nanoid(64);
+        const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
+        await createInvitation({
+          token,
+          email: input.email.toLowerCase(),
+          name: input.name,
+          tier: input.tier,
+          crmPersonId: undefined,
+          invitedByUserId: ctx.user.id,
+          accepted: false,
+          expiresAt,
+        });
+        const inviteUrl = `${input.origin}/client/onboard?token=${token}`;
+        await enqueueDomainEvent({
+          aggregateType: "member",
+          aggregateId: memberId,
+          eventType: "created",
+          payload: {
+            memberId,
+            tier: input.tier,
+            email: input.email.toLowerCase(),
+            source: "advisor_manual",
+          },
+          idempotencyKey: `member:${memberId}:created:${Date.now()}`,
+        });
+        void dispatchOutboxBatch().catch((error) =>
+          console.error("[Outbox] Member create dispatch failed", error),
+        );
+        return { id: memberId, inviteUrl };
+      }),
 
     /**
      * Invite a new member by email.
@@ -553,10 +631,18 @@ export const appRouter = router({
         }),
       )
       .mutation(async ({ input, ctx }) => {
-        // Auto-link CRM person if not provided
+        // Auto-link CRM person if not provided (best-effort — never block the
+        // invitation if the CRM is unreachable or unconfigured).
         let crmPersonId = input.crmPersonId ?? null;
         if (!crmPersonId) {
-          crmPersonId = await lookupCrmPersonByEmail(input.email);
+          try {
+            crmPersonId = await lookupCrmPersonByEmail(input.email);
+          } catch (crmErr) {
+            console.warn(
+              "[Invite] CRM person lookup skipped:",
+              crmErr instanceof Error ? crmErr.message : crmErr,
+            );
+          }
         }
 
         const token = nanoid(64);

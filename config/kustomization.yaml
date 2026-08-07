@@ -74,7 +74,7 @@ secretGenerator:
 images:
   - name: lanai-portal
     newName: registry.digitalocean.com/talentgraph-auth/lanai-portal
-    newTag: kasi-20260724-0755
+    newTag: 0.0.1
   - name: lanai-ai-gateway
     newName: registry.digitalocean.com/talentgraph-auth/lanai-ai-gateway
     newTag: kasi-20260724-0755

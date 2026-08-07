@@ -182,12 +182,12 @@ export const memberProfileRouter = router({
     .input(z.object({ memberId: z.number().int().positive() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      const yearStart = new Date(new Date().getFullYear(), 0, 1);
+      const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString();
       const [invoiceTotals] = await db
         .select({
-          clientInvoicedRevenue: sql<string>`coalesce(sum(case when ${invoices.invoiceType} = 'client_service' and ${invoices.status} in ('issued', 'paid') then ${invoices.totalAmount} else 0 end), 0)`,
+          clientInvoicedRevenue: sql<string>`coalesce(sum(case when ${invoices.invoiceType} = 'client_service' and ${invoices.status} in ('sent', 'paid') then ${invoices.totalAmount} else 0 end), 0)`,
           clientPaidRevenue: sql<string>`coalesce(sum(case when ${invoices.invoiceType} = 'client_service' and ${invoices.status} = 'paid' then ${invoices.totalAmount} else 0 end), 0)`,
-          annualClientRevenue: sql<string>`coalesce(sum(case when ${invoices.invoiceType} = 'client_service' and ${invoices.status} in ('issued', 'paid') and ${invoices.createdAt} >= ${yearStart} then ${invoices.totalAmount} else 0 end), 0)`,
+          annualClientRevenue: sql<string>`coalesce(sum(case when ${invoices.invoiceType} = 'client_service' and ${invoices.status} in ('sent', 'paid') and ${invoices.createdAt} >= ${yearStart} then ${invoices.totalAmount} else 0 end), 0)`,
         })
         .from(invoices)
         .where(eq(invoices.memberId, input.memberId));
@@ -315,6 +315,84 @@ export const memberProfileRouter = router({
     return profile ?? null;
   }),
 
+  /** Member: update their own extended profile */
+  updateMe: memberProcedure
+    .input(
+      z.object({
+        frequentFlyerNumbers: z
+          .array(z.object({ airline: z.string(), number: z.string() }))
+          .optional(),
+        hotelLoyaltyNumbers: z
+          .array(
+            z.object({
+              chain: z.string(),
+              number: z.string(),
+              tier: z.string().optional(),
+            }),
+          )
+          .optional(),
+        dateOfBirth: z.string().optional(),
+        passportExpiry: z.string().optional(),
+        visaExpiry: z
+          .array(z.object({ country: z.string(), expiry: z.string() }))
+          .optional(),
+        preferredPaymentMethod: z.string().optional(),
+        preferredCurrency: z.string().optional(),
+        preferredHotelBrands: z.array(z.string()).optional(),
+        roomPreferences: z.record(z.string(), z.string()).optional(),
+        seatPreference: z.string().optional(),
+        cabinClass: z.string().optional(),
+        dietaryRequirements: z.array(z.string()).optional(),
+        allergies: z.string().optional(),
+        favouriteDestinations: z.array(z.string()).optional(),
+        bucketListDestinations: z.array(z.string()).optional(),
+        travelStyle: z.array(z.string()).optional(),
+        amenityPreferences: z.array(z.string()).optional(),
+        anniversaryDate: z.string().optional(),
+        weddingAnniversaryDate: z.string().optional(),
+        personalAssistantName: z.string().optional(),
+        personalAssistantEmail: z.string().email().optional(),
+        personalAssistantPhone: z.string().optional(),
+        familyOfficeContactName: z.string().optional(),
+        familyOfficeContactEmail: z.string().email().optional(),
+        familyOfficeContactPhone: z.string().optional(),
+        securityLevel: z.enum(["standard", "enhanced", "maximum"]).optional(),
+        privacyNotes: z.string().optional(),
+        nda: z.boolean().optional(),
+        conciergeNotes: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      const memberId = ctx.member.id;
+      const { dateOfBirth, passportExpiry, ...data } = input;
+      const timestampData = {
+        ...(dateOfBirth ? { dateOfBirth: new Date(dateOfBirth) } : {}),
+        ...(passportExpiry ? { passportExpiry: new Date(passportExpiry) } : {}),
+      };
+      const existing = await db
+        .select({ id: memberProfiles.id })
+        .from(memberProfiles)
+        .where(eq(memberProfiles.memberId, memberId));
+      if (existing.length > 0) {
+        await db
+          .update(memberProfiles)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .set({
+            ...(data as any),
+            ...(timestampData as any),
+            updatedAt: new Date(),
+          })
+          .where(eq(memberProfiles.memberId, memberId));
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await db
+          .insert(memberProfiles)
+          .values({ memberId, ...(data as any), ...(timestampData as any) });
+      }
+      return { success: true, memberId };
+    }),
+
   /** Advisor: update revenue metrics for a member */
   updateRevenue: protectedProcedure
     .input(
@@ -438,6 +516,59 @@ export const familyMembersRouter = router({
       .where(eq(memberFamilyMembers.memberId, ctx.member.id))
       .orderBy(asc(memberFamilyMembers.name));
   }),
+
+  /** Member: add a family member to their own profile */
+  addMine: memberProcedure
+    .input(
+      z.object({
+        name: z.string().min(1),
+        relationship: z.string().min(1),
+        dateOfBirth: z.string().optional(),
+        passportNumber: z.string().optional(),
+        passportExpiry: z.string().optional(),
+        nationality: z.string().optional(),
+        dietaryRequirements: z.string().optional(),
+        notes: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      const [created] = await db
+        .insert(memberFamilyMembers)
+        .values({
+          ...input,
+          memberId: ctx.member.id,
+          dateOfBirth: input.dateOfBirth
+            ? new Date(input.dateOfBirth)
+            : undefined,
+          passportExpiry: input.passportExpiry
+            ? new Date(input.passportExpiry)
+            : undefined,
+        })
+        .returning();
+      return created;
+    }),
+
+  /** Member: remove one of their own family members */
+  removeMine: memberProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      const [owned] = await db
+        .select({ id: memberFamilyMembers.id })
+        .from(memberFamilyMembers)
+        .where(
+          and(
+            eq(memberFamilyMembers.id, input.id),
+            eq(memberFamilyMembers.memberId, ctx.member.id),
+          ),
+        );
+      if (!owned) return { success: false };
+      await db
+        .delete(memberFamilyMembers)
+        .where(eq(memberFamilyMembers.id, input.id));
+      return { success: true };
+    }),
 });
 
 // ─── 3. Supplier Services & Pricing Inquiries ─────────────────────────────────
@@ -1448,7 +1579,7 @@ export const communicationHubRouter = router({
     }),
 
   /** Get response time analytics */
-  responseTimeStats: adminProcedure.query(async () => {
+  responseTimeStats: protectedProcedure.query(async () => {
     const db = await getDb();
     const entries = await db
       .select({
