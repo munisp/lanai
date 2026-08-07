@@ -16,6 +16,7 @@ spec:
     - lanai.newfire.app
     - www.lanai.newfire.app
     - auth.lanai.newfire.app
+    - auth-lanai.newfire.app
     - api.lanai.newfire.app
     - admin.lanai.newfire.app
     - inbox.lanai.newfire.app

@@ -54,6 +54,7 @@ spec:
         hosts:
           - auth.lanai.upi.dev
           - auth.lanai.newfire.app
+          - auth-lanai.newfire.app
         paths:
           - /*
       backends:
