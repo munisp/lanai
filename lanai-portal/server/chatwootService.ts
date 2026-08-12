@@ -15,7 +15,8 @@ import {
   listChatwootConversations,
   createChatwootMessage,
   listChatwootMessages,
-  getMemberByEmail,
+  getChatwootMessageByChatwootId,
+  getMemberById,
 } from "./db";
 import type {
   ChatwootConfig,
@@ -111,26 +112,55 @@ export interface ChatwootThreadMessage {
 
 // ── Private helpers ─────────────────────────────────────────────────────────
 
-function getChatwootBaseUrl(): string {
-  if (ENV.chatwootUrl) return ENV.chatwootUrl;
-  throw new Error("CHATWOOT_URL is not configured");
-}
+type ResolvedChatwootConfig = {
+  instanceUrl: string;
+  accessToken: string;
+  accountId: number;
+};
 
-function getChatwootHeaders(): Record<string, string> {
-  if (!ENV.chatwootToken) throw new Error("CHATWOOT_TOKEN is not configured");
-  return {
-    "Content-Type": "application/json",
-    api_access_token: ENV.chatwootToken,
-  };
+/**
+ * Resolve one authoritative runtime configuration. The persisted integration
+ * configuration takes precedence over bootstrap environment values so an admin
+ * change is either used by every API call or explicitly rejected.
+ */
+async function resolveChatwootConfig(): Promise<ResolvedChatwootConfig> {
+  const persisted = await getChatwootConfig();
+  if (persisted && !persisted.enabled) {
+    throw new Error("Chatwoot integration is disabled");
+  }
+
+  const instanceUrl = (persisted?.instanceUrl || ENV.chatwootUrl).replace(
+    /\/$/,
+    "",
+  );
+  const accessToken = persisted?.accessToken || ENV.chatwootToken;
+  const accountId = persisted?.accountId ?? ENV.chatwootAccountId;
+
+  if (!instanceUrl) throw new Error("CHATWOOT_URL is not configured");
+  if (!accessToken) throw new Error("CHATWOOT_TOKEN is not configured");
+  if (!Number.isInteger(accountId) || accountId <= 0) {
+    throw new Error("CHATWOOT_ACCOUNT_ID must be a positive integer");
+  }
+
+  const url = new URL(instanceUrl);
+  if (ENV.isProduction && url.protocol !== "https:") {
+    throw new Error("Chatwoot requires an HTTPS instance URL in production");
+  }
+
+  return { instanceUrl, accessToken, accountId };
 }
 
 async function chatwootRequest(
   path: string,
   options: RequestInit = {},
 ): Promise<Response> {
-  const baseUrl = getChatwootBaseUrl();
-  const url = `${baseUrl}/api/v1/accounts/${ENV.chatwootAccountId}${path}`;
-  const headers = { ...getChatwootHeaders(), ...options.headers };
+  const config = await resolveChatwootConfig();
+  const url = `${config.instanceUrl}/api/v1/accounts/${config.accountId}${path}`;
+  const headers = {
+    "Content-Type": "application/json",
+    api_access_token: config.accessToken,
+    ...options.headers,
+  };
   const res = await fetch(url, { ...options, headers });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -161,8 +191,9 @@ export async function syncContactForMember(
   let created = false;
 
   try {
+    const config = await resolveChatwootConfig();
     const res = await chatwootRequest(
-      `/contacts?inbox_id=${ENV.chatwootAccountId}&identifier=${sourceId}`,
+      `/contacts?inbox_id=${config.accountId}&identifier=${sourceId}`,
     );
     const data = (await res.json()) as { payload: ChatwootContact[] };
     if (data.payload.length > 0) {
@@ -241,8 +272,26 @@ export async function createConversation(
       private: false,
     }),
   });
-  const data = (await res.json()) as { id: number; messages: { id: number }[] };
-  return { conversationId: data.id, messageId: data.messages[0]?.id ?? 0 };
+  const data = (await res.json()) as {
+    id?: unknown;
+    messages?: Array<{ id?: unknown }>;
+  };
+  const conversationId =
+    typeof data.id === "number" && Number.isInteger(data.id) && data.id > 0
+      ? data.id
+      : null;
+  const messageId =
+    typeof data.messages?.[0]?.id === "number" &&
+    Number.isInteger(data.messages[0].id) &&
+    data.messages[0].id > 0
+      ? data.messages[0].id
+      : null;
+  if (!conversationId || !messageId) {
+    throw new Error(
+      "Chatwoot conversation creation did not return conversation and message identifiers",
+    );
+  }
+  return { conversationId, messageId };
 }
 
 /**
@@ -274,9 +323,18 @@ export async function syncConversations(): Promise<number> {
       | undefined;
     if (!sourceId) continue;
 
-    const memberId = parseInt(sourceId, 10);
-    const member = await getMemberByEmail(contact.email ?? "");
-    if (!member) continue;
+    const memberId = Number.parseInt(sourceId, 10);
+    if (!Number.isInteger(memberId) || memberId <= 0) {
+      throw new Error(
+        `Chatwoot contact ${contact.id} has an invalid lanai_member_id`,
+      );
+    }
+    const member = await getMemberById(memberId);
+    if (!member) {
+      throw new Error(
+        `Chatwoot contact ${contact.id} references missing Lanai member ${memberId}`,
+      );
+    }
 
     const convRes = await chatwootRequest(
       `/contacts/${contact.id}/conversations`,
@@ -292,39 +350,45 @@ export async function syncConversations(): Promise<number> {
         await getChatwootConversationByChatwootId(localChatwootId);
       const lastMsg = conv.messages?.[conv.messages.length - 1];
 
-      if (existing) {
-        await updateChatwootConversation(localChatwootId, {
-          status: conv.status,
-          lastMessage: lastMsg?.content ?? null,
-          updatedAt: new Date(),
-        });
-      } else {
-        await createChatwootConversation({
-          chatwootId: localChatwootId,
-          memberId: member.id,
-          contactIdentifier: contact.phone_number ?? contact.email ?? "",
-          contactName: `${contact.first_name} ${contact.last_name}`,
-          contactEmail: contact.email,
-          channel: "website",
-          status: conv.status,
-          lastMessage: lastMsg?.content ?? null,
-        });
+      const localConversation = existing
+        ? await updateChatwootConversation(localChatwootId, {
+            status: conv.status,
+            lastMessage: lastMsg?.content ?? null,
+            updatedAt: new Date(),
+          })
+        : await createChatwootConversation({
+            chatwootId: localChatwootId,
+            memberId: member.id,
+            contactIdentifier: contact.phone_number ?? contact.email ?? "",
+            contactName: `${contact.first_name} ${contact.last_name}`,
+            contactEmail: contact.email,
+            channel: "website",
+            status: conv.status,
+            lastMessage: lastMsg?.content ?? null,
+          }).then(async (id) =>
+            getChatwootConversationByChatwootId(localChatwootId),
+          );
+      if (!localConversation) {
+        throw new Error(
+          `Chatwoot mirror did not persist conversation ${localChatwootId}`,
+        );
       }
 
-      // Sync messages
+      // Persist only a remote message that has not already been mirrored.
       if (lastMsg) {
-        await createChatwootMessage({
-          chatwootId: `msg_${lastMsg.id}`,
-          conversationId:
-            existing?.id ??
-            (await getChatwootConversationByChatwootId(localChatwootId))?.id ??
-            0,
-          messageType:
-            lastMsg.message_type === "incoming" ? "inbound" : "outbound",
-          content: lastMsg.content,
-          attachmentUrl: lastMsg.attachments?.[0]?.file_url ?? null,
-          isTemplate: lastMsg.content_type === "template",
-        });
+        const localMessageId = `msg_${lastMsg.id}`;
+        const mirrored = await getChatwootMessageByChatwootId(localMessageId);
+        if (!mirrored) {
+          await createChatwootMessage({
+            chatwootId: localMessageId,
+            conversationId: localConversation.id,
+            messageType:
+              lastMsg.message_type === "incoming" ? "inbound" : "outbound",
+            content: lastMsg.content,
+            attachmentUrl: lastMsg.attachments?.[0]?.file_url ?? null,
+            isTemplate: lastMsg.content_type === "template",
+          });
+        }
       }
 
       synced++;
@@ -356,8 +420,14 @@ export async function sendMessage(
       }),
     },
   );
-  const data = (await res.json()) as { id: number };
-  return { messageId: data.id };
+  const data = (await res.json()) as { id?: unknown };
+  const messageId =
+    typeof data.id === "number" && Number.isInteger(data.id) && data.id > 0
+      ? data.id
+      : null;
+  if (!messageId)
+    throw new Error("Chatwoot message send did not return a message identifier");
+  return { messageId };
 }
 
 // ── Configuration ───────────────────────────────────────────────────────────
@@ -394,14 +464,18 @@ export async function updateChatwootConfigService(
 ): Promise<ChatwootConfig | null> {
   const existing = await getChatwootConfig();
   if (!existing) {
-    await createChatwootConfig({
+    const id = await createChatwootConfig({
       instanceUrl: data.instanceUrl ?? ENV.chatwootUrl ?? "",
       accessToken: data.accessToken ?? ENV.chatwootToken ?? "",
       accountId: data.accountId ?? ENV.chatwootAccountId ?? 1,
       enabled: data.enabled ?? false,
       defaultInboxId: data.defaultInboxId,
-    }).catch(() => {});
-    return getChatwootConfig();
+    });
+    const created = await getChatwootConfig();
+    if (!created || created.id !== id) {
+      throw new Error("Chatwoot configuration was not persisted");
+    }
+    return created;
   }
   return updateChatwootConfig(existing.id, data);
 }

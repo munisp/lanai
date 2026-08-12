@@ -1,30 +1,11 @@
-import { Settings, Server, MessageCircle, Brain, Key, Bell, Headphones } from "lucide-react";
+import { Settings, Key, Headphones } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-const SERVICES = [
-  { name:"Twenty CRM",         url:"http://localhost:3000", status:"online",  icon:Server,        desc:"Core CRM platform — contacts, pipeline, tasks" },
-  { name:"WhatsApp AI Bridge", url:"http://localhost:5555", status:"online",  icon:MessageCircle, desc:"Inbound WhatsApp triage, intent detection, draft replies" },
-  { name:"Proposal Engine",    url:"http://localhost:5556", status:"online",  icon:Brain,         desc:"LLM proposal co-pilot and itinerary builder" },
-  { name:"Client Intelligence",url:"http://localhost:5557", status:"online",  icon:Brain,         desc:"Preference inference, churn risk, opportunity spotting" },
-  { name:"Morning Briefing",   url:"http://localhost:5558", status:"online",  icon:Bell,          desc:"Daily AI digest — urgent actions, opportunities, insights" },
-  { name:"Ollama LLM",         url:"http://localhost:11434",status:"online",  icon:Brain,         desc:"Local llama3.2:3b model — fully on-premise, no cloud API" },
-  { name:"Chatwoot",           url:"—",                   status:"offline",  icon:Headphones,    desc:"Omnichannel support — WhatsApp, email, web chat, SMS" },
-];
-
-const CONFIG = [
-  { key:"LLM Model",         value:"llama3.2:3b (local)",   note:"Running via Ollama — no external API keys required" },
-  { key:"CRM Backend",       value:"Twenty v0.32 (Docker)", note:"PostgreSQL + Redis on host network" },
-  { key:"WhatsApp Webhook",  value:"Port 5555",             note:"Configure in Meta Developer Console → Webhooks" },
-  { key:"Proposal Engine",   value:"Port 5556",             note:"REST API — POST /api/generate-proposal" },
-  { key:"Intelligence API",  value:"Port 5557",             note:"REST API — POST /api/client-profile, /api/churn-risk, /api/opportunity-spot" },
-  { key:"Briefing API",      value:"Port 5558",             note:"REST API — POST /api/morning-briefing" },
-];
 
 export default function SettingsPage() {
   return (
@@ -36,52 +17,14 @@ export default function SettingsPage() {
       </div>
       <hr className="lanai-divider" />
 
-      {/* Service Status */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">Service Status</h2>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {SERVICES.map(svc => {
-            const Icon = svc.icon;
-            return (
-              <div key={svc.name} className="lanai-card p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <Icon className="w-4 h-4 text-primary" />
-                    <span className="text-sm font-medium text-foreground">{svc.name}</span>
-                  </div>
-                  <span className={cn("w-2 h-2 rounded-full", svc.status === "online" ? "bg-emerald-500" : "bg-red-500")} />
-                </div>
-                <p className="text-xs text-muted-foreground">{svc.desc}</p>
-                <div className="text-xs font-mono text-muted-foreground mt-2">{svc.url}</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Configuration */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">Configuration</h2>
-        <div className="lanai-card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/40">
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-widest">Setting</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-widest">Value</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-widest hidden md:table-cell">Note</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {CONFIG.map(c => (
-                <tr key={c.key} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-4 py-3 font-medium text-foreground">{c.key}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-foreground">{c.value}</td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell">{c.note}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <div className="lanai-card p-5 space-y-2">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">Integration Verification</h2>
+        <p className="text-sm text-muted-foreground">
+          Live status is shown only after a service returns a verified response. This page does not infer health from localhost URLs, deployment assumptions, or saved configuration.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Use the test action for each integration before relying on it in member workflows. Platform-wide readiness is available through the protected operational health endpoint.
+        </p>
       </div>
 
       {/* WhatsApp Setup */}
@@ -130,26 +73,44 @@ function ChatwootConfigSection() {
   useEffect(() => {
     if (config) {
       setUrl(config.instanceUrl);
-      setToken(config.accessToken);
+      // Access tokens are intentionally redacted from API responses. A blank
+      // field preserves the existing secret; entering a value rotates it.
+      setToken("");
     }
   }, [config]);
 
   const handleSave = async () => {
     setSaving(true);
     setTestResult(null);
-    await updateMutation.mutateAsync({
-      instanceUrl: url,
-      accessToken: token,
-      enabled: true,
-    });
-    setSaving(false);
-    refetch();
+    try {
+      await updateMutation.mutateAsync({
+        instanceUrl: url,
+        accessToken: token.trim() || undefined,
+        enabled: true,
+      });
+      setTestResult({ success: true, message: "Configuration saved and remote connection verified." });
+      await refetch();
+    } catch (error) {
+      setTestResult({
+        success: false,
+        message: error instanceof Error ? error.message : "Configuration verification failed.",
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleTest = async () => {
     setTestResult(null);
-    const result = await testMutation.mutateAsync();
-    setTestResult(result);
+    try {
+      const result = await testMutation.mutateAsync();
+      setTestResult(result);
+    } catch (error) {
+      setTestResult({
+        success: false,
+        message: error instanceof Error ? error.message : "Connection verification failed.",
+      });
+    }
   };
 
   if (isLoading) return <div className="lanai-card p-4">Loading...</div>;
@@ -184,7 +145,7 @@ function ChatwootConfigSection() {
           <Input
             value={token}
             onChange={(e) => setToken(e.target.value)}
-            placeholder="Enter your Chatwoot access token"
+            placeholder={config?.hasAccessToken ? "Configured — enter a new token only to rotate it" : "Enter your Chatwoot access token"}
             className="mt-1"
           />
         </div>

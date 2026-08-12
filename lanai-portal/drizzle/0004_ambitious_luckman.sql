@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "chatwoot_msg_chatwootId_uq" ON "chatwoot_messages" USING btree ("chatwootId");

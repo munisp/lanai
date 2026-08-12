@@ -3,6 +3,8 @@ import { TRPCError } from "@trpc/server";
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import { and, desc, eq } from "drizzle-orm";
+import { documents } from "../drizzle/schema";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import {
@@ -63,6 +65,7 @@ import {
 import {
   createInvitation,
   createMember,
+  getDb,
   createMemberSession,
   deleteMemberSession,
   getAllAdvisors,
@@ -425,9 +428,9 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         const { member } = ctx;
         const crmToken = process.env.TWENTY_CRM_API_TOKEN;
-        const crmUrl = process.env.TWENTY_CRM_URL ?? "http://localhost:3000";
+        const crmUrl = process.env.TWENTY_CRM_URL;
 
-        if (!crmToken) {
+        if (!crmToken || !crmUrl) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: "CRM not configured.",
@@ -488,7 +491,14 @@ export const appRouter = router({
           });
         }
 
-        return { opportunityId: json.data?.createOpportunity?.id };
+        const opportunityId = json.data?.createOpportunity?.id;
+        if (!opportunityId) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "CRM did not return an opportunity identifier.",
+          });
+        }
+        return { opportunityId };
       }),
 
     /** Returns the member's own profile (tier, name, email). */
@@ -502,19 +512,38 @@ export const appRouter = router({
     })),
 
     /**
-     * Platinum-only: list documents from storage for this member.
-     * (Stub for document vault — returns metadata; actual files stored in S3.)
+     * Platinum-only: list the authenticated member's visible vault documents.
+     * The handler reads the system of record and never converts a persistence
+     * failure into a plausible empty vault.
      */
     myDocuments: platinumMemberProcedure.query(async ({ ctx }) => {
-      // In production: query a documents table filtered by memberId
-      // For now returns an empty list — documents are uploaded by advisors
+      const db = await getDb();
+      const rows = await db
+        .select({
+          id: documents.id,
+          name: documents.title,
+          type: documents.documentType,
+          url: documents.fileUrl,
+          mimeType: documents.mimeType,
+          expiresAt: documents.expiresAt,
+          date: documents.createdAt,
+        })
+        .from(documents)
+        .where(
+          and(
+            eq(documents.memberId, ctx.member.id),
+            eq(documents.isVisibleToMember, true),
+          ),
+        )
+        .orderBy(desc(documents.createdAt));
+
       return {
-        documents: [] as {
-          name: string;
-          type: string;
-          url: string;
-          date: string;
-        }[],
+        documents: rows.map((document) => ({
+          ...document,
+          type: document.type ?? document.mimeType ?? "document",
+          date: document.date.toISOString(),
+          expiresAt: document.expiresAt?.toISOString() ?? null,
+        })),
       };
     }),
   }),

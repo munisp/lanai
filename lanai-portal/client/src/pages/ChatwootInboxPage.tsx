@@ -210,12 +210,17 @@ function ChatwootSettings({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
 
   const handleSave = async () => {
     setSaving(true);
-    await updateMutation.mutateAsync({
-      instanceUrl: url || config.instanceUrl,
-      accessToken: token || config.accessToken,
-      enabled: true,
-    });
-    setSaving(false);
+    try {
+      await updateMutation.mutateAsync({
+        instanceUrl: url || config.instanceUrl,
+        // The API never returns the current secret. An empty field preserves it;
+        // entering a token explicitly rotates it.
+        accessToken: token.trim() || undefined,
+        enabled: true,
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -236,9 +241,9 @@ function ChatwootSettings({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
           <div>
             <label className="text-sm font-medium text-muted-foreground">Access Token</label>
             <Input
-              value={token || config.accessToken}
+              value={token}
               onChange={(e) => setToken(e.target.value)}
-              placeholder="Enter Chatwoot access token"
+              placeholder={config.hasAccessToken ? "Configured — enter a new token only to rotate it" : "Enter Chatwoot access token"}
             />
           </div>
           <div className="flex gap-2">

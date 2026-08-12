@@ -3,8 +3,8 @@
  */
 import { z } from "zod";
 import { memberProcedure, protectedProcedure, router } from "./_core/trpc";
+import { invokeLocalAi } from "./_core/localAi";
 import {
-  initializeChatwootConfig,
   listInboxes,
   syncContactForMember,
   sendMessage,
@@ -25,12 +25,26 @@ import {
   getChatwootConversationByChatwootId,
 } from "./db";
 
+function toPublicChatwootConfig(
+  config: Awaited<ReturnType<typeof getChatwootConfigService>>,
+) {
+  if (!config) return null;
+  return {
+    id: config.id,
+    instanceUrl: config.instanceUrl,
+    accountId: config.accountId,
+    enabled: config.enabled,
+    defaultInboxId: config.defaultInboxId,
+    hasAccessToken: Boolean(config.accessToken),
+  };
+}
+
 export const chatwootRouter = router({
   // ── Configuration ───────────────────────────────────────────────────────
 
   /** Gets the current Chatwoot configuration. */
   getConfig: protectedProcedure.query(async () => {
-    return getChatwootConfigService();
+    return toPublicChatwootConfig(await getChatwootConfigService());
   }),
 
   /** Updates Chatwoot configuration (advisor-only). */
@@ -45,12 +59,20 @@ export const chatwootRouter = router({
       }),
     )
     .mutation(async ({ input }) => {
-      await updateChatwootConfigService(input);
-      // Re-initialize if enabled
-      if (input.enabled) {
-        await initializeChatwootConfig().catch(() => {});
+      const config = await updateChatwootConfigService(input);
+      if (!config) throw new Error("Chatwoot configuration was not persisted");
+
+      // A configuration update is only reported as successful after an enabled
+      // integration acknowledges a real API request.
+      if (config.enabled) {
+        const check = await testChatwootConnection();
+        if (!check.success) throw new Error(check.message);
       }
-      return { success: true };
+
+      return {
+        success: true,
+        config: toPublicChatwootConfig(config),
+      };
     }),
 
   /** Tests the Chatwoot API connection. */
@@ -117,36 +139,49 @@ export const chatwootRouter = router({
         content: z.string().min(1),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      // Resolve local conversation to get Chatwoot conversation ID
+    .mutation(async ({ input }) => {
       const localConv = await getChatwootConversationByChatwootId(
         input.chatwootConversationId,
       );
       if (!localConv) throw new Error("Conversation not found");
 
-      // In production: call Chatwoot API to send the message
-      // For now, create a local outbound message record
-      const chatwootConvId = parseInt(
-        input.chatwootConversationId.replace("conv_", ""),
+      const chatwootConvId = Number.parseInt(
+        input.chatwootConversationId.replace(/^conv_/, ""),
         10,
       );
+      if (!Number.isInteger(chatwootConvId) || chatwootConvId <= 0) {
+        throw new Error("Persisted Chatwoot conversation identifier is invalid");
+      }
 
-      await sendMessage(chatwootConvId, input.content, "outgoing");
-
-      // Update local mirror
-      await updateChatwootConversation(input.chatwootConversationId, {
-        advisorResponded: true,
-        lastMessage: input.content,
+      const remote = await sendMessage(chatwootConvId, input.content, "outgoing");
+      const localMessageId = await createChatwootMessage({
+        chatwootId: `msg_${remote.messageId}`,
+        conversationId: localConv.id,
+        messageType: "outbound",
+        content: input.content,
+        attachmentUrl: null,
+        isTemplate: false,
       });
+      const updated = await updateChatwootConversation(
+        input.chatwootConversationId,
+        {
+          advisorResponded: true,
+          lastMessage: input.content,
+          updatedAt: new Date(),
+        },
+      );
+      if (!updated) {
+        throw new Error("Chatwoot local conversation mirror was not updated");
+      }
 
-      return { success: true };
+      return { success: true, messageId: remote.messageId, localMessageId };
     }),
 
   // ── Member Portal ──────────────────────────────────────────────────────
 
-  /** Gets conversations for the authenticated member. */
+  /** Gets the authenticated member's current Chatwoot conversations. */
   myConversations: memberProcedure.query(async ({ ctx }) => {
-    // In production: fetch from Chatwoot using member's contact ID
+    await syncChatwootConversations();
     const convs = await listChatwootConversations();
     return convs.filter((c) => c.memberId === ctx.member.id);
   }),
@@ -242,7 +277,14 @@ export const chatwootRouter = router({
         conversationId: z.number(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      const conversations = await listChatwootConversations();
+      const conversation = conversations.find(
+        (item) => item.id === input.conversationId,
+      );
+      if (!conversation || conversation.memberId !== ctx.member.id) {
+        throw new Error("Conversation was not found for the authenticated member");
+      }
       return listChatwootMessages(input.conversationId);
     }),
 
@@ -267,16 +309,33 @@ export const chatwootRouter = router({
       }),
     )
     .mutation(async ({ input }) => {
-      // In production: call LLM with conversation context
-      // For now return a structured draft
-      const draft = `Thank you for reaching out, ${input.memberName ?? "valued member"}. I have reviewed your message and will ensure this is handled with the utmost care. Please allow me a moment to confirm the details and I will follow up shortly.`;
-      return { draft };
+      const conversations = await listChatwootConversations();
+      const conversation = conversations.find(
+        (item) => item.id === input.conversationId,
+      );
+      if (!conversation) throw new Error("Conversation not found");
+      const messages = await listChatwootMessages(conversation.id);
+      const transcript = messages
+        .slice(-12)
+        .map((message) => `${message.messageType}: ${message.content}`)
+        .join("\n");
+      const result = await invokeLocalAi({
+        capability: "whatsapp",
+        system:
+          "You draft concise, high-touch concierge replies. Never promise a booking, availability, price, or action that has not been confirmed. Ask one precise follow-up question when required.",
+        prompt: `Member: ${input.memberName ?? conversation.contactName ?? "Member"}\nLatest message: ${input.lastMessage}\nConversation transcript:\n${transcript}\n\nWrite a polished draft reply only.`,
+        responseFormat: "text",
+        temperature: 0.2,
+        maxTokens: 350,
+        metadata: { conversationId: conversation.id, memberId: conversation.memberId },
+      });
+      return { draft: result.output, generated: true };
     }),
 
-  /** Syncs all Chatwoot conversations into the local database. */
+  /** Syncs the remote Chatwoot inbox into the local query mirror. */
   syncConversations: protectedProcedure.mutation(async () => {
-    const convs = await listChatwootConversations();
-    return { synced: convs.length };
+    const synced = await syncChatwootConversations();
+    return { synced };
   }),
 
   /** Gets Chatwoot conversation statistics for the dashboard. */

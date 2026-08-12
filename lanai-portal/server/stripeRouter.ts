@@ -62,7 +62,14 @@ async function setMemberStripeIds(
   const update: Record<string, unknown> = { stripeCustomerId: customerId };
   if (subscriptionId !== undefined)
     update.stripeSubscriptionId = subscriptionId;
-  await db.update(members).set(update).where(eq(members.id, memberId));
+  const updated = await db
+    .update(members)
+    .set(update)
+    .where(eq(members.id, memberId))
+    .returning({ id: members.id });
+  if (updated.length !== 1) {
+    throw new Error(`Member ${memberId} was not found while persisting Stripe IDs`);
+  }
 }
 
 async function getMemberById(memberId: number) {
@@ -116,7 +123,14 @@ async function ensureStripePriceId(
   const plan = MEMBERSHIP_PLANS[tier];
   if (!plan) throw new Error(`Unknown tier: ${tier}`);
 
-  // Search for an existing price with matching metadata
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      `STRIPE_PRICE_ID_${tier.toUpperCase()} must be configured in production`,
+    );
+  }
+
+  // Non-production environments may create disposable catalog records.
+  // Production can only charge an explicitly approved Stripe Price ID.
   const existing = await stripe.prices.search({
     query: `metadata['lanai_tier']:'${tier}' AND active:'true'`,
     limit: 1,
@@ -198,8 +212,11 @@ export const memberPaymentsRouter = router({
         cancel_url: `${input.origin}/client/dashboard?payment=cancelled`,
       });
 
+      if (!session.url) {
+        throw new Error("Stripe Checkout did not return a redirect URL");
+      }
       return {
-        checkoutUrl: session.url!,
+        checkoutUrl: session.url,
         planName: plan.name,
         tier: input.tier,
       };
@@ -241,8 +258,10 @@ export const memberPaymentsRouter = router({
           interval: price?.recurring?.interval ?? "month",
         },
       };
-    } catch {
-      return { active: false, subscription: null };
+    } catch (error) {
+      throw new Error(
+        `Stripe subscription lookup failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }),
 
@@ -344,7 +363,7 @@ export function registerStripeWebhook(app: Express): void {
     // Raw body required for signature verification — must be registered BEFORE
     // express.json() parses the body. The _core/index.ts registers this route
     // early via registerStripeWebhook().
-    (req: Request, res: Response) => {
+    async (req: Request, res: Response) => {
       const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
       const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
       if (!stripeSecretKey || !webhookSecret) {
@@ -385,9 +404,16 @@ export function registerStripeWebhook(app: Express): void {
 
       console.log(`[Stripe Webhook] Event: ${event.type} (${event.id})`);
 
-      // Handle events asynchronously — respond 200 immediately
-      void handleStripeEvent(event);
-      res.json({ received: true });
+      // Acknowledge only after the signed event has been durably applied.
+      // Returning 5xx makes Stripe retry transient database failures instead of
+      // converting them into a plausible accepted payment state.
+      try {
+        await handleStripeEvent(event);
+        res.json({ received: true });
+      } catch (error) {
+        console.error("[Stripe Webhook] Durable event handling failed:", error);
+        res.status(500).json({ error: "Stripe event processing failed" });
+      }
     },
   );
 
@@ -395,8 +421,7 @@ export function registerStripeWebhook(app: Express): void {
 }
 
 async function handleStripeEvent(event: Stripe.Event): Promise<void> {
-  try {
-    switch (event.type) {
+  switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         const memberId = parseInt(session.metadata?.user_id ?? "0", 10);
@@ -416,11 +441,13 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
         // Upgrade member tier if they subscribed to a higher tier
         if (tier) {
           const db = await getDb();
-          if (db) {
-            await db
-              .update(members)
-              .set({ tier })
-              .where(eq(members.id, memberId));
+          const updated = await db
+            .update(members)
+            .set({ tier })
+            .where(eq(members.id, memberId))
+            .returning({ id: members.id });
+          if (updated.length !== 1) {
+            throw new Error(`Member ${memberId} was not found while applying tier`);
           }
         }
 
@@ -436,11 +463,15 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
         if (!memberId) break;
 
         const db = await getDb();
-        if (db) {
-          await db
-            .update(members)
-            .set({ stripeSubscriptionId: null })
-            .where(eq(members.id, memberId));
+        const updated = await db
+          .update(members)
+          .set({ stripeSubscriptionId: null })
+          .where(eq(members.id, memberId))
+          .returning({ id: members.id });
+        if (updated.length !== 1) {
+          throw new Error(
+            `Member ${memberId} was not found while applying subscription cancellation`,
+          );
         }
 
         console.log(
@@ -458,10 +489,8 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
       }
 
       default:
-        // Unhandled event type — no action needed
+        // Unsupported event types are intentionally acknowledged without a
+        // state mutation. Every supported type either completes or throws.
         break;
     }
-  } catch (err) {
-    console.error("[Stripe Webhook] Error handling event:", err);
-  }
 }

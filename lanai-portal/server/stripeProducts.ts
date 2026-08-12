@@ -2,8 +2,9 @@
  * Lanai Lifestyle — Stripe product/price definitions.
  *
  * These are the Stripe Price IDs for each membership tier.
- * In test mode, prices are created dynamically via the Stripe API on first use.
- * In production, replace with real Price IDs from your Stripe dashboard.
+ * Non-production environments may create disposable prices dynamically for test
+ * workflows. Production checkout rejects unapproved catalog pricing unless the
+ * corresponding STRIPE_PRICE_ID_<TIER> environment variable is configured.
  *
  * Pricing (monthly, GBP):
  *   Platinum — £2,500/mo  (full service, document vault, priority messaging)

@@ -169,7 +169,9 @@ export async function createMember(data: InsertMember): Promise<number> {
     .insert(members)
     .values({ ...data, email: data.email.toLowerCase() })
     .returning({ id: members.id });
-  return row?.id ?? 0;
+  if (!row?.id)
+    throw new Error("Member creation did not return a persisted identifier");
+  return row.id;
 }
 
 export async function updateMemberPin(
@@ -294,7 +296,12 @@ export async function createChatwootConfig(
     .insert(chatwootConfig)
     .values(data)
     .returning({ id: chatwootConfig.id });
-  return result[0]?.id ?? 0;
+  const id = result[0]?.id;
+  if (!id)
+    throw new Error(
+      "Chatwoot configuration creation did not return a persisted identifier",
+    );
+  return id;
 }
 
 export async function getChatwootConfig(): Promise<ChatwootConfig | null> {
@@ -330,7 +337,12 @@ export async function createChatwootConversation(
     .insert(chatwootConversations)
     .values(data)
     .returning({ id: chatwootConversations.id });
-  return result[0]?.id ?? 0;
+  const id = result[0]?.id;
+  if (!id)
+    throw new Error(
+      "Chatwoot conversation creation did not return a persisted identifier",
+    );
+  return id;
 }
 
 export async function getChatwootConversationByChatwootId(
@@ -391,7 +403,24 @@ export async function createChatwootMessage(
     .insert(chatwootMessages)
     .values(data)
     .returning({ id: chatwootMessages.id });
-  return result[0]?.id ?? 0;
+  const id = result[0]?.id;
+  if (!id)
+    throw new Error(
+      "Chatwoot message creation did not return a persisted identifier",
+    );
+  return id;
+}
+
+export async function getChatwootMessageByChatwootId(
+  chatwootId: string,
+): Promise<ChatwootMessage | null> {
+  const db = await getDb();
+  const results = await db
+    .select()
+    .from(chatwootMessages)
+    .where(eq(chatwootMessages.chatwootId, chatwootId))
+    .limit(1);
+  return results[0] ?? null;
 }
 
 export async function listChatwootMessages(

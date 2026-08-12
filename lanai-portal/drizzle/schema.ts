@@ -1802,7 +1802,10 @@ export const chatwootMessages = pgTable(
     isTemplate: boolean("isTemplate").default(false).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
-  (t) => [index("chatwoot_msg_conversationId_idx").on(t.conversationId)],
+  (t) => [
+    uniqueIndex("chatwoot_msg_chatwootId_uq").on(t.chatwootId),
+    index("chatwoot_msg_conversationId_idx").on(t.conversationId),
+  ],
 );
 
 export type ChatwootMessage = typeof chatwootMessages.$inferSelect;
