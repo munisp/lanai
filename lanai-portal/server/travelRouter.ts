@@ -515,13 +515,24 @@ export const bookingsRouter = router({
       ]);
       let ledgerTransferId: string | null = null;
       if (input.commissionExpected) {
-        const transfer = await recordBookingCommission({
-          bookingId: row.id,
-          memberId: input.memberId,
-          amount: input.commissionExpected,
-          currency,
-        });
-        ledgerTransferId = transfer.transferId;
+        // Durable execution: the Temporal saga guarantees atomicity between
+        // TigerBeetle (double-entry ledger), PostgreSQL (transfer metadata),
+        // and Fluvio (event stream). If the process crashes mid-way, Temporal
+        // retries from the last successful activity checkpoint.
+        const { Temporal: TemporalClient } = await import("./_core/infrastructure");
+        const sagaHandle = await TemporalClient.startWorkflow(
+          "bookingCommissionSaga",
+          [{
+            bookingId: row.id,
+            memberId: input.memberId,
+            amount: input.commissionExpected,
+            currency,
+            advisorUserId: ctx.user.id,
+            idempotencyKey: `booking:${row.id}:commission:${currency}`,
+          }],
+          { workflowId: `commission-saga-booking-${row.id}` },
+        );
+        ledgerTransferId = sagaHandle?.workflowId ?? null;
       }
       await recordEvent({
         aggregateType: "booking",

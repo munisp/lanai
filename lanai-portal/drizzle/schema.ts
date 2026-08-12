@@ -1316,6 +1316,8 @@ export const invoices = pgTable(
     issuedAt: timestamp("issuedAt"),
     dueDate: timestamp("dueDate"),
     paidAt: timestamp("paidAt"),
+    sentAt: timestamp("sentAt"),
+    tigerBeetleTransferId: varchar("tigerBeetleTransferId", { length: 128 }),
 
     // Content
     notes: text("notes"),

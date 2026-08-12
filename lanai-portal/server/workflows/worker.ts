@@ -1,6 +1,7 @@
 import { NativeConnection, Worker } from "@temporalio/worker";
 import { ENV } from "../_core/env";
 import * as activities from "./activities";
+import * as financialActivities from "./financialActivities";
 
 async function run(): Promise<void> {
   const connection = await NativeConnection.connect({
@@ -11,7 +12,7 @@ async function run(): Promise<void> {
     namespace: ENV.temporalNamespace,
     taskQueue: ENV.temporalTaskQueue,
     workflowsPath: new URL("./workflows.js", import.meta.url).pathname,
-    activities,
+    activities: { ...activities, ...financialActivities },
   });
   await worker.run();
 }
