@@ -1,0 +1,126 @@
+# Production Ingress — routes external traffic through the Caddy/APISIX
+# gateway layer to internal services. Assumes cert-manager is installed
+# for automatic TLS certificate provisioning via Let's Encrypt.
+#
+# The LANAI_DOMAIN placeholder must be replaced before applying:
+#   envsubst < gateway.yaml | kubectl apply -f -
+# or use Kustomize/Helm with variable substitution.
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lanai-gateway
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+    nginx.ingress.kubernetes.io/websocket-services: "lanai-portal"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "Strict-Transport-Security: max-age=63072000; includeSubDomains; preload";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - app.lanai.com
+        - api.lanai.com
+        - auth.lanai.com
+      secretName: lanai-tls
+  rules:
+    # Main application portal
+    - host: app.lanai.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: lanai-portal
+                port:
+                  number: 3001
+    # API gateway (APISIX handles JWT validation + rate limiting)
+    - host: api.lanai.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: apisix-gateway
+                port:
+                  number: 9080
+    # Keycloak authentication
+    - host: auth.lanai.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port:
+                  number: 8080
+---
+# NetworkPolicy: restrict portal to only accept traffic from the ingress
+# controller and internal services (Dapr sidecar, Temporal worker)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lanai-portal-ingress-only
+spec:
+  podSelector:
+    matchLabels:
+      app: lanai-portal
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # Allow from ingress controller
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        # Allow from same namespace (Dapr sidecar, jobs)
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 3001
+---
+# HorizontalPodAutoscaler for the portal
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: lanai-portal-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: lanai-portal
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+# PodDisruptionBudget ensures at least 1 portal pod is always available
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: lanai-portal-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: lanai-portal

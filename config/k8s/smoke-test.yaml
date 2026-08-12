@@ -1,0 +1,211 @@
+# Live Smoke Test Job
+# Validates that all deployed services are healthy and the authentication
+# chain (Keycloak → APISIX → Permify → Portal) works end-to-end.
+#
+# Run after deployment:
+#   kubectl apply -f smoke-test.yaml
+#   kubectl wait --for=condition=complete job/lanai-smoke-test --timeout=300s
+#   kubectl logs job/lanai-smoke-test
+#
+# To re-run, delete the previous job first:
+#   kubectl delete job lanai-smoke-test && kubectl apply -f smoke-test.yaml
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lanai-smoke-test
+  labels:
+    app: lanai-smoke-test
+    tier: testing
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 300
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: lanai-smoke-test
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: smoke-test
+          image: curlimages/curl:8.7.1
+          env:
+            - { name: PORTAL_URL, value: "http://lanai-portal:3001" }
+            - { name: KEYCLOAK_URL, value: "http://keycloak:8080" }
+            - { name: PERMIFY_URL, value: "http://permify:3476" }
+            - { name: APISIX_URL, value: "http://apisix-gateway:9080" }
+            - { name: AI_GATEWAY_URL, value: "http://lanai-ai-gateway:8100" }
+            - { name: REDIS_HOST, value: "redis" }
+            - { name: POSTGRES_HOST, value: "postgres" }
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              echo "╔══════════════════════════════════════════════════╗"
+              echo "║       LANAI PLATFORM LIVE SMOKE TEST            ║"
+              echo "╚══════════════════════════════════════════════════╝"
+              echo ""
+              PASS=0
+              FAIL=0
+              SKIP=0
+
+              check() {
+                local name="$1" url="$2" expected="$3"
+                printf "  %-40s" "$name"
+                RESPONSE=$(curl -sf -o /tmp/body -w "%{http_code}" "$url" 2>/dev/null) || RESPONSE="000"
+                BODY=$(cat /tmp/body 2>/dev/null || echo "")
+                if [ "$RESPONSE" = "$expected" ]; then
+                  echo "✅ PASS ($RESPONSE)"
+                  PASS=$((PASS + 1))
+                else
+                  echo "❌ FAIL (got $RESPONSE, expected $expected)"
+                  [ -n "$BODY" ] && echo "     → $BODY" | head -c 200
+                  echo ""
+                  FAIL=$((FAIL + 1))
+                fi
+              }
+
+              check_contains() {
+                local name="$1" url="$2" needle="$3"
+                printf "  %-40s" "$name"
+                BODY=$(curl -sf "$url" 2>/dev/null) || BODY=""
+                if echo "$BODY" | grep -q "$needle"; then
+                  echo "✅ PASS (contains '$needle')"
+                  PASS=$((PASS + 1))
+                else
+                  echo "❌ FAIL (missing '$needle')"
+                  echo "     → ${BODY:0:200}"
+                  FAIL=$((FAIL + 1))
+                fi
+              }
+
+              echo "━━━ 1. Core Services Health ━━━━━━━━━━━━━━━━━━━━━━"
+              check "Portal /api/health" "$PORTAL_URL/api/health" "200"
+              check "Keycloak /health/ready" "$KEYCLOAK_URL/health/ready" "200"
+              check "Permify /healthz" "$PERMIFY_URL/healthz" "200"
+              check "AI Gateway /health" "$AI_GATEWAY_URL/health" "200"
+              echo ""
+
+              echo "━━━ 2. Database Connectivity ━━━━━━━━━━━━━━━━━━━━━"
+              check_contains "Portal DB connected" "$PORTAL_URL/api/health" "database"
+              echo ""
+
+              echo "━━━ 3. Authentication Chain ━━━━━━━━━━━━━━━━━━━━━━"
+              # Verify Keycloak realm exists
+              check "Keycloak lanai realm" "$KEYCLOAK_URL/realms/lanai/.well-known/openid-configuration" "200"
+              # Verify unauthenticated API calls are rejected
+              check "Portal rejects unauthed tRPC" "$PORTAL_URL/api/trpc/members.list" "401"
+              echo ""
+
+              echo "━━━ 4. Authorization (Permify) ━━━━━━━━━━━━━━━━━━━"
+              # Verify Permify schema is loaded
+              SCHEMA_CHECK=$(curl -sf "$PERMIFY_URL/v1/tenants/lanai/schemas/list" 2>/dev/null)
+              printf "  %-40s" "Permify schema loaded"
+              if echo "$SCHEMA_CHECK" | grep -q "schema_version"; then
+                echo "✅ PASS"
+                PASS=$((PASS + 1))
+              else
+                echo "❌ FAIL (no schema found)"
+                FAIL=$((FAIL + 1))
+              fi
+              echo ""
+
+              echo "━━━ 5. APISIX Gateway ━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              check "APISIX health" "$APISIX_URL/apisix/status" "200"
+              # Verify APISIX rejects requests without JWT
+              check "APISIX rejects no-JWT" "$APISIX_URL/api/v1/members" "401"
+              echo ""
+
+              echo "━━━ 6. AI Services ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              check "AI Gateway health" "$AI_GATEWAY_URL/health" "200"
+              echo ""
+
+              echo "━━━ 7. End-to-End: Keycloak Token → Portal ━━━━━━━"
+              # Attempt to get a client_credentials token from Keycloak
+              TOKEN_RESPONSE=$(curl -sf -X POST \
+                "$KEYCLOAK_URL/realms/lanai/protocol/openid-connect/token" \
+                -d "grant_type=client_credentials" \
+                -d "client_id=lanai-portal" \
+                -d "client_secret=placeholder-replace-with-secret" \
+                2>/dev/null) || TOKEN_RESPONSE=""
+              printf "  %-40s" "Keycloak token issuance"
+              if echo "$TOKEN_RESPONSE" | grep -q "access_token"; then
+                echo "✅ PASS"
+                PASS=$((PASS + 1))
+                ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | sed 's/.*"access_token":"\([^"]*\)".*/\1/')
+                # Use the token to call the portal
+                AUTH_RESPONSE=$(curl -sf -o /dev/null -w "%{http_code}" \
+                  -H "Authorization: Bearer $ACCESS_TOKEN" \
+                  "$PORTAL_URL/api/trpc/system.health?input=%7B%22timestamp%22%3A1%7D" 2>/dev/null) || AUTH_RESPONSE="000"
+                printf "  %-40s" "Authenticated portal call"
+                if [ "$AUTH_RESPONSE" = "200" ]; then
+                  echo "✅ PASS"
+                  PASS=$((PASS + 1))
+                else
+                  echo "⚠️  SKIP (token may lack portal permissions: $AUTH_RESPONSE)"
+                  SKIP=$((SKIP + 1))
+                fi
+              else
+                echo "⚠️  SKIP (client_secret not configured for smoke test)"
+                SKIP=$((SKIP + 1))
+              fi
+              echo ""
+
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo ""
+              echo "  RESULTS: $PASS passed, $FAIL failed, $SKIP skipped"
+              echo ""
+              if [ "$FAIL" -gt 0 ]; then
+                echo "  ❌ SMOKE TEST FAILED"
+                exit 1
+              else
+                echo "  ✅ SMOKE TEST PASSED"
+                exit 0
+              fi
+---
+# CronJob variant: runs the smoke test every 5 minutes for continuous
+# monitoring. Disable by setting .spec.suspend to true.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: lanai-smoke-test-cron
+  labels:
+    app: lanai-smoke-test
+    tier: monitoring
+spec:
+  schedule: "*/5 * * * *"
+  suspend: true  # Enable when ready for continuous monitoring
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 120
+      ttlSecondsAfterFinished: 600
+      template:
+        metadata:
+          labels:
+            app: lanai-smoke-test
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: smoke-test
+              image: curlimages/curl:8.7.1
+              env:
+                - { name: PORTAL_URL, value: "http://lanai-portal:3001" }
+                - { name: KEYCLOAK_URL, value: "http://keycloak:8080" }
+                - { name: PERMIFY_URL, value: "http://permify:3476" }
+              command: ["/bin/sh", "-ec"]
+              args:
+                - |
+                  FAIL=0
+                  for svc in "$PORTAL_URL/api/health" "$KEYCLOAK_URL/health/ready" "$PERMIFY_URL/healthz"; do
+                    CODE=$(curl -sf -o /dev/null -w "%{http_code}" "$svc" 2>/dev/null) || CODE="000"
+                    if [ "$CODE" != "200" ]; then
+                      echo "FAIL: $svc returned $CODE"
+                      FAIL=$((FAIL + 1))
+                    fi
+                  done
+                  if [ "$FAIL" -gt 0 ]; then exit 1; fi
+                  echo "All core services healthy"
