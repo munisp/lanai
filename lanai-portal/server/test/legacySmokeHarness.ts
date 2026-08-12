@@ -5,6 +5,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import * as permify from "@permify/permify-node";
 import postgres from "postgres";
 import { closeDatabase, getDb } from "../db";
+import { setPermifySchemaVersion } from "../_core/infrastructure";
 
 const TEST_ADVISOR_ID = 1;
 const TEST_SECOND_ADVISOR_ID = 2;
@@ -84,7 +85,21 @@ async function resetAndSeedDatabase(): Promise<void> {
         AND tablename <> '__drizzle_migrations'
       ORDER BY tablename
     `;
-  const names = tables.map((table) => table.tablename);
+  // Permify is intentionally exercised as a real gRPC dependency in this
+  // suite. It shares the integration database, so its own control-plane tables
+  // must survive the application-data reset performed before every test.
+  const permifyTables = new Set([
+    "attributes",
+    "bundles",
+    "migrations",
+    "relation_tuples",
+    "schema_definitions",
+    "tenants",
+    "transactions",
+  ]);
+  const names = tables
+    .map((table) => table.tablename)
+    .filter((name) => !permifyTables.has(name));
   if (names.some((name) => !/^[a-z_]+$/.test(name))) {
     throw new Error("[legacy smoke harness] unsafe table name encountered");
   }
@@ -250,6 +265,7 @@ async function bootstrapPermify(): Promise<void> {
       "[legacy smoke harness] Permify returned no schema version",
     );
   }
+  setPermifySchemaVersion(schemaVersion);
   await client.data.write({
     tenantId,
     metadata: { schemaVersion },

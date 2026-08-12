@@ -404,6 +404,27 @@ export const Apisix = {
 // ─── Permify ──────────────────────────────────────────────────────────────────
 
 let permifyClient: any | null = null;
+let activePermifySchemaVersion = ENV.permifySchemaVersion;
+
+/**
+ * The current schema version is a runtime integration contract. Bootstrap
+ * flows must set it immediately after a successful schema write before any
+ * permission check or tuple write occurs.
+ */
+export function setPermifySchemaVersion(schemaVersion: string): void {
+  if (!schemaVersion.trim()) {
+    throw new InfrastructureError("Permify", "schema version must not be empty");
+  }
+  activePermifySchemaVersion = schemaVersion;
+}
+
+function getPermifySchemaVersion(): string {
+  return requireConfigured(
+    activePermifySchemaVersion,
+    "Permify",
+    "PERMIFY_SCHEMA_VERSION (or bootstrap schema write)",
+  );
+}
 
 function getPermifyClient(): any {
   if (!permifyClient) {
@@ -433,7 +454,7 @@ export const Permify = {
         tenantId: ENV.permifyTenantId,
         metadata: {
           snapToken: "",
-          schemaVersion: ENV.permifySchemaVersion,
+          schemaVersion: getPermifySchemaVersion(),
           depth: 32,
         },
         entity: resourceEntity,
@@ -463,7 +484,7 @@ export const Permify = {
     try {
       await getPermifyClient().data.write({
         tenantId: ENV.permifyTenantId,
-        metadata: { schemaVersion: ENV.permifySchemaVersion },
+        metadata: { schemaVersion: getPermifySchemaVersion() },
         tuples: [{ entity: resourceEntity, relation, subject: subjectEntity }],
       });
     } catch (error) {
@@ -487,6 +508,7 @@ export const Permify = {
           "Permify",
           "schema write returned no schema version",
         );
+      setPermifySchemaVersion(schemaVersion);
       return { schemaVersion };
     } catch (error) {
       if (error instanceof InfrastructureError) throw error;
