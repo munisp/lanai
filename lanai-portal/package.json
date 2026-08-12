@@ -58,7 +58,6 @@
     "@trpc/react-query": "^11.6.0",
     "@trpc/server": "^11.6.0",
     "@types/bcryptjs": "^3.0.0",
-    "axios": "^1.12.0",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -71,15 +70,15 @@
     "drizzle-orm": "^0.45.2",
     "embla-carousel-react": "^8.6.0",
     "express": "^5.2.1",
-    "express-rate-limit": "^8.6.0",
+    "express-rate-limit": "^8.6.1",
     "framer-motion": "^12.23.22",
     "helmet": "^8.3.0",
     "http-proxy-middleware": "^4.2.0",
     "input-otp": "^1.4.2",
     "ioredis": "5.11.1",
-    "jose": "6.2.4",
+    "jose": "6.2.5",
     "lucide-react": "^0.453.0",
-    "nanoid": "^5.1.6",
+    "nanoid": "^5.1.16",
     "next-themes": "^0.4.6",
     "postgres": "^3.4.4",
     "react": "^19.2.1",
@@ -117,7 +116,7 @@
     "drizzle-kit": "^0.31.4",
     "esbuild": "^0.28.1",
     "pnpm": "^10.15.1",
-    "postcss": "^8.4.47",
+    "postcss": "^8.5.26",
     "prettier": "^3.9.6",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.23.1",
@@ -127,10 +126,5 @@
     "vite-plugin-manus-runtime": "0.0.59",
     "vitest": "^4.1.10"
   },
-  "packageManager": "pnpm@10.4.1+sha512.c753b6c3ad7afa13af388fa6d808035a008e30ea9993f58c6663e2bc5ff21679aa834db094987129aa4d488b86df57f7b634981b2f827cdcacc698cc0cfb88af",
-  "pnpm": {
-    "overrides": {
-      "tailwindcss>nanoid": "3.3.7"
-    }
-  }
+  "packageManager": "pnpm@10.4.1+sha512.c753b6c3ad7afa13af388fa6d808035a008e30ea9993f58c6663e2bc5ff21679aa834db094987129aa4d488b86df57f7b634981b2f827cdcacc698cc0cfb88af"
 }

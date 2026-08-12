@@ -28,7 +28,7 @@ export function createStripeClient(): Stripe {
   if (!key) throw new Error("STRIPE_SECRET_KEY is not configured");
 
   const endpointOverride = process.env.STRIPE_API_BASE_URL;
-  const options: Stripe.StripeConfig = { apiVersion: "2026-06-24.dahlia" };
+  const options: Stripe.StripeConfig = { apiVersion: "2026-07-29.dahlia" };
   if (endpointOverride && process.env.NODE_ENV === "production") {
     throw new Error("STRIPE_API_BASE_URL is only permitted outside production");
   }
