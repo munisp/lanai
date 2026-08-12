@@ -399,9 +399,12 @@ export async function createChatwootMessage(
   data: InsertChatwootMessage,
 ): Promise<number> {
   const db = await getDb();
+  // Upsert on chatwootId so concurrent syncs can never create duplicate
+  // mirror rows (chatwootId is globally unique per message).
   const result = await db
     .insert(chatwootMessages)
     .values(data)
+    .onConflictDoNothing({ target: chatwootMessages.chatwootId })
     .returning({ id: chatwootMessages.id });
   const id = result[0]?.id;
   if (!id)
@@ -409,6 +412,18 @@ export async function createChatwootMessage(
       "Chatwoot message creation did not return a persisted identifier",
     );
   return id;
+}
+
+export async function getChatwootMessageByChatwootId(
+  chatwootId: string,
+): Promise<ChatwootMessage | null> {
+  const db = await getDb();
+  const results = await db
+    .select()
+    .from(chatwootMessages)
+    .where(eq(chatwootMessages.chatwootId, chatwootId))
+    .limit(1);
+  return results[0] ?? null;
 }
 
 export async function getChatwootMessageByChatwootId(

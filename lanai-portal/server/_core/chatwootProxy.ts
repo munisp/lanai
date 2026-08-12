@@ -58,7 +58,7 @@ export function registerChatwootProxy(app: express.Express) {
   // ── Auth guard: only authenticated advisors may access Chatwoot ──────────
   app.use("/api/chatwoot", requireAdvisorAuth);
 
-  app.all("/api/chatwoot/*", async (req, res) => {
+  app.use("/api/chatwoot", async (req, res) => {
     try {
       // Extract the endpoint path after /api/chatwoot/
       const endpoint = req.path.replace(/^\//, "");

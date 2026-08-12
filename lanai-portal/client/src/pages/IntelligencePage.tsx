@@ -21,12 +21,64 @@ type InferenceResponse = {
   request_id?: string;
 };
 
+const SECTION_LABELS: Record<string, string> = {
+  summary: "Summary",
+  preferences: "Preferences",
+  opportunities: "Opportunities",
+  risks: "Risks",
+  risk_level: "Risk Level",
+  rationale: "Rationale",
+  evidence: "Evidence",
+  recommended_actions: "Recommended Actions",
+  missing_data: "Missing Data",
+};
+
+function renderValue(value: unknown): React.ReactNode {
+  if (value === null || value === undefined) return null;
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <span className="text-muted-foreground">None</span>;
+    return (
+      <ul className="space-y-1.5">
+        {value.map((item, i) => (
+          <li key={i} className="flex gap-2">
+            <span className="text-primary mt-1.5">•</span>
+            <span>{typeof item === "string" ? item : renderValue(item)}</span>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  if (typeof value === "object") {
+    return (
+      <div className="space-y-1">
+        {Object.entries(value as Record<string, unknown>).map(([k, v]) => (
+          <div key={k} className="flex gap-2">
+            <span className="font-medium capitalize text-muted-foreground">{k.replace(/_/g, " ")}:</span>
+            <span>{typeof v === "string" ? v : renderValue(v)}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return <span>{String(value)}</span>;
+}
+
 function StructuredResult({ result }: { result: InferenceResponse }) {
   if (result.structured) {
+    const entries = Object.entries(result.structured);
     return (
-      <pre className="max-h-[34rem] overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-4 text-xs leading-relaxed text-foreground">
-        {JSON.stringify(result.structured, null, 2)}
-      </pre>
+      <div className="space-y-4">
+        {entries.map(([key, value]) => (
+          <div key={key} className="rounded-lg border border-border bg-card p-4">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-widest text-primary">
+              {SECTION_LABELS[key] ?? key.replace(/_/g, " ")}
+            </div>
+            <div className="text-sm leading-relaxed text-foreground">
+              {renderValue(value)}
+            </div>
+          </div>
+        ))}
+      </div>
     );
   }
   return (

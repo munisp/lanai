@@ -20,7 +20,7 @@ import hmac
 from datetime import datetime
 from flask import Flask, request, jsonify
 
-sys.path.insert(0, '/home/ubuntu/lanai_ai')
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from core.ollama_client import ask_json, health_check
 from core.crm_connector import (find_person_by_phone, create_person,
                                   create_note, create_task, get_people,
@@ -39,7 +39,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
-        logging.FileHandler("/home/ubuntu/lanai_ai/logs/chatwoot.log"),
+        logging.FileHandler(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "logs", "chatwoot.log")),
         logging.StreamHandler()
     ]
 )
@@ -58,7 +58,7 @@ def chatwoot_api(method: str, endpoint: str, data: dict = None, params: dict = N
     headers = {
         "Content-Type": "application/json",
         "User-Agent": "Lanai-AI-Bridge/1.0",
-        "Authorization": f"Bearer {CHATWOOT_TOKEN}",
+        "api_access_token": CHATWOOT_TOKEN,
     }
     
     try:
@@ -97,9 +97,11 @@ def handle_chatwoot_webhook():
     
     data = request.get_json(silent=True) or {}
     event_type = data.get("event")
-    resource = data.get("resource")
+    # Chatwoot sends a flat payload (content/sender/conversation at top level),
+    # not nested under a "resource" key. Use the payload directly.
+    resource = data.get("resource") or data
     
-    logger.info(f"Chatwoot webhook: event={event_type}, resource={resource}")
+    logger.info(f"Chatwoot webhook: event={event_type}, has_content={bool(resource.get('content'))}")
     
     # Process message_created events
     if event_type == "message_created" and resource.get("content"):
@@ -126,9 +128,26 @@ def _process_chatwoot_message(message_data: dict):
     content = message_data.get("content", "")
     sender = message_data.get("sender", {})
     conversation = message_data.get("conversation", {})
+    message_type = message_data.get("message_type", 0)
+    
+    # ── Loop-prevention guard ────────────────────────────────────────────
+    # Only auto-reply to INBOUND messages (from members/contacts). Outgoing
+    # messages (our own AI replies, agent replies) are skipped so we never
+    # reply to ourselves or create an infinite loop. Chatwoot sends
+    # message_type as the string "incoming"/"outgoing" (or int 0/1).
+    is_inbound_contact = str(message_type).lower() in ("incoming", "0")
+    if not is_inbound_contact:
+        # Outgoing messages (our own AI replies, agent replies) are ignored
+        # entirely — no CRM lookup, no triage, no auto-reply. This prevents
+        # infinite loops and wasted work on messages we already sent.
+        logger.info(
+            f"Ignoring outgoing message (message_type={message_type}) — no processing"
+        )
+        return
     
     # Extract contact info
     contact_id = conversation.get("contact", {}).get("id")
+    conversation_id = conversation.get("id")
     sender_phone = sender.get("phone_number", "")
     sender_email = sender.get("email", "")
     sender_name = sender.get("name", sender.get("identifier", "Unknown"))
@@ -141,41 +160,51 @@ def _process_chatwoot_message(message_data: dict):
     
     logger.info(f"Processing message from {identifier}: {content[:100]}")
     
-    # Look up or create contact in CRM
+    # Look up or create contact in CRM (non-fatal — auto-reply must still work
+    # even if the CRM is unavailable).
     person = None
     person_id = None
     client_name = sender_name or f"Chatwoot Contact #{contact_id or 'new'}"
+    is_new = False
     
-    if sender_phone:
-        person = find_person_by_phone(sender_phone)
-    elif sender_email:
-        person = find_person_by_email(sender_email)
+    try:
+        if sender_phone:
+            person = find_person_by_phone(sender_phone)
+        elif sender_email:
+            person = find_person_by_email(sender_email)
+        
+        if person:
+            first = person.get("name", {}).get("firstName", "")
+            last = person.get("name", {}).get("lastName", "")
+            client_name = f"{first} {last}".strip() or sender_name
+            person_id = person["id"]
+            is_new = False
+            logger.info(f"Found existing client: {client_name} ({person_id})")
+        else:
+            # Auto-create new contact
+            parts = client_name.split()
+            first_name = parts[0] if parts else "WhatsApp"
+            last_name = parts[-1] if len(parts) > 1 else f"User {message_id[-4:]}"
+            person = create_person(first_name, last_name, phone=sender_phone, email=sender_email)
+            person_id = person.get("id")
+            is_new = True
+            client_name = f"{first_name} {last_name}"
+            logger.info(f"Created new contact: {client_name} ({person_id})")
+    except Exception as e:
+        logger.warning(f"CRM lookup/create failed (continuing without CRM): {e}")
     
-    if person:
-        first = person.get("name", {}).get("firstName", "")
-        last = person.get("name", {}).get("lastName", "")
-        client_name = f"{first} {last}".strip() or sender_name
-        person_id = person["id"]
-        is_new = False
-        logger.info(f"Found existing client: {client_name} ({person_id})")
-    else:
-        # Auto-create new contact
-        parts = client_name.split()
-        first_name = parts[0] if parts else "WhatsApp"
-        last_name = parts[-1] if len(parts) > 1 else f"User {message_id[-4:]}"
-        person = create_person(first_name, last_name, phone=sender_phone, email=sender_email)
-        person_id = person.get("id")
-        is_new = True
-        client_name = f"{first_name} {last_name}"
-        logger.info(f"Created new contact: {client_name} ({person_id})")
-    
-    # Run AI triage
+    # Run AI triage (non-fatal — if the local model is slow or unavailable we
+    # fall back to an instant acknowledgment so the member always gets a reply).
     logger.info(f"Running AI triage for message from {client_name}...")
-    triage = ask_json(
-        whatsapp_triage_prompt(content, client_name),
-        system=WHATSAPP_TRIAGE_SYSTEM
-    )
-    logger.info(f"AI triage result: {json.dumps(triage)[:300]}")
+    triage = {}
+    try:
+        triage = ask_json(
+            whatsapp_triage_prompt(content, client_name),
+            system=WHATSAPP_TRIAGE_SYSTEM
+        )
+        logger.info(f"AI triage result: {json.dumps(triage)[:300]}")
+    except Exception as e:
+        logger.warning(f"AI triage failed (will use fallback reply): {e}")
     
     # Extract triage results
     intent = triage.get("intent", "GENERAL_ENQUIRY")
@@ -185,11 +214,13 @@ def _process_chatwoot_message(message_data: dict):
     suggested = triage.get("suggested_action", "Review and respond")
     draft = triage.get("draft_reply", "")
     tags = triage.get("tags", [])
-    est_value = triage.get("estimated_value", 0)
+    # AI may return null for estimated_value — coerce to 0 so formatting never crashes.
+    est_value = triage.get("estimated_value") or 0
     
-    # Write note to CRM
-    note_title = f"💬 Chatwoot [{intent}] — {client_name}"
-    note_body = f"""**Inbound Chatwoot Message**
+    # Write note to CRM (best-effort — must never block the auto-reply).
+    try:
+        note_title = f"💬 Chatwoot [{intent}] — {client_name}"
+        note_body = f"""**Inbound Chatwoot Message**
 From: {client_name} ({identifier})
 Received: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}
 
@@ -210,18 +241,48 @@ Received: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}
 **Draft Reply:**
 > {draft}
 """
-    if is_new:
-        note_body += "\n⚠️ **New Contact** — auto-created from Chatwoot. Please verify and update profile."
-    
-    create_note(note_title, note_body, person_id)
-    logger.info(f"Created note for {client_name}")
+        if is_new:
+            note_body += "\n⚠️ **New Contact** — auto-created from Chatwoot. Please verify and update profile."
+        create_note(note_title, note_body, person_id)
+        logger.info(f"Created note for {client_name}")
+    except Exception as e:
+        logger.warning(f"CRM note creation failed (continuing): {e}")
     
     # Create task if high urgency or new contact
     if urgency == "HIGH" or is_new or intent in ["COMPLAINT", "URGENT"]:
         task_title = f"{'🚨 URGENT' if urgency == 'HIGH' else '📋'} Respond to {client_name} — {intent}"
         task_body = f"Chatwoot message from {identifier}\n\nMessage: {content[:200]}\n\nSuggested action: {suggested}\n\nDraft reply ready in linked note."
-        create_task(task_title, task_body, person_id)
-        logger.info(f"Created task for {client_name}")
+        try:
+            create_task(task_title, task_body, person_id)
+            logger.info(f"Created task for {client_name}")
+        except Exception as e:
+            logger.warning(f"CRM task creation failed (continuing): {e}")
+
+    # ── 24/7 AI Auto-Reply ───────────────────────────────────────────────
+    # Send a reply back to the member automatically so the platform acts as
+    # an always-on concierge. Uses the AI-generated draft when available;
+    # otherwise sends a warm instant acknowledgment so the member always gets
+    # a response around the clock. Guarded by loop-prevention checks above
+    # (inbound messages only — outgoing replies are never re-processed).
+    if is_inbound_contact and conversation_id:
+        if not draft:
+            draft = (
+                f"Thank you for reaching out, {client_name}! "
+                "I've received your message and a member of our concierge team "
+                "will be with you shortly to help. Is there anything else I can "
+                "assist you with in the meantime?"
+            )
+            logger.info(f"Using fallback acknowledgment for {client_name} (no AI draft)")
+        logger.info(f"Auto-replying to {client_name} in conversation {conversation_id}")
+        reply = chatwoot_api(
+            "POST",
+            f"/conversations/{conversation_id}/messages",
+            data={"content": draft, "message_type": "outgoing", "incoming": False},
+        )
+        if reply:
+            logger.info(f"Auto-reply sent to conversation {conversation_id}")
+        else:
+            logger.error(f"Auto-reply FAILED for conversation {conversation_id}")
 
 
 # ─── Conversation & Message Endpoints ────────────────────────────────────────

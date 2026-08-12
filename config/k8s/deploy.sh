@@ -19,7 +19,9 @@
 #   ./config/k8s/deploy.sh status       # show current state
 #
 # Env vars:
-#   TAG                    image tag (default: kasi-<timestamp>)
+#   TAG                    image tag (default: auto-bumped from the current
+#                          lanai-portal tag in config/kustomization.yaml,
+#                          e.g. 0.0.1 -> 0.0.2; override with TAG=0.0.2)
 #   REGISTRY                (default: registry.digitalocean.com/talentgraph-auth)
 #   NAMESPACE               (default: lanai)
 #   PULL_SECRET_SOURCE_NS   namespace to copy talentgraph-auth-pull from (default: payment-switch-demo)
@@ -36,11 +38,46 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_DIR="$(dirname "$SCRIPT_DIR")"
 REPO_ROOT="$(dirname "$CONFIG_DIR")"
 
-TAG="${TAG:-kasi-$(date +%Y%m%d-%H%M)}"
+# Semantic-version tag helpers (developer convention: bump by 0.0.1, never
+# overwrite an existing tag). current_tag reads the lanai-portal tag that is
+# currently pinned in config/kustomization.yaml; bump_version increments the
+# patch digit (non-semver/legacy kasi-<timestamp> tags reset to 0.0.1).
+current_tag() {
+  python3 - "$CONFIG_DIR/kustomization.yaml" <<'PYEOF'
+import sys, re
+path = sys.argv[1]
+text = open(path).read()
+m = re.search(
+    r'newName: registry\.digitalocean\.com/talentgraph-auth/lanai-portal\s*\n\s*newTag: (\S+)',
+    text,
+)
+if not m:
+    sys.exit(1)
+print(m.group(1))
+PYEOF
+}
+
+bump_version() {
+  local v
+  v="$(current_tag)" || { log_error "Could not read current lanai-portal tag from config/kustomization.yaml"; exit 1; }
+  python3 - "$v" <<'PYEOF'
+import sys, re
+v = sys.argv[1]
+m = re.match(r'^(\d+)\.(\d+)\.(\d+)$', v)
+if not m:
+    print("0.0.1")
+else:
+    maj, minor, patch = map(int, m.groups())
+    print(f"{maj}.{minor}.{patch + 1}")
+PYEOF
+}
+
+TAG="${TAG:-$(bump_version)}"
 REGISTRY="${REGISTRY:-registry.digitalocean.com/talentgraph-auth}"
 NAMESPACE="${NAMESPACE:-lanai}"
 PULL_SECRET_SOURCE_NS="${PULL_SECRET_SOURCE_NS:-payment-switch-demo}"
 SECRETS_FILE="$SCRIPT_DIR/secrets/.env.secrets"
+DECRYPTED_SECRETS=0
 
 check_prerequisites() {
   log_info "Checking prerequisites..."
@@ -62,6 +99,14 @@ check_prerequisites() {
     log_error "$SECRETS_FILE does not exist."
     log_error "Copy secrets/.env.secrets.example to secrets/.env.secrets and fill in real values first."
     exit 1
+  fi
+  # If the secrets file is SOPS/age-encrypted (committed to git), decrypt it in
+  # place so kustomize's secretGenerator can read the plaintext. It is
+  # re-encrypted at the end of the run so the committed file stays encrypted.
+  if head -c 1 "$SECRETS_FILE" | grep -q '{' && grep -q 'ENC\[AES256' "$SECRETS_FILE"; then
+    log_info "Decrypting $SECRETS_FILE with sops..."
+    sops -d -i "$SECRETS_FILE"
+    DECRYPTED_SECRETS=1
   fi
   if grep -qE '^[A-Z_]+=\s*$' "$SECRETS_FILE"; then
     log_warning "$SECRETS_FILE has blank values for: $(grep -E '^[A-Z_]+=\s*$' "$SECRETS_FILE" | cut -d= -f1 | tr '\n' ' ')"
@@ -131,8 +176,8 @@ apply_manifests() {
     log_warning "standalone kustomize not found; falling back to a plain text substitution on config/kustomization.yaml"
     # Rewrites each images[].newTag line by matching on the preceding
     # newName (not a fixed placeholder string like "latest") — the images
-    # list always carries real timestamped tags from the last deploy, never
-    # a literal "latest", so a fixed-string substitution here silently
+    # list always carries real semantic-version tags from the last deploy,
+    # never a literal "latest", so a fixed-string substitution here silently
     # matches nothing and leaves the manifest pointing at a stale image on
     # every subsequent apply even though a fresh one was just built/pushed.
     python3 - "$CONFIG_DIR/kustomization.yaml" "$TAG" <<'PYEOF'
@@ -169,6 +214,14 @@ wait_for_jobs() {
   log_success "Setup jobs completed"
 }
 
+reencrypt_secrets() {
+  if [ "$DECRYPTED_SECRETS" = "1" ]; then
+    log_info "Re-encrypting $SECRETS_FILE with sops..."
+    sops -e -i "$SECRETS_FILE"
+    DECRYPTED_SECRETS=0
+  fi
+}
+
 rollout_status() {
   log_info "Waiting for app rollout..."
   kubectl -n "$NAMESPACE" rollout status deployment/lanai-portal --timeout=300s
@@ -190,6 +243,7 @@ upgrade() {
   kubectl -n "$NAMESPACE" set image deployment/lanai-portal \
     lanai-portal="$REGISTRY/lanai-portal:$TAG"
   rollout_status
+  reencrypt_secrets
   log_success "lanai-portal upgraded to tag $TAG"
 }
 
@@ -216,6 +270,7 @@ full_deploy() {
   apply_manifests
   wait_for_jobs
   rollout_status
+  reencrypt_secrets
   status
   echo ""
   log_success "lanai deployed to namespace $NAMESPACE with tag $TAG"
@@ -227,7 +282,7 @@ case "${1:-deploy}" in
   deploy)  full_deploy ;;
   build)   check_prerequisites; build_images ;;
   push)    push_images ;;
-  apply)   check_prerequisites; ensure_namespace_and_pull_secret; apply_manifests; wait_for_jobs; rollout_status ;;
+  apply)   check_prerequisites; ensure_namespace_and_pull_secret; apply_manifests; wait_for_jobs; rollout_status; reencrypt_secrets ;;
   upgrade) upgrade ;;
   status)  status ;;
   *)

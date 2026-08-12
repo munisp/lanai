@@ -1,0 +1,5 @@
+# SOPS configuration — encrypts Lanai secrets with age before pushing to GitHub.
+# The age recipient public key is generated from ~/.config/sops/age/keys.txt.
+creation_rules:
+  - path_regex: config/k8s/secrets/.*\.env\.secrets$
+    age: age1wc8k4ch45px38wx4g3mp23t0480m3p45duhsr7e5wptl4rgr33jqetweyg

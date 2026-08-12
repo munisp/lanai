@@ -18,7 +18,10 @@ export type TwentyObjectDefinition = {
     type:
       "TEXT" | "DATE" | "DATE_TIME" | "NUMBER" | "CURRENCY" | "SELECT" | "JSON";
     description: string;
-    options?: string[];
+    options?: Array<
+      | string
+      | { label: string; value: string; color?: string; position?: number }
+    >;
   }>;
 };
 
@@ -72,7 +75,7 @@ export const LANAI_TWENTY_OBJECT_DEFINITIONS: TwentyObjectDefinition[] = [
         description: "Client-facing booking amount only",
       },
       {
-        name: "currency",
+        name: "lanaiCurrency",
         label: "Currency",
         type: "TEXT",
         description: "ISO currency code",
@@ -124,7 +127,7 @@ export const LANAI_TWENTY_OBJECT_DEFINITIONS: TwentyObjectDefinition[] = [
         description: "Never includes margin or commission detail",
       },
       {
-        name: "currency",
+        name: "lanaiCurrency",
         label: "Currency",
         type: "TEXT",
         description: "ISO currency code",
@@ -198,7 +201,7 @@ export const LANAI_TWENTY_OBJECT_DEFINITIONS: TwentyObjectDefinition[] = [
         description: "Aggregate supplier reconciliation total",
       },
       {
-        name: "currency",
+        name: "lanaiCurrency",
         label: "Currency",
         type: "TEXT",
         description: "ISO currency code",
@@ -219,7 +222,7 @@ export const LANAI_TWENTY_OBJECT_DEFINITIONS: TwentyObjectDefinition[] = [
         description: "Stable celebration, amenity, or feedback identifier",
       },
       {
-        name: "type",
+        name: "lanaiType",
         label: "Type",
         type: "SELECT",
         description: "CRM-safe experience category",
@@ -415,20 +418,77 @@ export class TwentyCrmClient {
       );
     }
     for (const object of LANAI_TWENTY_OBJECT_DEFINITIONS) {
-      await this.ensureMetadataResource("objects", {
-        nameSingular: object.nameSingular,
-        namePlural: object.namePlural,
-        labelSingular: object.labelSingular,
-        labelPlural: object.labelPlural,
-        icon: object.icon,
-      });
+      const objectMetadataId = await this.ensureObject(object);
+      const existingFields = new Set(
+        await this.getObjectFieldNames(objectMetadataId),
+      );
       for (const field of object.fields) {
+        if (existingFields.has(field.name)) continue;
+        const payload = { ...field };
+        // Twenty's SELECT fields expect options as objects, not bare strings.
+        if (Array.isArray(payload.options)) {
+          payload.options = payload.options.map((option, index) =>
+            typeof option === "string"
+              ? {
+                  label: option.charAt(0).toUpperCase() + option.slice(1),
+                  value: option.toUpperCase(),
+                  color: "blue",
+                  position: index,
+                }
+              : option,
+          );
+        }
         await this.ensureMetadataResource("fields", {
-          objectName: object.nameSingular,
-          ...field,
+          objectMetadataId,
+          ...payload,
         });
       }
     }
+  }
+
+  private async getObjectFieldNames(
+    objectMetadataId: string,
+  ): Promise<string[]> {
+    const result = await this.request<{ fields?: Array<{ name: string }> }>(
+      `${this.metadataBaseUrl}/objects/${objectMetadataId}`,
+      { method: "GET" },
+    );
+    return (result?.fields ?? []).map((field) => field.name);
+  }
+
+  /**
+   * Creates a custom object and returns its objectMetadataId (UUID), which the
+   * fields endpoint requires. A 409 conflict is treated as an existing object,
+   * in which case the id is resolved from the objects list.
+   */
+  private async ensureObject(
+    object: TwentyObjectDefinition,
+  ): Promise<string> {
+    const list = await this.request<{
+      data?: Array<{ id: string; nameSingular: string }>;
+    }>(`${this.metadataBaseUrl}/objects`, { method: "GET" });
+    const existing = list?.data?.find(
+      (entry) => entry.nameSingular === object.nameSingular,
+    );
+    if (existing?.id) return existing.id;
+    const created = await this.request<{ id?: string }>(
+      `${this.metadataBaseUrl}/objects`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          nameSingular: object.nameSingular,
+          namePlural: object.namePlural,
+          labelSingular: object.labelSingular,
+          labelPlural: object.labelPlural,
+          icon: object.icon,
+        }),
+      },
+      `lanai:metadata:objects:${object.nameSingular}`,
+    );
+    if (created?.id) return created.id;
+    throw new TwentyCrmError(
+      `Could not resolve objectMetadataId for ${object.nameSingular}`,
+    );
   }
 
   private async ensureMetadataResource(
@@ -439,7 +499,9 @@ export class TwentyCrmClient {
       await this.request<unknown>(
         `${this.metadataBaseUrl}/${resource}`,
         { method: "POST", body: JSON.stringify(values) },
-        `lanai:metadata:${resource}:${String(values.name ?? values.nameSingular)}`,
+        `lanai:metadata:${resource}:${String(
+          values.name ?? values.objectMetadataId ?? values.nameSingular,
+        )}`,
       );
     } catch (error) {
       if (error instanceof TwentyCrmError && error.status === 409) return;

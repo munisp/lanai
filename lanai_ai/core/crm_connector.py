@@ -121,24 +121,24 @@ def get_opportunities(limit: int = 50) -> List[Dict]:
 
 def create_note(title: str, body: str, person_id: str = None) -> dict:
     """Create a note in the CRM, optionally linked to a person."""
-    body_v2 = json.dumps({
-        "type": "doc",
-        "content": [{"type": "paragraph", "content": [{"type": "text", "text": body}]}]
-    })
+    # Twenty's blocknote rich-text field expects a JSON array of blocks.
+    body_v2 = json.dumps(
+        [{"type": "paragraph", "content": [{"type": "text", "text": body}]}]
+    )
     result = gql("""
-    mutation CreateNote($title: String!, $body: String!) {
+    mutation CreateNote($title: String!, $body: String!, $bodyV2: String!) {
         createNote(data: {
             title: $title
-            bodyV2: { markdown: $body, blocknote: $body }
+            bodyV2: { markdown: $body, blocknote: $bodyV2 }
         }) { id title }
     }
-    """, {"title": title, "body": body})
+    """, {"title": title, "body": body, "bodyV2": body_v2})
     note = result.get("data", {}).get("createNote", {})
     if note and person_id:
         # Link note to person
         gql("""
         mutation LinkNote($noteId: ID!, $personId: ID!) {
-            createNoteTarget(data: { noteId: $noteId, personId: $personId }) { id }
+            createNoteTarget(data: { noteId: $noteId, targetPersonId: $personId }) { id }
         }
         """, {"noteId": note["id"], "personId": person_id})
     return note
@@ -146,13 +146,16 @@ def create_note(title: str, body: str, person_id: str = None) -> dict:
 
 def create_task(title: str, body: str, person_id: str = None, due_at: str = None) -> dict:
     """Create a task in the CRM."""
-    variables = {"title": title, "body": body}
+    body_v2 = json.dumps(
+        [{"type": "paragraph", "content": [{"type": "text", "text": body}]}]
+    )
+    variables = {"title": title, "body": body, "bodyV2": body_v2}
     due_clause = f'dueAt: "{due_at}"' if due_at else ""
     result = gql("""
-    mutation CreateTask($title: String!, $body: String!) {
+    mutation CreateTask($title: String!, $body: String!, $bodyV2: String!) {
         createTask(data: {
             title: $title
-            body: $body
+            bodyV2: { markdown: $body, blocknote: $bodyV2 }
             status: TODO
             %s
         }) { id title }
@@ -162,7 +165,7 @@ def create_task(title: str, body: str, person_id: str = None, due_at: str = None
     if task and person_id:
         gql("""
         mutation LinkTask($taskId: ID!, $personId: ID!) {
-            createTaskTarget(data: { taskId: $taskId, personId: $personId }) { id }
+            createTaskTarget(data: { taskId: $taskId, targetPersonId: $personId }) { id }
         }
         """, {"taskId": task["id"], "personId": person_id})
     return task
@@ -196,11 +199,15 @@ def create_person(first_name: str, last_name: str, phone: str = None, email: str
     """Create a new person in the CRM."""
     phones_clause = ""
     if phone:
-        # Parse phone number
+        # Parse phone number. Twenty expects an ISO-3166 alpha-2 country code
+        # (e.g. "US"), not a dialing code (e.g. "1").
         digits = phone.replace("+", "").replace(" ", "").replace("-", "")
-        country_code = "44" if phone.startswith("+44") else "1"
-        number = digits[len(country_code):]
-        phones_clause = f'phones: {{ primaryPhoneNumber: "{number}", primaryPhoneCountryCode: "{country_code}" }}'
+        if phone.startswith("+44"):
+            iso_code, dialing = "GB", "44"
+        else:
+            iso_code, dialing = "US", "1"
+        number = digits[len(dialing):]
+        phones_clause = f'phones: {{ primaryPhoneNumber: "{number}", primaryPhoneCountryCode: "{iso_code}" }}'
 
     emails_clause = ""
     if email:

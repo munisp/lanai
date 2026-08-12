@@ -81,14 +81,16 @@ function parseCookies(req: Request): Map<string, string> {
 }
 
 class KeycloakSdk {
-  createAuthorizationRequest(returnTo: string): {
+  createAuthorizationRequest(
+    returnTo: string,
+    redirectUri: string,
+  ): {
     url: string;
     state: string;
     codeVerifier: string;
   } {
     const issuer = ENV.keycloakIssuerUrl;
     const clientId = ENV.keycloakClientId;
-    const redirectUri = ENV.keycloakRedirectUri;
     if (!issuer || !clientId || !redirectUri)
       throw new Error("Keycloak OIDC settings are incomplete");
     const state = toBase64Url(crypto.randomBytes(32));
@@ -114,13 +116,14 @@ class KeycloakSdk {
   async exchangeCodeForToken(
     code: string,
     codeVerifier: string,
+    redirectUri: string,
   ): Promise<KeycloakTokenResponse> {
     const issuer = ENV.keycloakInternalIssuerUrl;
     if (
       !issuer ||
       !ENV.keycloakClientId ||
       !ENV.keycloakClientSecret ||
-      !ENV.keycloakRedirectUri
+      !redirectUri
     ) {
       throw new Error("Keycloak OIDC token exchange settings are incomplete");
     }
@@ -132,7 +135,7 @@ class KeycloakSdk {
         body: new URLSearchParams({
           grant_type: "authorization_code",
           code,
-          redirect_uri: ENV.keycloakRedirectUri,
+          redirect_uri: redirectUri,
           client_id: ENV.keycloakClientId,
           client_secret: ENV.keycloakClientSecret,
           code_verifier: codeVerifier,

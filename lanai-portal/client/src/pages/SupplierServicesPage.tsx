@@ -12,7 +12,7 @@ import {
   Filter,
   ChevronDown,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,15 +42,17 @@ function ServiceCard({
 }: {
   service: {
     id: number;
-    serviceName: string;
-    serviceCategory: string;
+    serviceType: string;
     description?: string | null;
     basePrice?: string | null;
     currency?: string | null;
-    isAvailable?: boolean | null;
+    isActive?: boolean | null;
     supplierName?: string | null;
   };
 }) {
+  // serviceType is stored as "category: name" — split it for display.
+  const [category, ...nameParts] = (service.serviceType ?? "").split(": ");
+  const serviceName = nameParts.join(": ") || service.serviceType;
   const catColors: Record<string, string> = {
     hotel_room: "bg-blue-50 text-blue-700",
     villa_rental: "bg-emerald-50 text-emerald-700",
@@ -68,7 +70,7 @@ function ServiceCard({
       <div className="flex items-start justify-between">
         <div>
           <div className="font-semibold text-foreground">
-            {service.serviceName}
+            {serviceName}
           </div>
           {service.supplierName && (
             <div className="text-xs text-muted-foreground mt-0.5">
@@ -80,19 +82,19 @@ function ServiceCard({
           <span
             className={cn(
               "text-xs px-2 py-0.5 rounded-full font-medium capitalize",
-              catColors[service.serviceCategory] ?? "bg-gray-100 text-gray-600",
+              catColors[category] ?? "bg-gray-100 text-gray-600",
             )}
           >
-            {service.serviceCategory.replace("_", " ")}
+            {(category || "other").replace("_", " ")}
           </span>
-          {service.isAvailable !== null && (
+          {service.isActive !== null && service.isActive !== undefined && (
             <span
               className={cn(
                 "text-xs",
-                service.isAvailable ? "text-emerald-600" : "text-red-500",
+                service.isActive ? "text-emerald-600" : "text-red-500",
               )}
             >
-              {service.isAvailable ? "● Available" : "● Unavailable"}
+              {service.isActive ? "● Available" : "● Unavailable"}
             </span>
           )}
         </div>
@@ -482,6 +484,19 @@ export default function SupplierServicesPage() {
 
   const { data: suppliers = [] } = trpc.suppliers.list.useQuery();
   const { data: members = [] } = trpc.members.list.useQuery();
+
+  // Auto-select the first supplier and member so the Add Service / Submit
+  // Inquiry buttons are visible and the service catalogue is populated on load.
+  useEffect(() => {
+    if (!selectedSupplierId && suppliers.length > 0) {
+      setSelectedSupplierId(String(suppliers[0].id));
+    }
+  }, [suppliers, selectedSupplierId]);
+  useEffect(() => {
+    if (!selectedMemberId && members.length > 0) {
+      setSelectedMemberId(String(members[0].id));
+    }
+  }, [members, selectedMemberId]);
   const {
     data: services,
     isLoading: servicesLoading,
@@ -631,12 +646,11 @@ export default function SupplierServicesPage() {
                   service={
                     s as unknown as {
                       id: number;
-                      serviceName: string;
-                      serviceCategory: string;
+                      serviceType: string;
                       description?: string | null;
                       basePrice?: string | null;
                       currency?: string | null;
-                      isAvailable?: boolean | null;
+                      isActive?: boolean | null;
                       supplierName?: string | null;
                     }
                   }

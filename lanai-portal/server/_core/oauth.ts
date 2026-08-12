@@ -32,14 +32,37 @@ function safeReturnTo(value: string | undefined): string {
   return value;
 }
 
+/**
+ * Derive the OAuth redirect URI from the request's own host so the state
+ * cookie and the Keycloak callback always match, regardless of which host
+ * (localhost, 127.0.0.1, an IP, or the newfire.app domain) the user is on.
+ */
+function getRedirectUri(req: Request): string {
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  const protoList = Array.isArray(forwardedProto)
+    ? forwardedProto
+    : (forwardedProto ?? "").split(",");
+  const secure = protoList.some(
+    (p) => p.trim().toLowerCase() === "https",
+  );
+  const protocol = secure ? "https" : "http";
+  const host = req.get("host") ?? "localhost:3001";
+  return `${protocol}://${host}/api/oauth/callback`;
+}
+
 export function registerOAuthRoutes(app: Express) {
   app.get("/api/oauth/login", async (req: Request, res: Response) => {
     try {
       const returnTo = safeReturnTo(queryString(req, "returnTo"));
-      const transaction = sdk.createAuthorizationRequest(returnTo);
+      const redirectUri = getRedirectUri(req);
+      const transaction = sdk.createAuthorizationRequest(returnTo, redirectUri);
       await Redis.set(
         `${OIDC_TRANSACTION_PREFIX}${transaction.state}`,
-        JSON.stringify({ returnTo, codeVerifier: transaction.codeVerifier }),
+        JSON.stringify({
+          returnTo,
+          codeVerifier: transaction.codeVerifier,
+          redirectUri,
+        }),
         OIDC_TRANSACTION_TTL_SECONDS,
       );
       res.cookie(OIDC_STATE_COOKIE, transaction.state, {
@@ -76,10 +99,12 @@ export function registerOAuthRoutes(app: Express) {
       const transaction = JSON.parse(rawTransaction) as {
         returnTo: string;
         codeVerifier: string;
+        redirectUri: string;
       };
       const token = await sdk.exchangeCodeForToken(
         code,
         transaction.codeVerifier,
+        transaction.redirectUri,
       );
       const principal = await sdk.getUserInfo(token.access_token);
       const sessionToken = await sdk.createAdvisorSession(token, principal);
