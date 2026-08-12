@@ -40,7 +40,17 @@ def quote(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
-def trino(query: str) -> list[dict[str, Any]]:
+def trino(query: str, params: tuple | None = None) -> list[dict[str, Any]]:
+    if params:
+        # Note: Trino over HTTP doesn't have native parameter binding like psycopg2
+        # This is a basic implementation of parameter substitution for the Trino HTTP API
+        for param in params:
+            if isinstance(param, str):
+                query = query.replace("?", quote(param), 1)
+            elif isinstance(param, int):
+                query = query.replace("?", str(param), 1)
+            else:
+                query = query.replace("?", quote(str(param)), 1)
     response = requests.post(
         f"{TRINO_URL}/v1/statement",
         data=query.encode("utf-8"),
@@ -99,25 +109,15 @@ def ingest(request: IngestRequest, authorization: str | None = Header(default=No
     ensure_initialized()
     record = request.record
     event_id = quote(record.eventId)
-    existing = trino(f"SELECT event_id FROM ingested_event_keys WHERE event_id = {event_id} LIMIT 1")
+    existing = trino("SELECT event_id FROM ingested_event_keys WHERE event_id = ? LIMIT 1", (record.eventId,))
     if existing:
         return {"status": "duplicate", "event_id": record.eventId}
     occurred_at = record.occurredAt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
     payload = json.dumps(record.payload, separators=(",", ":"), sort_keys=True)
-    values = ", ".join([
-        event_id,
-        quote(record.aggregateType),
-        quote(str(record.aggregateId)),
-        quote(record.eventType),
-        quote(record.idempotencyKey),
-        str(record.schemaVersion),
-        f"from_iso8601_timestamp({quote(occurred_at)})",
-        "current_timestamp",
-        quote(payload),
-    ])
     trino(
         "INSERT INTO platform_events (event_id, aggregate_type, aggregate_id, event_type, idempotency_key, schema_version, occurred_at, ingested_at, payload_json) "
-        f"VALUES ({values})"
+        "VALUES (?, ?, ?, ?, ?, ?, from_iso8601_timestamp(?), current_timestamp, ?)",
+        (record.eventId, record.aggregateType, str(record.aggregateId), record.eventType, record.idempotencyKey, record.schemaVersion, occurred_at, payload)
     )
-    trino(f"INSERT INTO ingested_event_keys (event_id, ingested_at) VALUES ({event_id}, current_timestamp)")
+    trino("INSERT INTO ingested_event_keys (event_id, ingested_at) VALUES (?, current_timestamp)", (record.eventId,))
     return {"status": "ingested", "event_id": record.eventId}
