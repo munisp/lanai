@@ -16,10 +16,11 @@ import Stripe from "stripe";
 import { z } from "zod";
 import { memberProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
-import { members } from "../drizzle/schema";
+import { invoices, members } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { MEMBERSHIP_PLANS } from "./stripeProducts";
 import type { Express, Request, Response } from "express";
+import { Temporal } from "./_core/infrastructure";
 
 // ─── Stripe client ────────────────────────────────────────────────────────────
 
@@ -54,6 +55,19 @@ export function createStripeClient(): Stripe {
 
 function getStripe(): Stripe {
   return createStripeClient();
+}
+
+function amountToMinor(amount: string): number {
+  const normalized = amount.trim();
+  if (!/^\d+(\.\d{1,2})?$/.test(normalized)) {
+    throw new Error("Invoice total is not a valid positive decimal amount");
+  }
+  const [whole, fraction = ""] = normalized.split(".");
+  const minor = Number(whole) * 100 + Number((fraction + "00").slice(0, 2));
+  if (!Number.isSafeInteger(minor) || minor <= 0) {
+    throw new Error("Invoice total is outside Stripe integer amount bounds");
+  }
+  return minor;
 }
 
 // ─── DB helpers ───────────────────────────────────────────────────────────────
@@ -225,6 +239,66 @@ export const memberPaymentsRouter = router({
         planName: plan.name,
         tier: input.tier,
       };
+    }),
+
+  /**
+   * Create a one-time Stripe Checkout Session for a member-owned service invoice.
+   * The signed payment_intent.succeeded event starts the durable Temporal funds saga.
+   */
+  createInvoiceCheckout: memberProcedure
+    .input(z.object({ invoiceId: z.number().int().positive(), origin: z.string().url() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      const [invoice] = await db
+        .select()
+        .from(invoices)
+        .where(eq(invoices.id, input.invoiceId))
+        .limit(1);
+      if (!invoice || invoice.memberId !== ctx.member.id) {
+        throw new Error("Invoice was not found for the authenticated member");
+      }
+      if (invoice.invoiceType !== "client_service" || !["draft", "sent", "overdue"].includes(invoice.status)) {
+        throw new Error("Invoice is not eligible for online payment");
+      }
+      const amountMinor = amountToMinor(invoice.totalAmount);
+      const currency = invoice.currency ?? "GBP";
+      const stripe = getStripe();
+      const customerId = await ensureStripeCustomer(stripe, ctx.member.id, ctx.member.email, ctx.member.name);
+      const idempotencyKey = `invoice-payment-checkout:${invoice.id}`;
+      const session = await stripe.checkout.sessions.create(
+        {
+          customer: customerId,
+          mode: "payment",
+          payment_method_types: ["card"],
+          client_reference_id: String(invoice.id),
+          line_items: [{
+            quantity: 1,
+            price_data: {
+              currency: currency.toLowerCase(),
+              unit_amount: amountMinor,
+              product_data: { name: `Lanai invoice ${invoice.invoiceNumber}` },
+            },
+          }],
+          payment_intent_data: {
+            metadata: {
+              lanai_financial_type: "invoice_payment",
+              lanai_invoice_id: String(invoice.id),
+              lanai_member_id: String(ctx.member.id),
+              lanai_idempotency_key: `financial:stripe-payment:${invoice.id}`,
+            },
+          },
+          metadata: {
+            lanai_financial_type: "invoice_payment",
+            lanai_invoice_id: String(invoice.id),
+            lanai_member_id: String(ctx.member.id),
+          },
+          success_url: `${input.origin}/client/invoices?payment=success&invoice=${invoice.id}`,
+          cancel_url: `${input.origin}/client/invoices?payment=cancelled&invoice=${invoice.id}`,
+        },
+        { idempotencyKey },
+      );
+      if (!session.url) throw new Error("Stripe Checkout did not return a redirect URL");
+      return { checkoutUrl: session.url, invoiceId: invoice.id };
     }),
 
   /**
@@ -458,6 +532,43 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
 
         console.log(
           `[Stripe Webhook] Member ${memberId} subscribed — tier: ${tier ?? "unknown"}`,
+        );
+        break;
+      }
+
+      case "payment_intent.succeeded": {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        if (paymentIntent.metadata?.lanai_financial_type !== "invoice_payment") break;
+        const invoiceId = Number(paymentIntent.metadata.lanai_invoice_id);
+        const memberId = Number(paymentIntent.metadata.lanai_member_id);
+        const idempotencyKey = paymentIntent.metadata.lanai_idempotency_key;
+        if (!Number.isInteger(invoiceId) || invoiceId <= 0 || !Number.isInteger(memberId) || memberId <= 0 || !idempotencyKey) {
+          throw new Error("Invoice payment intent is missing required Lanai financial metadata");
+        }
+        const db = await getDb();
+        const [invoice] = await db
+          .select()
+          .from(invoices)
+          .where(eq(invoices.id, invoiceId))
+          .limit(1);
+        if (!invoice || invoice.memberId !== memberId || invoice.invoiceType !== "client_service") {
+          throw new Error(`Invoice payment intent ${paymentIntent.id} does not match a payable member invoice`);
+        }
+        const invoiceCurrency = invoice.currency ?? "GBP";
+        if (paymentIntent.currency.toUpperCase() !== invoiceCurrency.toUpperCase() || paymentIntent.amount_received !== amountToMinor(invoice.totalAmount)) {
+          throw new Error(`Invoice payment intent ${paymentIntent.id} amount or currency does not match invoice ${invoiceId}`);
+        }
+        await Temporal.startWorkflow(
+          "invoicePaymentSaga",
+          [{
+            invoiceId,
+            memberId,
+            amount: invoice.totalAmount,
+            currency: invoiceCurrency,
+            stripePaymentIntentId: paymentIntent.id,
+            idempotencyKey,
+          }],
+          { workflowId: `financial-stripe-payment-${paymentIntent.id}` },
         );
         break;
       }

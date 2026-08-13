@@ -16,6 +16,8 @@ import {
   AccountFlags,
   CreateAccountStatus,
   CreateTransferStatus,
+  TransferFlags,
+  amount_max,
   createClient as createTigerBeetleClient,
   type Client as TigerBeetleClient,
 } from "tigerbeetle-node";
@@ -288,7 +290,16 @@ export const TigerBeetle = {
     ]);
     if (results.length === 0) return { created: true };
     const status = results[0]?.status;
-    if (status === CreateAccountStatus.exists) return { created: false };
+    if (status === CreateAccountStatus.exists) {
+      const [existing] = await getTigerBeetleClient().lookupAccounts([accountId]);
+      if (!existing || existing.ledger !== ledger || existing.code !== code) {
+        throw new InfrastructureError(
+          "TigerBeetle",
+          `existing account ${accountId} does not match its idempotency payload`,
+        );
+      }
+      return { created: false };
+    }
     throw new InfrastructureError(
       "TigerBeetle",
       `account create failed with status ${String(status)}`,
@@ -335,11 +346,162 @@ export const TigerBeetle = {
     ]);
     if (results.length === 0) return { created: true, transferId };
     const status = results[0]?.status;
-    if (status === CreateTransferStatus.exists)
+    if (status === CreateTransferStatus.exists) {
+      const [existing] = await getTigerBeetleClient().lookupTransfers([transferId]);
+      if (
+        !existing ||
+        existing.debit_account_id !== debitAccountId ||
+        existing.credit_account_id !== creditAccountId ||
+        existing.amount !== amount ||
+        existing.ledger !== ledger ||
+        existing.code !== code ||
+        existing.flags !== 0
+      ) {
+        throw new InfrastructureError(
+          "TigerBeetle",
+          `existing transfer ${transferId} does not match its idempotency payload`,
+        );
+      }
       return { created: false, transferId };
+    }
     throw new InfrastructureError(
       "TigerBeetle",
       `transfer create failed with status ${String(status)}`,
+    );
+  },
+
+  /** Create a two-phase pending transfer; funds are reserved but not posted. */
+  async createPendingTransfer(
+    amount: bigint,
+    debitAccountId: bigint,
+    creditAccountId: bigint,
+    idempotencyKey: string,
+    ledger = ENV.tigerBeetleLedger,
+    code = ENV.tigerBeetleTransferCode,
+  ): Promise<{ created: boolean; transferId: bigint }> {
+    if (amount <= 0n)
+      throw new InfrastructureError("TigerBeetle", "pending transfer amount must be positive");
+    if (debitAccountId === creditAccountId)
+      throw new InfrastructureError("TigerBeetle", "pending transfer accounts must differ");
+    const transferId = stableUint128(
+      requireConfigured(idempotencyKey, "TigerBeetle", "pending transfer idempotency key"),
+    );
+    const results = await getTigerBeetleClient().createTransfers([
+      {
+        id: transferId,
+        debit_account_id: debitAccountId,
+        credit_account_id: creditAccountId,
+        amount,
+        pending_id: 0n,
+        user_data_128: 0n,
+        user_data_64: 0n,
+        user_data_32: 0,
+        timeout: 0,
+        ledger,
+        code,
+        flags: TransferFlags.pending,
+        timestamp: 0n,
+      },
+    ]);
+    if (results.length === 0) return { created: true, transferId };
+    const status = results[0]?.status;
+    if (status === CreateTransferStatus.exists) {
+      const [existing] = await getTigerBeetleClient().lookupTransfers([transferId]);
+      if (
+        !existing ||
+        existing.debit_account_id !== debitAccountId ||
+        existing.credit_account_id !== creditAccountId ||
+        existing.amount !== amount ||
+        existing.ledger !== ledger ||
+        existing.code !== code ||
+        existing.flags !== TransferFlags.pending
+      ) {
+        throw new InfrastructureError(
+          "TigerBeetle",
+          `existing pending transfer ${transferId} does not match its idempotency payload`,
+        );
+      }
+      return { created: false, transferId };
+    }
+    throw new InfrastructureError(
+      "TigerBeetle",
+      `pending transfer create failed with status ${String(status)}`,
+    );
+  },
+
+  /** Atomically post a previously reserved pending transfer. */
+  async postPendingTransfer(
+    pendingTransferId: bigint,
+    debitAccountId: bigint,
+    creditAccountId: bigint,
+    idempotencyKey: string,
+    ledger = ENV.tigerBeetleLedger,
+    code = ENV.tigerBeetleTransferCode,
+  ): Promise<{ created: boolean; transferId: bigint }> {
+    const transferId = stableUint128(
+      requireConfigured(idempotencyKey, "TigerBeetle", "post transfer idempotency key"),
+    );
+    const results = await getTigerBeetleClient().createTransfers([
+      {
+        id: transferId,
+        debit_account_id: debitAccountId,
+        credit_account_id: creditAccountId,
+        amount: amount_max,
+        pending_id: pendingTransferId,
+        user_data_128: 0n,
+        user_data_64: 0n,
+        user_data_32: 0,
+        timeout: 0,
+        ledger,
+        code,
+        flags: TransferFlags.post_pending_transfer,
+        timestamp: 0n,
+      },
+    ]);
+    if (results.length === 0) return { created: true, transferId };
+    const status = results[0]?.status;
+    if (status === CreateTransferStatus.exists) return { created: false, transferId };
+    throw new InfrastructureError(
+      "TigerBeetle",
+      `pending transfer post failed with status ${String(status)}`,
+    );
+  },
+
+  /** Void a pending transfer to release reserved funds during Saga compensation. */
+  async voidPendingTransfer(
+    pendingTransferId: bigint,
+    debitAccountId: bigint,
+    creditAccountId: bigint,
+    idempotencyKey: string,
+    ledger = ENV.tigerBeetleLedger,
+    code = ENV.tigerBeetleTransferCode,
+  ): Promise<{ created: boolean; transferId: bigint }> {
+    const transferId = stableUint128(
+      requireConfigured(idempotencyKey, "TigerBeetle", "void transfer idempotency key"),
+    );
+    const results = await getTigerBeetleClient().createTransfers([
+      {
+        id: transferId,
+        debit_account_id: debitAccountId,
+        credit_account_id: creditAccountId,
+        amount: 0n,
+        pending_id: pendingTransferId,
+        user_data_128: 0n,
+        user_data_64: 0n,
+        user_data_32: 0,
+        timeout: 0,
+        ledger,
+        code,
+        flags: TransferFlags.void_pending_transfer,
+        timestamp: 0n,
+      },
+    ]);
+    if (results.length === 0) return { created: true, transferId };
+    const status = results[0]?.status;
+    if (status === CreateTransferStatus.exists) return { created: false, transferId };
+    throw new InfrastructureError(
+      "TigerBeetle",
+      `pending transfer void failed with status ${String(status)}`,
     );
   },
 

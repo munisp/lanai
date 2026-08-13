@@ -40,7 +40,7 @@ const chaosActivities = {
   reserveCommissionInTigerBeetle: async (input: any) => {
     console.log("💣 [Chaos Activity] Executing reserveCommissionInTigerBeetle...");
     const result = await financialActivities.reserveCommissionInTigerBeetle(input);
-    console.log("💣 [Chaos Activity] TigerBeetle transfer succeeded. Transfer ID:", result.transferId);
+    console.log("💣 [Chaos Activity] TigerBeetle transfer succeeded. Transfer ID:", result.pendingTransferId);
     
     // If this is the first attempt (no env var flag), CRASH the process!
     if (!process.env.RECOVERY_MODE) {

@@ -61,6 +61,7 @@ import {
 } from "../drizzle/schema";
 import { invokeLocalAi } from "./_core/localAi";
 import { emitCrmDomainEvent } from "./_core/crmEvent";
+import { Temporal } from "./_core/infrastructure";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1097,7 +1098,47 @@ export const invoicingRouter = router({
     )
     .mutation(async ({ input }) => {
       const db = await getDb();
-      await db
+      const [invoice] = await db
+        .select()
+        .from(invoices)
+        .where(eq(invoices.id, input.invoiceId))
+        .limit(1);
+      if (!invoice) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Invoice not found" });
+      }
+
+      // A paid financial state must be established only by the signed Stripe
+      // webhook → Temporal financial saga. Direct status updates would create a
+      // funds-recording bypass with no TigerBeetle double-entry transfer.
+      if (input.status === "paid") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Invoice payment status is controlled by the Stripe financial saga",
+        });
+      }
+
+      // Sending a supplier commission invoice creates a payable and therefore
+      // must enter the durable TigerBeetle/Temporal pipeline, not just mutate
+      // PostgreSQL status.
+      if (input.status === "sent" && invoice.invoiceType === "commission") {
+        if (!invoice.supplierId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Commission invoice requires a supplier" });
+        }
+        await Temporal.startWorkflow(
+          "commissionReconciliationSaga",
+          [{
+            invoiceId: invoice.id,
+            supplierId: invoice.supplierId,
+            amount: invoice.totalAmount,
+            currency: invoice.currency,
+            idempotencyKey: `financial:commission-reconciliation:invoice:${invoice.id}`,
+          }],
+          { workflowId: `financial-commission-reconciliation-invoice-${invoice.id}` },
+        );
+        return { success: true, workflowStarted: true };
+      }
+
+      const [updated] = await db
         .update(invoices)
         .set({
           status: input.status,
@@ -1105,15 +1146,17 @@ export const invoicingRouter = router({
           issuedAt: input.issuedAt ? new Date(input.issuedAt) : undefined,
           updatedAt: new Date(),
         })
-        .where(eq(invoices.id, input.invoiceId));
+        .where(eq(invoices.id, input.invoiceId))
+        .returning({ id: invoices.id });
+      if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Invoice not found" });
       await emitCrmDomainEvent({
         aggregateType: "invoice",
         aggregateId: input.invoiceId,
         eventType: `status_${input.status}`,
         payload: { invoiceId: input.invoiceId, status: input.status },
-        idempotencyKey: `invoice:${input.invoiceId}:status:${input.status}:${Date.now()}`,
+        idempotencyKey: `invoice:${input.invoiceId}:status:${input.status}`,
       });
-      return { success: true };
+      return { success: true, workflowStarted: false };
     }),
 
   /** Member: view their own invoices */

@@ -2053,9 +2053,14 @@ export const ledgerTransfers = pgTable(
   {
     id: serial("id").primaryKey(),
     transferKey: varchar("transferKey", { length: 128 }).notNull().unique(),
+    /** Pending/reserved TigerBeetle transfer identifier. */
     tigerBeetleTransferId: varchar("tigerBeetleTransferId", { length: 39 })
       .notNull()
       .unique(),
+    /** TigerBeetle post/void settlement transfer identifier. */
+    tigerBeetleSettlementTransferId: varchar("tigerBeetleSettlementTransferId", {
+      length: 39,
+    }).unique(),
     debitLedgerAccountId: integer("debitLedgerAccountId").notNull(),
     creditLedgerAccountId: integer("creditLedgerAccountId").notNull(),
     amountMinor: numeric("amountMinor", { precision: 20, scale: 0 }).notNull(),
@@ -2211,3 +2216,30 @@ export const apiIdempotencyKeys = pgTable(
 );
 export type ApiIdempotencyKey = typeof apiIdempotencyKeys.$inferSelect;
 export type InsertApiIdempotencyKey = typeof apiIdempotencyKeys.$inferInsert;
+
+// ─── Advisor Client Management ───────────────────────────────────────────────
+// Kept distinct from member portal records: a client may be a prospect before
+// being invited as a member. Conversion must be an explicit audited workflow.
+export const clients = pgTable(
+  "clients",
+  {
+    id: serial("id").primaryKey(),
+    firstName: varchar("firstName", { length: 128 }).notNull(),
+    lastName: varchar("lastName", { length: 128 }).notNull(),
+    email: varchar("email", { length: 320 }).notNull().unique(),
+    phone: varchar("phone", { length: 64 }),
+    city: varchar("city", { length: 128 }),
+    country: varchar("country", { length: 128 }),
+    company: varchar("company", { length: 255 }),
+    notes: text("notes"),
+    assignedAdvisorId: integer("assignedAdvisorId"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("clients_email_idx").on(t.email),
+    index("clients_assigned_advisor_idx").on(t.assignedAdvisorId),
+  ],
+);
+export type Client = typeof clients.$inferSelect;
+export type InsertClient = typeof clients.$inferInsert;

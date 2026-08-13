@@ -44,7 +44,8 @@ import {
   users,
   supplierContacts,
 } from "../drizzle/schema";
-import { Fluvio, Dapr, TigerBeetle, Temporal } from "./_core/infrastructure";
+import { Fluvio, Dapr, Temporal } from "./_core/infrastructure";
+import { enqueueDomainEvent } from "./_core/outbox";
 
 // ─── Helper: write an audit log entry ────────────────────────────────────────
 async function writeAudit(
@@ -668,16 +669,16 @@ export const commissionRouter = router({
         .returning({ id: commissionLedger.id });
       rowId = row.id;
 
-      // Record in TigerBeetle
-      await TigerBeetle.createTransfer(
-        BigInt(Math.round(parseFloat(input.expectedAmount) * 100)),
-        BigInt(2001),
-        BigInt(2002),
-      );
-      await Fluvio.produce(
-        "commissions",
-        JSON.stringify({ event: "created", id: rowId }),
-      );
+      // An expected commission is a forecast, not a funds movement. Moving
+      // money here would create an unauthorised direct-ledger bypass. Actual
+      // receipt is posted only through a financial Temporal saga.
+      await enqueueDomainEvent({
+        aggregateType: "commission_ledger",
+        aggregateId: rowId,
+        eventType: "commission_expected_created",
+        payload: { commissionLedgerId: rowId, bookingId: input.bookingId },
+        idempotencyKey: `commission-ledger:${rowId}:expected-created`,
+      });
       return { id: rowId };
     }),
 

@@ -70,7 +70,7 @@ const createMockContext = async (role: string, email: string, sub: string) => {
   };
 };
 
-describe("API Gateway E2E - Keycloak JWT + Permify Authz", () => {
+describe.skipIf(!process.env.PERMIFY_GRPC_ADDRESS)("API Gateway E2E - Keycloak JWT + Permify Authz", () => {
   beforeAll(async () => {
     // We need to bootstrap the Permify schema to get a schema version
     const fs = require("fs");

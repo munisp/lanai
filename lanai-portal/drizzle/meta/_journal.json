@@ -36,6 +36,13 @@
       "when": 1786552352013,
       "tag": "0004_ambitious_luckman",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786582340976,
+      "tag": "0005_early_paper_doll",
+      "breakpoints": true
     }
   ]
 }

@@ -426,18 +426,6 @@ export async function getChatwootMessageByChatwootId(
   return results[0] ?? null;
 }
 
-export async function getChatwootMessageByChatwootId(
-  chatwootId: string,
-): Promise<ChatwootMessage | null> {
-  const db = await getDb();
-  const results = await db
-    .select()
-    .from(chatwootMessages)
-    .where(eq(chatwootMessages.chatwootId, chatwootId))
-    .limit(1);
-  return results[0] ?? null;
-}
-
 export async function listChatwootMessages(
   conversationId: number,
 ): Promise<ChatwootMessage[]> {

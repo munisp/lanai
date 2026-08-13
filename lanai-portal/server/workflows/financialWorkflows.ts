@@ -1,14 +1,14 @@
 /**
- * Financial Saga Workflows — Temporal Durable Execution
+ * Durable financial Sagas.
  *
- * These workflows guarantee atomicity between PostgreSQL, TigerBeetle, and
- * Fluvio for all flow-of-funds operations. If any step fails, compensating
- * transactions are executed to maintain consistency.
- *
- * Pattern: Saga with explicit compensation steps.
- * Guarantee: At-most-once semantics via Temporal's workflow ID deduplication.
+ * Each Saga reserves a TigerBeetle pending transfer, persists its PostgreSQL
+ * mirror, settles the pending transfer, then records an idempotent outbox event.
+ * Database failure before settlement triggers a real TigerBeetle void operation.
+ * After settlement, retries only replay idempotent PostgreSQL/outbox mutations;
+ * they cannot create another transfer.
  */
 import { proxyActivities, ApplicationFailure } from "@temporalio/workflow";
+import type { PendingFinancialTransfer } from "./financialActivities";
 
 export type BookingCommissionInput = {
   bookingId: number;
@@ -36,47 +36,28 @@ export type CommissionReconciliationInput = {
   idempotencyKey: string;
 };
 
+type Settlement = { settlementTransferId: string };
+type Persisted = { ledgerTransferId: number };
+
 const financial = proxyActivities<{
-  // Step 1: Reserve funds in TigerBeetle (pending transfer)
-  reserveCommissionInTigerBeetle(
-    input: BookingCommissionInput,
-  ): Promise<{ transferId: string; debitAccountId: string; creditAccountId: string }>;
-  // Step 2: Record the transfer in PostgreSQL
-  persistCommissionToPostgres(
-    input: BookingCommissionInput & { transferId: string },
-  ): Promise<{ ledgerTransferId: number }>;
-  // Step 3: Emit the event to Fluvio for downstream consumers
-  emitCommissionEventToFluvio(
-    input: BookingCommissionInput & { transferId: string },
-  ): Promise<void>;
-  // Step 4: Update booking status to reflect commission posted
-  markBookingCommissionPosted(
-    input: { bookingId: number; transferId: string },
-  ): Promise<void>;
-  // Compensation: Void the TigerBeetle transfer if downstream fails
-  voidTigerBeetleTransfer(transferId: string): Promise<void>;
+  reserveCommissionInTigerBeetle(input: BookingCommissionInput): Promise<PendingFinancialTransfer>;
+  persistCommissionToPostgres(input: BookingCommissionInput & PendingFinancialTransfer): Promise<Persisted>;
+  settleCommissionInTigerBeetle(input: PendingFinancialTransfer): Promise<Settlement>;
+  voidCommissionInTigerBeetle(input: PendingFinancialTransfer): Promise<void>;
+  enqueueCommissionEvent(input: BookingCommissionInput & PendingFinancialTransfer & Settlement): Promise<void>;
+  markBookingCommissionPosted(input: { bookingId: number; settlementTransferId: string }): Promise<void>;
 
-  // Invoice payment activities
-  postPaymentToTigerBeetle(
-    input: InvoicePaymentInput,
-  ): Promise<{ transferId: string }>;
-  markInvoicePaid(
-    input: { invoiceId: number; transferId: string; paidAt: string },
-  ): Promise<void>;
-  emitPaymentEventToFluvio(
-    input: InvoicePaymentInput & { transferId: string },
-  ): Promise<void>;
+  reservePaymentInTigerBeetle(input: InvoicePaymentInput): Promise<PendingFinancialTransfer>;
+  persistPaymentToPostgres(input: InvoicePaymentInput & PendingFinancialTransfer): Promise<Persisted>;
+  settlePaymentInTigerBeetle(input: PendingFinancialTransfer): Promise<Settlement>;
+  enqueuePaymentEvent(input: InvoicePaymentInput & PendingFinancialTransfer & Settlement): Promise<void>;
+  markInvoicePaid(input: { invoiceId: number; settlementTransferId: string; paidAt: string }): Promise<void>;
 
-  // Commission reconciliation activities
-  postCommissionPayableToTigerBeetle(
-    input: CommissionReconciliationInput,
-  ): Promise<{ transferId: string }>;
-  markCommissionInvoiceSent(
-    input: { invoiceId: number; transferId: string },
-  ): Promise<void>;
-  emitReconciliationEventToFluvio(
-    input: CommissionReconciliationInput & { transferId: string },
-  ): Promise<void>;
+  reserveCommissionPayableInTigerBeetle(input: CommissionReconciliationInput): Promise<PendingFinancialTransfer>;
+  persistCommissionReconciliationToPostgres(input: CommissionReconciliationInput & PendingFinancialTransfer): Promise<Persisted>;
+  settleCommissionPayableInTigerBeetle(input: PendingFinancialTransfer): Promise<Settlement>;
+  enqueueReconciliationEvent(input: CommissionReconciliationInput & PendingFinancialTransfer & Settlement): Promise<void>;
+  markCommissionInvoiceSent(input: { invoiceId: number; settlementTransferId: string }): Promise<void>;
 }>({
   startToCloseTimeout: "30 seconds",
   retry: {
@@ -84,103 +65,76 @@ const financial = proxyActivities<{
     initialInterval: "1s",
     maximumInterval: "30s",
     backoffCoefficient: 2,
-    nonRetryableErrorTypes: ["INVALID_INPUT", "DUPLICATE_TRANSFER"],
+    nonRetryableErrorTypes: ["INVALID_INPUT", "DUPLICATE_TRANSFER", "SAGA_COMPENSATION"],
   },
 });
 
-/**
- * Booking Commission Saga
- *
- * Guarantees that when a booking is confirmed with a commission:
- * 1. TigerBeetle records the double-entry transfer (debit member payable, credit commission receivable)
- * 2. PostgreSQL records the transfer metadata
- * 3. Fluvio streams the event for analytics/lakehouse
- * 4. The booking record is updated to reflect the posted commission
- *
- * If step 2, 3, or 4 fails after step 1, the TigerBeetle transfer is voided.
- */
+function compensationFailure(stage: string, error: unknown): ApplicationFailure {
+  return ApplicationFailure.create({
+    message: `Financial Saga failed at ${stage}: ${String(error)}`,
+    type: "SAGA_COMPENSATION",
+    nonRetryable: true,
+  });
+}
+
+/** Booking commission: pending reserve → DB mirror → post → outbox → booking state. */
 export async function bookingCommissionSaga(
   input: BookingCommissionInput,
-): Promise<{ transferId: string; status: "posted" | "compensated" }> {
-  // Step 1: Reserve in TigerBeetle (idempotent — safe to retry)
-  const { transferId } = await financial.reserveCommissionInTigerBeetle(input);
-
-  // Step 2: Persist to PostgreSQL
+): Promise<{ pendingTransferId: string; settlementTransferId: string; status: "posted" }> {
+  const pending = await financial.reserveCommissionInTigerBeetle(input);
   try {
-    await financial.persistCommissionToPostgres({ ...input, transferId });
+    await financial.persistCommissionToPostgres({ ...input, ...pending });
   } catch (error) {
-    // Compensate: void the TigerBeetle transfer
-    await financial.voidTigerBeetleTransfer(transferId);
-    throw ApplicationFailure.create({
-      message: `Commission saga failed at PostgreSQL persistence: ${error}`,
-      type: "SAGA_COMPENSATION",
-      nonRetryable: true,
-    });
+    await financial.voidCommissionInTigerBeetle(pending);
+    throw compensationFailure("commission mirror persistence", error);
   }
-
-  // Step 3: Emit to Fluvio (non-critical — retry but don't compensate)
-  await financial.emitCommissionEventToFluvio({ ...input, transferId });
-
-  // Step 4: Update booking record
+  const settlement = await financial.settleCommissionInTigerBeetle(pending);
+  await financial.enqueueCommissionEvent({ ...input, ...pending, ...settlement });
   await financial.markBookingCommissionPosted({
     bookingId: input.bookingId,
-    transferId,
+    settlementTransferId: settlement.settlementTransferId,
   });
-
-  return { transferId, status: "posted" };
+  return { pendingTransferId: pending.pendingTransferId, settlementTransferId: settlement.settlementTransferId, status: "posted" };
 }
 
-/**
- * Invoice Payment Saga
- *
- * Triggered by Stripe webhook when a payment is received. Guarantees:
- * 1. TigerBeetle records the payment (debit cash, credit receivable)
- * 2. PostgreSQL marks the invoice as paid
- * 3. Fluvio streams the payment event
- */
+/** Invoice payment: pending reserve → DB mirror → post → invoice state → outbox. */
 export async function invoicePaymentSaga(
   input: InvoicePaymentInput,
-): Promise<{ transferId: string }> {
-  // Step 1: Post to TigerBeetle
-  const { transferId } = await financial.postPaymentToTigerBeetle(input);
-
-  // Step 2: Mark invoice paid in PostgreSQL
+): Promise<{ pendingTransferId: string; settlementTransferId: string }> {
+  const pending = await financial.reservePaymentInTigerBeetle(input);
+  try {
+    await financial.persistPaymentToPostgres({ ...input, ...pending });
+  } catch (error) {
+    // Payment uses the same pending-transfer compensation contract as commission.
+    await financial.voidCommissionInTigerBeetle(pending);
+    throw compensationFailure("payment mirror persistence", error);
+  }
+  const settlement = await financial.settlePaymentInTigerBeetle(pending);
   await financial.markInvoicePaid({
     invoiceId: input.invoiceId,
-    transferId,
+    settlementTransferId: settlement.settlementTransferId,
     paidAt: new Date().toISOString(),
   });
-
-  // Step 3: Emit to Fluvio
-  await financial.emitPaymentEventToFluvio({ ...input, transferId });
-
-  return { transferId };
+  await financial.enqueuePaymentEvent({ ...input, ...pending, ...settlement });
+  return { pendingTransferId: pending.pendingTransferId, settlementTransferId: settlement.settlementTransferId };
 }
 
-/**
- * Commission Reconciliation Saga
- *
- * Triggered at month-end when commission invoices are sent to suppliers.
- * Guarantees:
- * 1. TigerBeetle records the payable (debit commission receivable, credit supplier payable)
- * 2. PostgreSQL marks the commission invoice as sent
- * 3. Fluvio streams the reconciliation event
- */
+/** Supplier commission reconciliation: pending reserve → mirror → post → invoice state → outbox. */
 export async function commissionReconciliationSaga(
   input: CommissionReconciliationInput,
-): Promise<{ transferId: string }> {
-  // Step 1: Post to TigerBeetle
-  const { transferId } =
-    await financial.postCommissionPayableToTigerBeetle(input);
-
-  // Step 2: Mark invoice sent
+): Promise<{ pendingTransferId: string; settlementTransferId: string }> {
+  const pending = await financial.reserveCommissionPayableInTigerBeetle(input);
+  try {
+    await financial.persistCommissionReconciliationToPostgres({ ...input, ...pending });
+  } catch (error) {
+    await financial.voidCommissionInTigerBeetle(pending);
+    throw compensationFailure("reconciliation mirror persistence", error);
+  }
+  const settlement = await financial.settleCommissionPayableInTigerBeetle(pending);
   await financial.markCommissionInvoiceSent({
     invoiceId: input.invoiceId,
-    transferId,
+    settlementTransferId: settlement.settlementTransferId,
   });
-
-  // Step 3: Emit to Fluvio
-  await financial.emitReconciliationEventToFluvio({ ...input, transferId });
-
-  return { transferId };
+  await financial.enqueueReconciliationEvent({ ...input, ...pending, ...settlement });
+  return { pendingTransferId: pending.pendingTransferId, settlementTransferId: settlement.settlementTransferId };
 }

@@ -247,8 +247,8 @@ describe("Chaos Engineering: Financial Saga Recovery Guarantees", () => {
     console.log("✅ Non-retryable errors (INVALID_INPUT, DUPLICATE_TRANSFER) fail fast");
 
     // Verify compensation logic exists
-    expect(workflowsSource).toContain("voidTigerBeetleTransfer");
+    expect(workflowsSource).toContain("voidCommissionInTigerBeetle");
     expect(workflowsSource).toContain("SAGA_COMPENSATION");
-    console.log("✅ Saga compensation (TigerBeetle void) is triggered on PostgreSQL failure");
+    console.log("✅ Saga compensation uses a real TigerBeetle pending-transfer void on PostgreSQL failure");
   });
 });
