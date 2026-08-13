@@ -1,0 +1,219 @@
+# Apply only to a dedicated, non-production cluster or namespace. The Job is
+# intentionally unable to use Kubernetes API credentials and can egress only to
+# DNS and a PostgreSQL target namespace labelled lanai.io/loadtest-db=true.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lanai-loadtest
+  labels:
+    app.kubernetes.io/part-of: lanai
+    lanai.io/environment: loadtest
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ledger-soak-runner
+  namespace: lanai-loadtest
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: ledger-soak-quota
+  namespace: lanai-loadtest
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 4Gi
+    limits.cpu: "6"
+    limits.memory: 6Gi
+    persistentvolumeclaims: "1"
+    pods: "2"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: ledger-soak-defaults
+  namespace: lanai-loadtest
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: "500m"
+        memory: 512Mi
+      default:
+        cpu: "2"
+        memory: 2Gi
+---
+# No in-repository credentials are supplied. Create this secret out of band:
+# kubectl -n lanai-loadtest create secret generic lanai-loadtest-db \
+#   --from-literal=DATABASE_URL='postgresql://...dedicated-loadtest-db...'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ledger-soak-settings
+  namespace: lanai-loadtest
+data:
+  RUN_ID: "replace-with-change-ticket-and-utc-run-id"
+  ENVIRONMENT: "loadtest"
+  TARGET_TPS: "500"
+  DURATION_HOURS: "24"
+  POOL_SIZE: "100"
+  SAMPLE_SECONDS: "60"
+  MAX_ERRORS: "0"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ledger-soak-evidence
+  namespace: lanai-loadtest
+  labels:
+    lanai.io/retention: "compliance-export-required"
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: lanai-loadtest
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+---
+# DNS only: permits resolution without opening general internet egress.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: lanai-loadtest
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ledger-soak-runner
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# The database namespace must be explicitly labelled lanai.io/loadtest-db=true.
+# Change the port only if the dedicated target uses a non-standard PostgreSQL port.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dedicated-postgres
+  namespace: lanai-loadtest
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ledger-soak-runner
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              lanai.io/loadtest-db: "true"
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: lanai-ledger-soak-
+  namespace: lanai-loadtest
+  labels:
+    app.kubernetes.io/name: ledger-soak-runner
+    app.kubernetes.io/component: compliance-validation
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 90000 # 25 hours: 24-hour execution plus shutdown margin
+  ttlSecondsAfterFinished: 604800 # retain pod logs for seven days; PVC persists for export
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ledger-soak-runner
+    spec:
+      serviceAccountName: ledger-soak-runner
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ledger-soak-runner
+          # Replace with a signed, scanned image digest built from
+          # lanai-portal/Dockerfile.loadtest in the approved registry.
+          image: ghcr.io/munisp/lanai-ledger-soak:REPLACE_WITH_SIGNED_DIGEST
+          imagePullPolicy: IfNotPresent
+          args:
+            - --db
+            - $(DATABASE_URL)
+            - --environment
+            - $(ENVIRONMENT)
+            - --run-id
+            - $(RUN_ID)
+            - --tps
+            - $(TARGET_TPS)
+            - --hours
+            - $(DURATION_HOURS)
+            - --pool-size
+            - $(POOL_SIZE)
+            - --sample-seconds
+            - $(SAMPLE_SECONDS)
+            - --max-errors
+            - $(MAX_ERRORS)
+            - --output-dir
+            - /evidence
+            - --allow-write
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: lanai-loadtest-db
+                  key: DATABASE_URL
+            - name: RUN_ID
+              valueFrom: { configMapKeyRef: { name: ledger-soak-settings, key: RUN_ID } }
+            - name: ENVIRONMENT
+              valueFrom: { configMapKeyRef: { name: ledger-soak-settings, key: ENVIRONMENT } }
+            - name: TARGET_TPS
+              valueFrom: { configMapKeyRef: { name: ledger-soak-settings, key: TARGET_TPS } }
+            - name: DURATION_HOURS
+              valueFrom: { configMapKeyRef: { name: ledger-soak-settings, key: DURATION_HOURS } }
+            - name: POOL_SIZE
+              valueFrom: { configMapKeyRef: { name: ledger-soak-settings, key: POOL_SIZE } }
+            - name: SAMPLE_SECONDS
+              valueFrom: { configMapKeyRef: { name: ledger-soak-settings, key: SAMPLE_SECONDS } }
+            - name: MAX_ERRORS
+              valueFrom: { configMapKeyRef: { name: ledger-soak-settings, key: MAX_ERRORS } }
+          volumeMounts:
+            - name: evidence
+              mountPath: /evidence
+          resources:
+            requests: { cpu: "2", memory: 2Gi }
+            limits: { cpu: "4", memory: 4Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: evidence
+          persistentVolumeClaim:
+            claimName: ledger-soak-evidence

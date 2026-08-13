@@ -1,0 +1,20 @@
+# Dedicated, non-production image for the isolated ledger-mirror soak runner.
+# Build from lanai-portal/ so only the test runner and its pinned runtime enter
+# the image; application credentials and source are never baked into it.
+# Pin this tag to the registry-provided digest in the release pipeline after image verification.
+FROM python:3.12.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+RUN addgroup --system --gid 10001 soak && \
+    adduser --system --uid 10001 --ingroup soak --home /app soak
+
+WORKDIR /app
+COPY server/test/production-soak-test-24h.py /app/production-soak-test-24h.py
+RUN pip install --no-cache-dir asyncpg==0.30.0 && \
+    chown -R soak:soak /app
+
+USER 10001:10001
+ENTRYPOINT ["python3", "/app/production-soak-test-24h.py"]
