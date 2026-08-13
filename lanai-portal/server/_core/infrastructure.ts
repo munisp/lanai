@@ -467,6 +467,27 @@ export const TigerBeetle = {
     );
   },
 
+  /** Look up a transfer for post-run idempotency and double-entry verification. */
+  async lookupTransfer(transferId: bigint): Promise<{
+    id: bigint;
+    debitAccountId: bigint;
+    creditAccountId: bigint;
+    amount: bigint;
+    flags: number;
+  }> {
+    const [transfer] = await getTigerBeetleClient().lookupTransfers([transferId]);
+    if (!transfer) {
+      throw new InfrastructureError("TigerBeetle", `transfer ${transferId} was not found`);
+    }
+    return {
+      id: transfer.id,
+      debitAccountId: transfer.debit_account_id,
+      creditAccountId: transfer.credit_account_id,
+      amount: transfer.amount,
+      flags: Number(transfer.flags),
+    };
+  },
+
   /** Void a pending transfer to release reserved funds during Saga compensation. */
   async voidPendingTransfer(
     pendingTransferId: bigint,

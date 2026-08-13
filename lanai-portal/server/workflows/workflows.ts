@@ -34,3 +34,12 @@ export async function morningBriefingWorkflow(
 ): Promise<void> {
   await activities.generateMorningBriefing(input);
 }
+
+// Financial workflows are exported from the same bundle loaded by the Temporal
+// worker. Keeping this explicit prevents a client from successfully starting a
+// workflow name that no worker can ever execute.
+export {
+  bookingCommissionSaga,
+  invoicePaymentSaga,
+  commissionReconciliationSaga,
+} from "./financialWorkflows";

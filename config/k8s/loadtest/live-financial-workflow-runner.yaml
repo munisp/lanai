@@ -1,0 +1,179 @@
+# Apply after isolated-ledger-soak.yaml. This Job verifies the complete
+# Temporal -> TigerBeetle -> PostgreSQL -> outbox -> Fluvio/Dapr/Lakehouse path
+# in a dedicated staging stack. All connection values are supplied out of band.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: financial-workflow-settings
+  namespace: lanai-loadtest
+data:
+  RUN_ID: "replace-with-change-ticket-and-utc-run-id"
+  WORKFLOW_COUNT: "100"
+  CONCURRENCY: "20"
+  AMOUNT: "150.00"
+  CURRENCY: "GBP"
+  TEMPORAL_NAMESPACE: "default"
+  TEMPORAL_TASK_QUEUE: "lanai-workflows"
+  DAPR_HOST: "127.0.0.1"
+  DAPR_HTTP_PORT: "3500"
+---
+# Create this secret out of band. It must contain only test-only addresses and
+# tokens: DATABASE_URL, TEMPORAL_ADDRESS, TIGERBEETLE_ADDRESS, FLUVIO_ENDPOINT,
+# DAPR_API_TOKEN, LAKEHOUSE_INGEST_URL, and LAKEHOUSE_INGEST_TOKEN.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-financial-workflow-services
+  namespace: lanai-loadtest
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: financial-workflow-runner
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              lanai.io/platform-services: "true"
+      ports:
+        - { protocol: TCP, port: 3000 } # TigerBeetle
+        - { protocol: TCP, port: 7233 } # Temporal gRPC
+        - { protocol: TCP, port: 9003 } # Fluvio
+        - { protocol: TCP, port: 8200 } # Lakehouse ingest
+        - { protocol: TCP, port: 6379 } # Dapr state/pubsub component
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: lanai-financial-workflow-
+  namespace: lanai-loadtest
+  labels:
+    app.kubernetes.io/name: financial-workflow-runner
+    app.kubernetes.io/component: integration-validation
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 10800
+  ttlSecondsAfterFinished: 604800
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: financial-workflow-runner
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "lanai-financial-workflow-runner"
+        dapr.io/log-level: "warn"
+    spec:
+      serviceAccountName: ledger-soak-runner
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: financial-workflow-runner
+          # Replace with a signed, scanned immutable digest built from
+          # Dockerfile.financial-loadtest in the approved registry.
+          image: ghcr.io/munisp/lanai-financial-loadtest:REPLACE_WITH_SIGNED_DIGEST
+          imagePullPolicy: IfNotPresent
+          args:
+            - --run-id
+            - $(RUN_ID)
+            - --count
+            - $(WORKFLOW_COUNT)
+            - --concurrency
+            - $(CONCURRENCY)
+            - --amount
+            - $(AMOUNT)
+            - --currency
+            - $(CURRENCY)
+            - --evidence-dir
+            - /evidence
+          env:
+            - { name: LANAI_LOADTEST_APPROVED, value: "true" }
+            - name: DATABASE_URL
+              valueFrom: { secretKeyRef: { name: lanai-loadtest-financial-services, key: DATABASE_URL } }
+            - name: TEMPORAL_ADDRESS
+              valueFrom: { secretKeyRef: { name: lanai-loadtest-financial-services, key: TEMPORAL_ADDRESS } }
+            - name: TIGERBEETLE_ADDRESS
+              valueFrom: { secretKeyRef: { name: lanai-loadtest-financial-services, key: TIGERBEETLE_ADDRESS } }
+            - name: FLUVIO_ENDPOINT
+              valueFrom: { secretKeyRef: { name: lanai-loadtest-financial-services, key: FLUVIO_ENDPOINT } }
+            - name: DAPR_API_TOKEN
+              valueFrom: { secretKeyRef: { name: lanai-loadtest-financial-services, key: DAPR_API_TOKEN } }
+            - name: LAKEHOUSE_INGEST_URL
+              valueFrom: { secretKeyRef: { name: lanai-loadtest-financial-services, key: LAKEHOUSE_INGEST_URL } }
+            - name: LAKEHOUSE_INGEST_TOKEN
+              valueFrom: { secretKeyRef: { name: lanai-loadtest-financial-services, key: LAKEHOUSE_INGEST_TOKEN } }
+            - name: RUN_ID
+              valueFrom: { configMapKeyRef: { name: financial-workflow-settings, key: RUN_ID } }
+            - name: WORKFLOW_COUNT
+              valueFrom: { configMapKeyRef: { name: financial-workflow-settings, key: WORKFLOW_COUNT } }
+            - name: CONCURRENCY
+              valueFrom: { configMapKeyRef: { name: financial-workflow-settings, key: CONCURRENCY } }
+            - name: AMOUNT
+              valueFrom: { configMapKeyRef: { name: financial-workflow-settings, key: AMOUNT } }
+            - name: CURRENCY
+              valueFrom: { configMapKeyRef: { name: financial-workflow-settings, key: CURRENCY } }
+            - name: TEMPORAL_NAMESPACE
+              valueFrom: { configMapKeyRef: { name: financial-workflow-settings, key: TEMPORAL_NAMESPACE } }
+            - name: TEMPORAL_TASK_QUEUE
+              valueFrom: { configMapKeyRef: { name: financial-workflow-settings, key: TEMPORAL_TASK_QUEUE } }
+            - name: DAPR_HOST
+              valueFrom: { configMapKeyRef: { name: financial-workflow-settings, key: DAPR_HOST } }
+            - name: DAPR_HTTP_PORT
+              valueFrom: { configMapKeyRef: { name: financial-workflow-settings, key: DAPR_HTTP_PORT } }
+          volumeMounts:
+            - name: evidence
+              mountPath: /evidence
+          resources:
+            requests: { cpu: "1", memory: 1Gi }
+            limits: { cpu: "2", memory: 2Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+      volumes:
+        - name: evidence
+          persistentVolumeClaim:
+            claimName: ledger-soak-evidence
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-financial-workflow-dns
+  namespace: lanai-loadtest
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: financial-workflow-runner
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-financial-workflow-postgres
+  namespace: lanai-loadtest
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: financial-workflow-runner
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              lanai.io/loadtest-db: "true"
+      ports:
+        - { protocol: TCP, port: 5432 }

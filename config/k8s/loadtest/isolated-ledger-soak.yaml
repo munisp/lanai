@@ -29,7 +29,7 @@ spec:
     requests.memory: 4Gi
     limits.cpu: "6"
     limits.memory: 6Gi
-    persistentvolumeclaims: "1"
+    persistentvolumeclaims: "2"
     pods: "2"
 ---
 apiVersion: v1

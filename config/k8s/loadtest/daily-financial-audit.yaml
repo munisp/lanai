@@ -1,0 +1,148 @@
+# Daily collector for staging/load-test financial compliance evidence.
+# Apply after the isolated load-test namespace package and the live financial
+# runner image are available under an approved immutable digest.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: daily-financial-audit-settings
+  namespace: lanai-loadtest
+data:
+  WINDOW_HOURS: "24"
+  DAPR_HOST: "127.0.0.1"
+  DAPR_HTTP_PORT: "3500"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: daily-financial-audit-evidence
+  namespace: lanai-loadtest
+  labels:
+    lanai.io/retention: "daily-compliance-export-required"
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-financial-audit-dns
+  namespace: lanai-loadtest
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: financial-audit-collector
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-financial-audit-postgres
+  namespace: lanai-loadtest
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: financial-audit-collector
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              lanai.io/loadtest-db: "true"
+      ports:
+        - { protocol: TCP, port: 5432 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-financial-audit-tigerbeetle
+  namespace: lanai-loadtest
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: financial-audit-collector
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              lanai.io/platform-services: "true"
+      ports:
+        - { protocol: TCP, port: 3000 }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: lanai-daily-financial-audit
+  namespace: lanai-loadtest
+  labels:
+    app.kubernetes.io/name: financial-audit-collector
+    app.kubernetes.io/component: compliance-evidence
+spec:
+  schedule: "17 2 * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 1800
+  successfulJobsHistoryLimit: 14
+  failedJobsHistoryLimit: 30
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3600
+      ttlSecondsAfterFinished: 1209600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: financial-audit-collector
+        spec:
+          serviceAccountName: ledger-soak-runner
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: financial-audit-collector
+              image: ghcr.io/munisp/lanai-financial-loadtest:REPLACE_WITH_SIGNED_DIGEST
+              imagePullPolicy: IfNotPresent
+              command: ["pnpm", "--filter", "lanai-portal", "exec", "tsx", "server/test/collect-staging-financial-audit.ts"]
+              args: ["--since-hours", "$(WINDOW_HOURS)", "--output-dir", "/evidence"]
+              env:
+                - { name: LANAI_AUDIT_COLLECTION_APPROVED, value: "true" }
+                - name: DATABASE_URL
+                  valueFrom: { secretKeyRef: { name: lanai-loadtest-financial-services, key: DATABASE_URL } }
+                - name: TIGERBEETLE_ADDRESS
+                  valueFrom: { secretKeyRef: { name: lanai-loadtest-financial-services, key: TIGERBEETLE_ADDRESS } }
+                - name: TIGERBEETLE_CLUSTER_ID
+                  valueFrom: { secretKeyRef: { name: lanai-loadtest-financial-services, key: TIGERBEETLE_CLUSTER_ID } }
+                - name: TIGERBEETLE_LEDGER
+                  valueFrom: { secretKeyRef: { name: lanai-loadtest-financial-services, key: TIGERBEETLE_LEDGER } }
+                - name: TIGERBEETLE_TRANSFER_CODE
+                  valueFrom: { secretKeyRef: { name: lanai-loadtest-financial-services, key: TIGERBEETLE_TRANSFER_CODE } }
+                - name: WINDOW_HOURS
+                  valueFrom: { configMapKeyRef: { name: daily-financial-audit-settings, key: WINDOW_HOURS } }
+              volumeMounts:
+                - name: evidence
+                  mountPath: /evidence
+              resources:
+                requests: { cpu: "500m", memory: 512Mi }
+                limits: { cpu: "1", memory: 1Gi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+          volumes:
+            - name: evidence
+              persistentVolumeClaim:
+                claimName: daily-financial-audit-evidence
