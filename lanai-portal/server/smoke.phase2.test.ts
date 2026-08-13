@@ -608,14 +608,15 @@ describe("4. Invoicing — Client Invoices", () => {
     expect(result.success).toBe(true);
   });
 
-  it("advisor: can mark a client invoice as paid", async () => {
+  it("advisor: cannot mark a client invoice as paid outside the Stripe financial saga", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    const result = await caller.invoicing.updateStatus({
-      invoiceId: 1,
-      status: "paid",
-      paidAt: new Date().toISOString(),
-    });
-    expect(result.success).toBe(true);
+    await expect(
+      caller.invoicing.updateStatus({
+        invoiceId: 1,
+        status: "paid",
+        paidAt: new Date().toISOString(),
+      }),
+    ).rejects.toThrow("Invoice payment status is controlled by the Stripe financial saga");
   });
 
   it("member: can view their own invoices", async () => {

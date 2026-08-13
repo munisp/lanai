@@ -1,0 +1,38 @@
+# Local-only integration stack. It deliberately uses an isolated database and
+# non-default host ports so it never targets a developer's existing services.
+services:
+  postgres:
+    image: postgres:16.4-bookworm
+    environment:
+      POSTGRES_DB: lanai_permify_test
+      POSTGRES_USER: lanai_test
+      POSTGRES_PASSWORD: lanai_test_only
+    ports:
+      - "127.0.0.1:54329:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lanai_test -d lanai_permify_test"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    tmpfs:
+      - /var/lib/postgresql/data
+    security_opt:
+      - no-new-privileges:true
+
+  permify:
+    image: ghcr.io/permify/permify:v1.7.2
+    command:
+      - serve
+      - --database-engine
+      - postgres
+      - --database-uri
+      - postgresql://lanai_test:lanai_test_only@postgres:5432/lanai_permify_test?sslmode=disable
+      - --profiler-enabled=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:34768:3476"
+      - "127.0.0.1:34788:3478"
+    security_opt:
+      - no-new-privileges:true

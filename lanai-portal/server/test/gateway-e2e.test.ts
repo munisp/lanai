@@ -33,7 +33,6 @@ const createMockContext = async (role: string, email: string, sub: string) => {
     
     if (!memberId) {
       const res = await db.insert(members).values({
-        userId,
         email,
         name: `Test ${role}`,
         tier: role.split("-")[0] as any,
@@ -60,6 +59,9 @@ const createMockContext = async (role: string, email: string, sub: string) => {
     await Permify.writeTuple(`user:${userId}`, "admin", "platform:lanai");
   } else if (role === "advisor") {
     await Permify.writeTuple(`user:${userId}`, "advisor", "platform:lanai");
+  }
+  if (memberId) {
+    await Permify.writeTuple(`member:${memberId}`, "owner", `member_record:${memberId}`);
   }
 
   return {
@@ -109,6 +111,6 @@ describe.skipIf(!process.env.PERMIFY_GRPC_ADDRESS)("API Gateway E2E - Keycloak J
     const ctx = { req: { headers: {} }, res: {} };
     const caller = appRouter.createCaller(ctx as any);
     
-    await expect(caller.memberProfile.myProfile()).rejects.toThrow("Please login (10001)");
+    await expect(caller.memberProfile.myProfile()).rejects.toThrow("You must be signed in to access this resource.");
   });
 });

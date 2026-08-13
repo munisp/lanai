@@ -22,6 +22,7 @@ import {
   ChatwootMessage,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { Permify } from "./_core/infrastructure";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let client: postgres.Sql | null = null;
@@ -169,8 +170,28 @@ export async function createMember(data: InsertMember): Promise<number> {
     .insert(members)
     .values({ ...data, email: data.email.toLowerCase() })
     .returning({ id: members.id });
-  if (!row?.id)
+  if (!row?.id) {
     throw new Error("Member creation did not return a persisted identifier");
+  }
+
+  // The member session middleware requires this relationship before granting
+  // portal access. In production/staging, do not acknowledge onboarding until
+  // the authorization graph is synchronized; compensate the new record if the
+  // external relationship write fails.
+  if (!(process.env.NODE_ENV === "test" && !process.env.PERMIFY_GRPC_ADDRESS)) {
+    try {
+      await Permify.writeTuple(
+        `member:${row.id}`,
+        "owner",
+        `member_record:${row.id}`,
+      );
+    } catch (error) {
+      await db.delete(members).where(eq(members.id, row.id));
+      throw new Error(
+        `Member creation aborted because Permify ownership synchronization failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
   return row.id;
 }
 

@@ -13,6 +13,7 @@ import { and, eq, gte, inArray } from "drizzle-orm";
 import {
   auditLogs,
   eventDeliveries,
+  ledgerAccounts,
   ledgerTransfers,
   outboxEvents,
   workflowExecutions,
@@ -67,6 +68,11 @@ async function main(): Promise<void> {
     .where(gte(auditLogs.createdAt, since));
 
   const ledgerStates = { pending: 0, posted: 0, voided: 0, other: 0 };
+  const accountIds = [...new Set(transfers.flatMap((transfer) => [transfer.debitLedgerAccountId, transfer.creditLedgerAccountId]))];
+  const accounts = accountIds.length
+    ? await db.select().from(ledgerAccounts).where(inArray(ledgerAccounts.id, accountIds))
+    : [];
+  const accountById = new Map(accounts.map((account) => [account.id, account]));
   let tigerBeetleVerified = 0;
   for (const transfer of transfers) {
     if (transfer.status === "pending") ledgerStates.pending += 1;
@@ -76,17 +82,34 @@ async function main(): Promise<void> {
 
     // Every local mirror must have a real pending transfer. Posted/voided states
     // must also have an immutable settlement transfer with a distinct ID.
+    const debitAccount = accountById.get(transfer.debitLedgerAccountId);
+    const creditAccount = accountById.get(transfer.creditLedgerAccountId);
+    if (!debitAccount || !creditAccount) {
+      throw new Error(`PostgreSQL ledger account mirror is incomplete for transfer key ${transfer.transferKey}`);
+    }
     const pending = await TigerBeetle.lookupTransfer(BigInt(transfer.tigerBeetleTransferId));
-    if (pending.id.toString() !== transfer.tigerBeetleTransferId) {
-      throw new Error(`TigerBeetle pending ID mismatch for transfer key ${transfer.transferKey}`);
+    if (
+      pending.id.toString() !== transfer.tigerBeetleTransferId ||
+      pending.amount !== BigInt(transfer.amountMinor) ||
+      pending.debitAccountId !== BigInt(debitAccount.tigerBeetleAccountId) ||
+      pending.creditAccountId !== BigInt(creditAccount.tigerBeetleAccountId)
+    ) {
+      throw new Error(`TigerBeetle pending transfer does not match PostgreSQL mirror for ${transfer.transferKey}`);
     }
     if (transfer.status !== "pending") {
       if (!transfer.tigerBeetleSettlementTransferId) {
         throw new Error(`Settled mirror ${transfer.transferKey} has no settlement transfer ID`);
       }
+      if (transfer.tigerBeetleSettlementTransferId === transfer.tigerBeetleTransferId) {
+        throw new Error(`Settlement transfer must be distinct from pending transfer for ${transfer.transferKey}`);
+      }
       const settlement = await TigerBeetle.lookupTransfer(BigInt(transfer.tigerBeetleSettlementTransferId));
-      if (settlement.id.toString() !== transfer.tigerBeetleSettlementTransferId) {
-        throw new Error(`TigerBeetle settlement ID mismatch for transfer key ${transfer.transferKey}`);
+      if (
+        settlement.id.toString() !== transfer.tigerBeetleSettlementTransferId ||
+        settlement.debitAccountId !== BigInt(debitAccount.tigerBeetleAccountId) ||
+        settlement.creditAccountId !== BigInt(creditAccount.tigerBeetleAccountId)
+      ) {
+        throw new Error(`TigerBeetle settlement transfer does not match PostgreSQL mirror for ${transfer.transferKey}`);
       }
     }
     tigerBeetleVerified += 1;

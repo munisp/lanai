@@ -281,6 +281,11 @@ async function bootstrapPermify(): Promise<void> {
         subject: { type: "user", id: String(TEST_SECOND_ADVISOR_ID) },
       },
       {
+        entity: { type: "member_record", id: String(TEST_MEMBER_ID) },
+        relation: "owner",
+        subject: { type: "member", id: String(TEST_MEMBER_ID) },
+      },
+      {
         entity: { type: "proposal", id: String(TEST_PROPOSAL_ID) },
         relation: "owner",
         subject: { type: "member", id: String(TEST_MEMBER_ID) },
