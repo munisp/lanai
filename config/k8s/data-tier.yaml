@@ -31,9 +31,21 @@ spec:
   template:
     metadata: { labels: { app: postgres } }
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: { type: RuntimeDefault }
       containers:
         - name: postgres
           image: postgres:16.6-bookworm
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
           ports: [{ containerPort: 5432 }]
           env:
             - { name: POSTGRES_USER, value: "lanai" }
@@ -55,7 +67,9 @@ spec:
               valueFrom: { secretKeyRef: { name: lanai-secrets, key: PERMIFY_DB_PASSWORD } }
           volumeMounts:
             - { name: data, mountPath: /var/lib/postgresql/data }
-            - { name: init-script, mountPath: /docker-entrypoint-initdb.d }
+            - { name: init-script, mountPath: /docker-entrypoint-initdb.d, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+            - { name: run, mountPath: /var/run/postgresql }
           readinessProbe:
             exec: { command: ["pg_isready", "-U", "lanai", "-d", "lanai"] }
             periodSeconds: 10
@@ -73,6 +87,10 @@ spec:
         - { name: data, persistentVolumeClaim: { claimName: postgres-data } }
         - name: init-script
           configMap: { name: postgres-init-script }
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 256Mi }
+        - name: run
+          emptyDir: { medium: Memory, sizeLimit: 64Mi }
 ---
 apiVersion: v1
 kind: Service

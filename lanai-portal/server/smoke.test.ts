@@ -30,11 +30,12 @@
  *   20. End-to-End Full Concierge Lifecycle
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { afterAll, beforeAll, describe, it, expect, vi } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 import type { Member, User } from "../drizzle/schema";
 import { installLegacySmokeHarness } from "./test/legacySmokeHarness";
+import { startLocalProviderMocks, type LocalProviderMocks } from "./test/localProviderMocks";
 
 // ─── Mock all external services ───────────────────────────────────────────────
 
@@ -115,32 +116,30 @@ vi.mock("./email", () => ({
 
 installLegacySmokeHarness();
 
-vi.mock("stripe", () => ({
-  default: vi.fn().mockImplementation(() => ({
-    customers: { create: vi.fn().mockResolvedValue({ id: "cus_test123" }) },
-    subscriptions: {
-      retrieve: vi.fn().mockResolvedValue({
-        status: "active",
-        items: { data: [{ price: { id: "price_test" } }] },
-      }),
-    },
-    checkout: {
-      sessions: {
-        create: vi
-          .fn()
-          .mockResolvedValue({ url: "https://checkout.stripe.com/test" }),
+vi.mock("stripe", async (importOriginal) => {
+  // Complete local-provider mode exercises the actual Stripe SDK request path
+  // against an in-process HTTP fixture. The legacy smoke mode retains its
+  // pure unit double when no provider fixture has been requested.
+  if (process.env.RUN_LOCAL_PROVIDER_TESTS === "1") {
+    return importOriginal<typeof import("stripe")>();
+  }
+  return {
+    default: vi.fn().mockImplementation(() => ({
+      customers: { create: vi.fn().mockResolvedValue({ id: "cus_test123" }) },
+      subscriptions: {
+        retrieve: vi.fn().mockResolvedValue({
+          status: "active",
+          current_period_end: 1_900_000_000,
+          cancel_at_period_end: false,
+          items: { data: [{ price: { id: "price_test", recurring: { interval: "month" } } }] },
+        }),
       },
-    },
-    billingPortal: {
-      sessions: {
-        create: vi
-          .fn()
-          .mockResolvedValue({ url: "https://billing.stripe.com/test" }),
-      },
-    },
-    paymentMethods: { list: vi.fn().mockResolvedValue({ data: [] }) },
-  })),
-}));
+      checkout: { sessions: { create: vi.fn().mockResolvedValue({ url: "https://checkout.stripe.com/test" }) } },
+      billingPortal: { sessions: { create: vi.fn().mockResolvedValue({ url: "https://billing.stripe.com/test" }) } },
+      paymentMethods: { list: vi.fn().mockResolvedValue({ data: [] }) },
+    })),
+  };
+});
 
 // ─── Context factories ────────────────────────────────────────────────────────
 
@@ -1368,6 +1367,21 @@ describe("17. Role Management", () => {
 
 describe("18. Stripe Payments", () => {
   const stripeConfigured = !!process.env.STRIPE_SECRET_KEY;
+  const localProviderMode = process.env.RUN_LOCAL_PROVIDER_TESTS === "1";
+  let localProviders: LocalProviderMocks | undefined;
+  const priorStripeApiBase = process.env.STRIPE_API_BASE_URL;
+
+  beforeAll(async () => {
+    if (!localProviderMode) return;
+    localProviders = await startLocalProviderMocks();
+    process.env.STRIPE_API_BASE_URL = localProviders.stripeBaseUrl;
+  });
+
+  afterAll(async () => {
+    await localProviders?.close();
+    if (priorStripeApiBase === undefined) delete process.env.STRIPE_API_BASE_URL;
+    else process.env.STRIPE_API_BASE_URL = priorStripeApiBase;
+  });
 
   it.skipIf(!stripeConfigured)(
     "platinum member: can get subscription status",
@@ -1383,7 +1397,7 @@ describe("18. Stripe Payments", () => {
     async () => {
       const caller = appRouter.createCaller(makeMemberCtx("platinum"));
       const result = await caller.memberPayments.getPaymentMethods();
-      expect(Array.isArray(result)).toBe(true);
+      expect(Array.isArray(result.paymentMethods)).toBe(true);
     },
   );
 
@@ -1393,8 +1407,9 @@ describe("18. Stripe Payments", () => {
       const caller = appRouter.createCaller(makeMemberCtx("gold"));
       const result = await caller.memberPayments.createCheckout({
         tier: "platinum",
+        origin: "https://lanai.test",
       });
-      expect(result).toHaveProperty("url");
+      expect(result).toHaveProperty("checkoutUrl");
     },
   );
 
@@ -1402,8 +1417,10 @@ describe("18. Stripe Payments", () => {
     "platinum member: can access billing portal",
     async () => {
       const caller = appRouter.createCaller(makeMemberCtx("platinum"));
-      const result = await caller.memberPayments.billingPortal();
-      expect(result).toHaveProperty("url");
+      const result = await caller.memberPayments.billingPortal({
+        origin: "https://lanai.test",
+      });
+      expect(result).toHaveProperty("portalUrl");
     },
   );
 

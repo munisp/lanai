@@ -34,6 +34,13 @@ export PERMIFY_TENANT_ID="lanai-test"
 export PERMIFY_INSECURE="true"
 export PERMIFY_SCHEMA_FILE="$repo_root/config/permify/schema.perm"
 export NODE_ENV="test"
+# Enables deterministic in-process Stripe, CRM, and AI gateway fixtures.
+# It never enables the real Stripe or Twenty sandbox suites.
+export RUN_LOCAL_PROVIDER_TESTS="1"
+# These test-only values enable payment procedures; each test starts an
+# in-process fixture and sets STRIPE_API_BASE_URL to its loopback endpoint.
+export STRIPE_SECRET_KEY="sk_test_local_provider"
+export STRIPE_PRICE_ID_PLATINUM="price_local_provider"
 
 # The bootstrap verifies gRPC reachability, creates the test tenant idempotently,
 # and fails if Permify does not issue a schema version.
@@ -49,5 +56,6 @@ for attempt in $(seq 1 30); do
 done
 
 cd "$portal_dir"
-pnpm test:integration
-pnpm vitest run server/test/gateway-e2e.test.ts --pool=forks --fileParallelism=false --maxWorkers=1
+# Complete local suite: real ephemeral Permify plus deterministic HTTP fixtures
+# for Stripe, Twenty CRM, and AI gateway protocol contracts.
+pnpm vitest run --pool=forks --fileParallelism=false --maxWorkers=1

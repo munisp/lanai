@@ -14,9 +14,22 @@ spec:
   template:
     spec:
       restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile: { type: RuntimeDefault }
       containers:
         - name: db-migrate
           image: lanai-portal
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
           # migrate.ts imports db.ts -> env.ts, which validates the entire
           # production env var list at import time regardless of what the
           # script actually uses — so this needs the same full env block as
@@ -74,6 +87,9 @@ spec:
             - name: APISIX_ADMIN_KEY
               valueFrom: { secretKeyRef: { name: lanai-secrets, key: APISIX_ADMIN_KEY } }
           command: ["node", "dist/migrate.js"]
+      volumes:
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 128Mi }
 ---
 apiVersion: batch/v1
 kind: Job
@@ -83,9 +99,20 @@ spec:
   template:
     spec:
       restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile: { type: RuntimeDefault }
       containers:
         - name: permify-bootstrap
           image: lanai-portal
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
           env:
             - { name: PERMIFY_GRPC_ADDRESS, value: "permify.permify.svc.cluster.local:3478" }
             - { name: PERMIFY_TENANT_ID, value: "lanai" }
@@ -93,10 +120,13 @@ spec:
             - { name: PERMIFY_SCHEMA_FILE, value: "/app/config/permify-schema.perm" }
           command: ["node", "dist/permify-bootstrap.js"]
           volumeMounts:
-            - { name: permify-schema, mountPath: /app/config/permify-schema.perm, subPath: schema.perm }
+            - { name: permify-schema, mountPath: /app/config/permify-schema.perm, subPath: schema.perm, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
       volumes:
         - name: permify-schema
           configMap: { name: permify-schema }
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 128Mi }
 ---
 # Temporal is the shared cluster-wide instance — "lanai" needs its own
 # Temporal namespace (Temporal's own tenancy concept) registered on it so
@@ -110,11 +140,27 @@ spec:
   template:
     spec:
       restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
       containers:
         - name: temporal-namespace-register
           image: temporalio/admin-tools:1.26.2
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
           command: ["/bin/sh", "-ec"]
           args:
             - |
               tctl --address temporal-frontend.temporal.svc.cluster.local:7233 namespace describe lanai >/dev/null 2>&1 \
                 || tctl --address temporal-frontend.temporal.svc.cluster.local:7233 namespace register --retention 3 lanai
+      volumes:
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 64Mi }

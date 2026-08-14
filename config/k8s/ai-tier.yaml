@@ -32,16 +32,30 @@ spec:
   template:
     metadata: { labels: { app: ollama } }
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: { type: RuntimeDefault }
       containers:
         - name: ollama
           image: ollama/ollama:0.6.2
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
           ports: [{ containerPort: 11434 }]
           env:
             - { name: OLLAMA_NUM_PARALLEL, value: "1" }
             - { name: OLLAMA_MAX_LOADED_MODELS, value: "1" }
             - { name: OLLAMA_KEEP_ALIVE, value: "15m" }
+            - { name: HOME, value: "/home/ollama" }
           volumeMounts:
-            - { name: data, mountPath: /root/.ollama }
+            - { name: data, mountPath: /home/ollama/.ollama }
+            - { name: tmp, mountPath: /tmp }
           # ollama/ollama's image has no wget/curl — use the ollama CLI
           # itself (the container's own entrypoint, guaranteed present) to
           # hit the local server instead.
@@ -62,6 +76,8 @@ spec:
             limits: { cpu: "4", memory: 6Gi }
       volumes:
         - { name: data, persistentVolumeClaim: { claimName: ollama-data } }
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 256Mi }
 ---
 apiVersion: v1
 kind: Service
@@ -87,11 +103,24 @@ spec:
   template:
     spec:
       restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: { type: RuntimeDefault }
       containers:
         - name: ollama-model-init
           image: ollama/ollama:0.6.2
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
           env:
             - { name: OLLAMA_HOST, value: "http://ollama:11434" }
+            - { name: HOME, value: "/home/ollama" }
             - name: OLLAMA_MODEL
               valueFrom: { configMapKeyRef: { name: lanai-env, key: OLLAMA_MODEL } }
           command: ["/bin/sh", "-ec"]
@@ -101,6 +130,13 @@ spec:
                 echo "waiting for ollama..."; sleep 5
               done
               ollama pull "$OLLAMA_MODEL"
+          volumeMounts:
+            - { name: data, mountPath: /home/ollama/.ollama }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: data, persistentVolumeClaim: { claimName: ollama-data } }
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 256Mi }
 
 # ---------------------------------------------------------- lanai-ai-gateway --
 ---
@@ -115,9 +151,22 @@ spec:
   template:
     metadata: { labels: { app: lanai-ai-gateway } }
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
       containers:
         - name: lanai-ai-gateway
           image: lanai-ai-gateway
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
           ports: [{ containerPort: 8100 }]
           env:
             - { name: OLLAMA_BASE_URL, value: "http://ollama:11434" }
@@ -142,6 +191,9 @@ spec:
           resources:
             requests: { cpu: 100m, memory: 128Mi }
             limits: { cpu: 250m, memory: 256Mi }
+      volumes:
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 128Mi }
 ---
 apiVersion: v1
 kind: Service

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { appRouter } from "./routers";
 import { createStripeClient } from "./stripeRouter";
@@ -6,6 +6,7 @@ import { getDb } from "./db";
 import { members, type Member } from "../drizzle/schema";
 import type { TrpcContext } from "./_core/context";
 import { installLegacySmokeHarness } from "./test/legacySmokeHarness";
+import { startLocalProviderMocks, type LocalProviderMocks } from "./test/localProviderMocks";
 
 const requiredVariables = [
   "DATABASE_URL",
@@ -14,6 +15,7 @@ const requiredVariables = [
   "STRIPE_PRICE_ID_PLATINUM",
 ] as const;
 const externalRunRequested = process.env.RUN_EXTERNAL_STRIPE_TESTS === "1";
+const localProviderRunRequested = process.env.RUN_LOCAL_PROVIDER_TESTS === "1";
 const missingVariables = requiredVariables.filter((name) => !process.env[name]);
 
 if (externalRunRequested && missingVariables.length > 0) {
@@ -22,10 +24,37 @@ if (externalRunRequested && missingVariables.length > 0) {
   );
 }
 
-const externalStripeEnabled =
-  externalRunRequested && missingVariables.length === 0;
+const externalStripeEnabled = externalRunRequested && missingVariables.length === 0;
+const localStripePrerequisitesPresent = Boolean(process.env.DATABASE_URL && process.env.PERMIFY_GRPC_ADDRESS);
+if (localProviderRunRequested && !localStripePrerequisitesPresent) {
+  throw new Error("[Stripe local provider tests] DATABASE_URL and PERMIFY_GRPC_ADDRESS are required");
+}
+const stripeSuiteEnabled = externalStripeEnabled || (localProviderRunRequested && localStripePrerequisitesPresent);
+let localProviders: LocalProviderMocks | undefined;
+const originalStripeEnvironment = {
+  apiBaseUrl: process.env.STRIPE_API_BASE_URL,
+  secretKey: process.env.STRIPE_SECRET_KEY,
+  priceId: process.env.STRIPE_PRICE_ID_PLATINUM,
+};
 
-if (externalStripeEnabled) installLegacySmokeHarness();
+if (stripeSuiteEnabled) installLegacySmokeHarness();
+
+beforeAll(async () => {
+  if (!localProviderRunRequested || externalStripeEnabled) return;
+  localProviders = await startLocalProviderMocks();
+  process.env.STRIPE_API_BASE_URL = localProviders.stripeBaseUrl;
+  process.env.STRIPE_SECRET_KEY = "sk_test_local_provider";
+  process.env.STRIPE_PRICE_ID_PLATINUM = "price_local_provider";
+});
+
+afterAll(async () => {
+  await localProviders?.close();
+  for (const [key, value] of Object.entries(originalStripeEnvironment)) {
+    const environmentKey = key === "apiBaseUrl" ? "STRIPE_API_BASE_URL" : key === "secretKey" ? "STRIPE_SECRET_KEY" : "STRIPE_PRICE_ID_PLATINUM";
+    if (value === undefined) delete process.env[environmentKey];
+    else process.env[environmentKey] = value;
+  }
+});
 
 function makeMemberContext(): TrpcContext {
   const member: Member = {
@@ -114,7 +143,7 @@ async function cleanupStripeSandboxMember(): Promise<void> {
   }
 }
 
-if (externalStripeEnabled) {
+if (stripeSuiteEnabled) {
   beforeEach(async () => {
     await seedStripeSandboxMember();
   }, 60_000);
@@ -125,7 +154,7 @@ if (externalStripeEnabled) {
 }
 
 describe("Stripe external sandbox", () => {
-  it.skipIf(!externalStripeEnabled)(
+  it.skipIf(!stripeSuiteEnabled)(
     "returns the normalized subscription status for a real sandbox subscription",
     async () => {
       const result = await appRouter
@@ -140,7 +169,7 @@ describe("Stripe external sandbox", () => {
     60_000,
   );
 
-  it.skipIf(!externalStripeEnabled)(
+  it.skipIf(!stripeSuiteEnabled)(
     "lists a real sandbox card payment method for the member customer",
     async () => {
       const result = await appRouter
@@ -156,7 +185,7 @@ describe("Stripe external sandbox", () => {
     60_000,
   );
 
-  it.skipIf(!externalStripeEnabled)(
+  it.skipIf(!stripeSuiteEnabled)(
     "creates a real Checkout subscription session with the corrected router contract",
     async () => {
       const result = await appRouter
@@ -173,7 +202,7 @@ describe("Stripe external sandbox", () => {
     60_000,
   );
 
-  it.skipIf(!externalStripeEnabled)(
+  it.skipIf(!stripeSuiteEnabled)(
     "creates a real Billing Portal session with the corrected router contract",
     async () => {
       const result = await appRouter

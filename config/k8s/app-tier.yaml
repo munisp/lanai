@@ -48,9 +48,22 @@ spec:
         dapr.io/app-id: "lanai-portal"
         dapr.io/app-port: "3001"
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile: { type: RuntimeDefault }
       containers:
         - name: lanai-portal
           image: lanai-portal
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
           ports: [{ containerPort: 3001 }]
           env:
             - { name: NODE_ENV, value: "production" }
@@ -133,6 +146,9 @@ spec:
           resources:
             requests: { cpu: 250m, memory: 512Mi }
             limits: { cpu: 500m, memory: 1024Mi }
+      volumes:
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 128Mi }
 ---
 apiVersion: v1
 kind: Service

@@ -27,9 +27,19 @@ spec:
         app: lanai-smoke-test
     spec:
       restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
       containers:
         - name: smoke-test
           image: curlimages/curl:8.7.1
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
           env:
             - { name: PORTAL_URL, value: "http://lanai-portal:3001" }
             - { name: KEYCLOAK_URL, value: "http://keycloak:8080" }
@@ -167,6 +177,9 @@ spec:
                 echo "  ✅ SMOKE TEST PASSED"
                 exit 0
               fi
+      volumes:
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 32Mi }
 ---
 # CronJob variant: runs the smoke test every 5 minutes for continuous
 # monitoring. Disable by setting .spec.suspend to true.
@@ -194,9 +207,19 @@ spec:
             app: lanai-smoke-test
         spec:
           restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile: { type: RuntimeDefault }
           containers:
             - name: smoke-test
               image: curlimages/curl:8.7.1
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+              volumeMounts:
+                - { name: tmp, mountPath: /tmp }
               env:
                 - { name: PORTAL_URL, value: "http://lanai-portal:3001" }
                 - { name: KEYCLOAK_URL, value: "http://keycloak:8080" }
@@ -214,3 +237,6 @@ spec:
                   done
                   if [ "$FAIL" -gt 0 ]; then exit 1; fi
                   echo "All core services healthy"
+          volumes:
+            - name: tmp
+              emptyDir: { medium: Memory, sizeLimit: 32Mi }

@@ -15,6 +15,12 @@ spec:
   template:
     metadata: { labels: { app: keycloak } }
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: { type: RuntimeDefault }
       # The keycloak-realm ConfigMap is a template — ${LANAI_DOMAIN}-style
       # placeholders in it are NOT substituted by Keycloak itself (mounting
       # it raw makes realm import fail: "Invalid client lanai-portal: A
@@ -25,7 +31,16 @@ spec:
       # directly.
       initContainers:
         - name: realm-render
-          image: alpine:3.20
+          # Build from config/k8s/images/realm-render.Dockerfile and replace
+          # with a signed immutable digest before deployment.
+          image: lanai-realm-render
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
           env:
             - name: LANAI_DOMAIN
               valueFrom: { configMapKeyRef: { name: lanai-env, key: LANAI_DOMAIN } }
@@ -38,16 +53,26 @@ spec:
             - { name: SMTP_USER, value: "" }
             - { name: SMTP_PASSWORD, value: "" }
           volumeMounts:
-            - { name: realm-template, mountPath: /template/lanai-realm.json, subPath: lanai-realm.json }
+            - { name: realm-template, mountPath: /template/lanai-realm.json, subPath: lanai-realm.json, readOnly: true }
             - { name: realm-import, mountPath: /out }
+            - { name: tmp, mountPath: /tmp }
           command: ["/bin/sh", "-ec"]
           args:
             - |
-              apk add --no-cache gettext >/dev/null
               envsubst < /template/lanai-realm.json > /out/lanai-realm.json
       containers:
         - name: keycloak
           image: quay.io/keycloak/keycloak:26.0.7
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: realm-import, mountPath: /opt/keycloak/data/import, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
           args: ["start", "--import-realm", "--http-enabled=true", "--proxy-headers=xforwarded"]
           ports: [{ containerPort: 8080 }, { containerPort: 9000 }]
           env:
@@ -72,8 +97,7 @@ spec:
               valueFrom: { secretKeyRef: { name: lanai-secrets, key: KEYCLOAK_ADMIN_USER } }
             - name: KC_BOOTSTRAP_ADMIN_PASSWORD
               valueFrom: { secretKeyRef: { name: lanai-secrets, key: KEYCLOAK_ADMIN_PASSWORD } }
-          volumeMounts:
-            - { name: realm-import, mountPath: /opt/keycloak/data/import }
+
           readinessProbe:
             httpGet: { path: /health/ready, port: 9000 }
             initialDelaySeconds: 30
@@ -98,6 +122,8 @@ spec:
           configMap: { name: keycloak-realm }
         - name: realm-import
           emptyDir: {}
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 128Mi }
 ---
 apiVersion: v1
 kind: Service
