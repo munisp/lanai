@@ -149,18 +149,24 @@ def create_task(title: str, body: str, person_id: str = None, due_at: str = None
     body_v2 = json.dumps(
         [{"type": "paragraph", "content": [{"type": "text", "text": body}]}]
     )
-    variables = {"title": title, "body": body, "bodyV2": body_v2}
-    due_clause = f'dueAt: "{due_at}"' if due_at else ""
+    # GraphQL variables keep a caller-controlled due date out of query text.
+    # This avoids an injection path through the legacy string interpolation.
+    variables = {
+        "title": title,
+        "body": body,
+        "bodyV2": body_v2,
+        "dueAt": due_at,
+    }
     result = gql("""
-    mutation CreateTask($title: String!, $body: String!, $bodyV2: String!) {
+    mutation CreateTask($title: String!, $body: String!, $bodyV2: String!, $dueAt: DateTime) {
         createTask(data: {
             title: $title
             bodyV2: { markdown: $body, blocknote: $bodyV2 }
             status: TODO
-            %s
+            dueAt: $dueAt
         }) { id title }
     }
-    """ % due_clause, variables)
+    """, variables)
     task = result.get("data", {}).get("createTask", {})
     if task and person_id:
         gql("""

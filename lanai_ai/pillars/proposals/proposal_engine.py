@@ -217,7 +217,8 @@ def _format_itinerary_as_note(itinerary: dict) -> str:
         "\n## Day-by-Day Programme"
     ]
     for day in itinerary.get("days", []):
-        lines.append(f"\n### {day.get('date_note', f'Day {day.get(\"day\", \"?\")}')}")
+        date_note = day.get("date_note") or f"Day {day.get('day', '?')}"
+        lines.append(f"\n### {date_note}")
         lines.append(f"🌅 **Morning:** {day.get('morning', '')}")
         lines.append(f"☀️ **Afternoon:** {day.get('afternoon', '')}")
         lines.append(f"🌙 **Evening:** {day.get('evening', '')}")

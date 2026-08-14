@@ -6,7 +6,10 @@ import {
   proposalProjection,
 } from "./_core/crmProjection";
 import { TwentyCrmClient, TwentyCrmError } from "./_core/twentyClient";
-import { verifyTwentyWebhookSignature } from "./_core/twentyWebhook";
+import {
+  processTwentyWebhook,
+  verifyTwentyWebhookSignature,
+} from "./_core/twentyWebhook";
 import { createHmac } from "node:crypto";
 
 describe("Twenty CRM provider contract", () => {
@@ -101,6 +104,14 @@ describe("Twenty CRM provider contract", () => {
     expect(proposal).not.toHaveProperty("commission");
     expect(CRM_FIELD_OWNERSHIP.person.passportNumber).toBeUndefined();
     expect(CRM_FIELD_OWNERSHIP.proposal.margin).toBeUndefined();
+  });
+
+  it("rejects an invalid webhook signature before it can persist attacker-controlled data", async () => {
+    const result = await processTwentyWebhook(
+      Buffer.from('{"id":"evt_untrusted","type":"person.updated"}', "utf8"),
+      "sha256=invalid",
+    );
+    expect(result).toEqual({ status: "rejected" });
   });
 
   it("verifies raw Twenty webhook bytes with a timing-safe HMAC contract", () => {

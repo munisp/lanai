@@ -99,7 +99,12 @@ export const ENV = {
   permifyGrpcAddress: process.env.PERMIFY_GRPC_ADDRESS ?? "",
   permifyTenantId: process.env.PERMIFY_TENANT_ID ?? "lanai",
   permifySchemaVersion: process.env.PERMIFY_SCHEMA_VERSION ?? "",
-  permifyInsecure: requireEnvBoolean("PERMIFY_INSECURE", true),
+  // Local integration tests may explicitly use plaintext gRPC. Production
+  // defaults to TLS and must opt in to any exception through reviewed config.
+  permifyInsecure: requireEnvBoolean(
+    "PERMIFY_INSECURE",
+    process.env.NODE_ENV !== "production",
+  ),
   permifyTimeoutMs: requireEnvInt("PERMIFY_TIMEOUT_MS", 5_000),
 
   // Ledger
@@ -155,6 +160,10 @@ if (ENV.isProduction) {
     );
   if (ENV.cookieSecret === "dev-secret-change-in-production")
     throw new Error("[env] JWT_SECRET must not use the development default");
+  if (ENV.allowedOrigins.includes("*"))
+    throw new Error("[env] ALLOWED_ORIGINS must contain explicit origins in production; wildcard CORS is prohibited");
+  if (ENV.permifyInsecure)
+    throw new Error("[env] PERMIFY_INSECURE=true is prohibited in production; configure TLS for Permify gRPC");
   if (ENV.twentyCrmSyncEnabled) {
     const crmRequired = [
       "TWENTY_CRM_URL",

@@ -279,6 +279,12 @@ export async function processTwentyWebhook(
   status: "processed" | "ignored" | "conflicted" | "rejected";
   eventId?: string;
 }> {
+  // Do not parse, hash, or persist an unauthenticated provider payload. Apart
+  // from preventing attacker-controlled records, this keeps invalid webhook
+  // retries from consuming the durable inbound-event table.
+  if (!verifyTwentyWebhookSignature(rawBody, signature)) {
+    return { status: "rejected" };
+  }
   let payload: JsonRecord;
   try {
     payload = asRecord(JSON.parse(rawBody.toString("utf8")));
@@ -286,16 +292,14 @@ export async function processTwentyWebhook(
     throw new Error("Twenty webhook body is not valid JSON");
   }
   const parsed = extractParsedWebhook(payload);
-  const signatureValid = verifyTwentyWebhookSignature(rawBody, signature);
   const persisted = await persistCrmInboundEvent({
     crmEventId: parsed.eventId,
     eventType: parsed.eventType,
     crmObjectType: parsed.crmObjectType ?? "unknown",
     crmObjectId: parsed.crmObjectId ?? "unknown",
     payload,
-    signatureValid,
+    signatureValid: true,
   });
-  if (!signatureValid) return { status: "rejected", eventId: parsed.eventId };
   if (!persisted.created) return { status: "ignored", eventId: parsed.eventId };
   if (!parsed.crmObjectType || !parsed.crmObjectId) {
     await markCrmInboundEvent(

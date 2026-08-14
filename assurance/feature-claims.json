@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "system": "Lanai Lifestyle Concierge Platform",
+  "baselineRevision": "645bb98bd13ad1e16a03538dc2c895b71bcf5321",
+  "claims": [
+    {
+      "id": "AUTH-001",
+      "claim": "Every protected advisor, administrator, and member action is deny-by-default and evaluated by Keycloak-derived identity plus Permify policy.",
+      "classification": "security-critical",
+      "authoritativeSources": ["lanai-portal/server/_core/trpc.ts", "config/permify/schema.perm", "config/keycloak/lanai-realm.json"],
+      "implementation": ["lanai-portal/server/_core/context.ts", "lanai-portal/server/_core/infrastructure.ts", "lanai-portal/server/_core/trpc.ts"],
+      "configuration": ["config/apisix/routes/lanai-routes.yaml", "config/k8s/platform-tier.yaml"],
+      "evidence": ["lanai-portal/server/test/gateway-e2e.test.ts", "lanai-portal/scripts/test-integration.sh"],
+      "status": "evidence_pending",
+      "owner": "Platform Security",
+      "limitations": "Requires real Keycloak and Permify services in an isolated staging environment for public-gateway evidence."
+    },
+    {
+      "id": "FUND-001",
+      "claim": "Booking commissions, invoice payments, and supplier reconciliations use durable Temporal sagas, TigerBeetle pending/post/void transfers, PostgreSQL mirrors, and an idempotent outbox.",
+      "classification": "funds-critical",
+      "authoritativeSources": ["lanai-portal/server/workflows/financialWorkflows.ts", "lanai-portal/server/workflows/financialActivities.ts", "lanai-portal/drizzle/schema.ts"],
+      "implementation": ["lanai-portal/server/travelRouter.ts", "lanai-portal/server/stripeRouter.ts", "lanai-portal/server/phase2Router.ts", "lanai-portal/server/_core/outbox.ts"],
+      "configuration": ["config/k8s/loadtest/live-financial-workflow-runner.yaml", "config/k8s/loadtest/daily-financial-audit.yaml"],
+      "evidence": ["lanai-portal/server/financialAtomicityRegression.test.ts", "lanai-portal/server/test/chaos-engineering.test.ts", "lanai-portal/server/test/live-financial-workflow-runner.ts"],
+      "status": "evidence_pending",
+      "owner": "Finance Platform",
+      "limitations": "A real isolated staging run against TigerBeetle, Temporal, and Fluvio remains unavailable without staging credentials."
+    },
+    {
+      "id": "DATA-001",
+      "claim": "Financial records are durable, idempotent, auditable, and reconciled daily against TigerBeetle and asynchronous delivery state.",
+      "classification": "funds-critical",
+      "authoritativeSources": ["lanai-portal/drizzle/schema.ts", "lanai-portal/server/test/collect-staging-financial-audit.ts"],
+      "implementation": ["lanai-portal/server/workflows/financialActivities.ts", "lanai-portal/server/_core/outbox.ts"],
+      "configuration": ["config/k8s/loadtest/daily-financial-audit.yaml"],
+      "evidence": ["lanai-portal/server/test/collect-staging-financial-audit.ts", "lanai-portal/server/financialAtomicityRegression.test.ts"],
+      "status": "evidence_pending",
+      "owner": "Finance Platform",
+      "limitations": "External transfer lookup and Fluvio delivery evidence require live isolated services."
+    },
+    {
+      "id": "CRM-001",
+      "claim": "Member, travel, proposal, booking, supplier, document, and communication data are persisted in PostgreSQL and project required CRM events through the outbox.",
+      "classification": "business-critical",
+      "authoritativeSources": ["lanai-portal/drizzle/schema.ts", "lanai-portal/server/routers.ts", "lanai-portal/server/travelRouter.ts", "lanai-portal/server/phase2Router.ts"],
+      "implementation": ["lanai-portal/server/_core/crmEvent.ts", "lanai-portal/server/_core/crmProjection.ts", "lanai-portal/server/_core/outbox.ts"],
+      "configuration": ["config/k8s/app-tier.yaml", "config/k8s/jobs.yaml"],
+      "evidence": ["lanai-portal/server/smoke.test.ts", "lanai-portal/server/smoke.phase2.test.ts", "lanai-portal/server/crm.provider-contract.test.ts"],
+      "status": "evidence_pending",
+      "owner": "Concierge Platform",
+      "limitations": "A real CRM service contract test requires an isolated Twenty CRM deployment."
+    },
+    {
+      "id": "PAY-001",
+      "claim": "Client invoice payment completion is driven by verified Stripe webhook events and cannot be marked paid through an advisor status update.",
+      "classification": "funds-critical",
+      "authoritativeSources": ["lanai-portal/server/stripeRouter.ts", "lanai-portal/server/phase2Router.ts"],
+      "implementation": ["lanai-portal/server/workflows/financialWorkflows.ts", "lanai-portal/server/workflows/financialActivities.ts"],
+      "configuration": ["lanai-portal/.env.example"],
+      "evidence": ["lanai-portal/server/stripe.provider-contract.test.ts", "lanai-portal/server/smoke.phase2.test.ts"],
+      "status": "evidence_pending",
+      "owner": "Payments",
+      "limitations": "No official Stripe sandbox key/webhook endpoint is configured in this environment."
+    },
+    {
+      "id": "OPS-001",
+      "claim": "The production deployment has restricted service boundaries, health checks, smoke tests, and retained compliance evidence.",
+      "classification": "operational-critical",
+      "authoritativeSources": ["docker-compose.yml", "config/k8s/gateway.yaml", "config/k8s/smoke-test.yaml"],
+      "implementation": ["config/k8s/loadtest/isolated-ledger-soak.yaml", "config/k8s/loadtest/daily-financial-audit.yaml"],
+      "configuration": [".github/workflows/ci.yml", ".github/workflows/nightly-security.yml"],
+      "evidence": ["lanai-portal/scripts/preflight-ledger-soak.sh", "lanai-portal/scripts/export-ledger-soak-evidence.sh"],
+      "status": "blocked",
+      "owner": "Platform Operations",
+      "limitations": "No Kubernetes staging cluster or cloud credentials are available to validate admission, deployment, service connectivity, or smoke-job output."
+    },
+    {
+      "id": "AI-001",
+      "claim": "AI concierge, briefing, proposal, and transcription capabilities are permissioned and fail explicitly when their configured provider is unavailable.",
+      "classification": "business-critical",
+      "authoritativeSources": ["lanai-portal/server/_core/llm.ts", "lanai-portal/server/_core/localAi.ts", "lanai_ai/gateway"],
+      "implementation": ["lanai-portal/server/_core/aiRoutes.ts", "lanai-portal/server/phase2Router.ts"],
+      "configuration": ["lanai_ai/gateway/Dockerfile", "config/k8s/ai-tier.yaml"],
+      "evidence": ["lanai-portal/server/smoke.test.ts", "lanai-portal/server/smoke.phase2.test.ts"],
+      "status": "evidence_pending",
+      "owner": "AI Platform",
+      "limitations": "No production-compatible model provider or AI gateway is reachable in this environment."
+    }
+  ]
+}

@@ -1,6 +1,18 @@
 packages:
   - "lanai-portal"
 
+# Supply-chain controls: wait seven days for newly published packages and
+# prevent a dependency from lowering trust policy. `blockExoticSubdeps` cannot
+# yet be enabled because @tailwindcss/vite currently resolves an exotic
+# tailwindcss subdependency; the strict release ledger records this as a
+# dependency-graph remediation item rather than silently bypassing it.
+minimumReleaseAge: 10080
+# esbuild releases platform-specific optional binaries together; keeping this
+# narrowly scoped exception lets frozen installs resolve the audited build tool.
+minimumReleaseAgeExclude:
+  - "@esbuild/*"
+trustPolicy: no-downgrade
+
 # Fluvio's package-level TypeScript rebuild is incompatible with TypeScript 7,
 # while its published runtime artifact is sufficient for this Node application.
 onlyBuiltDependencies:

@@ -38,6 +38,10 @@ spec:
             - { name: AI_GATEWAY_URL, value: "http://lanai-ai-gateway:8100" }
             - { name: REDIS_HOST, value: "redis" }
             - { name: POSTGRES_HOST, value: "postgres" }
+            - { name: KEYCLOAK_SMOKE_CLIENT_ID, value: "lanai-portal" }
+            - name: KEYCLOAK_SMOKE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: lanai-secrets, key: KEYCLOAK_SMOKE_CLIENT_SECRET }
           command: ["/bin/sh", "-ec"]
           args:
             - |
@@ -121,33 +125,34 @@ spec:
               echo ""
 
               echo "━━━ 7. End-to-End: Keycloak Token → Portal ━━━━━━━"
-              # Attempt to get a client_credentials token from Keycloak
+              # The smoke client is a restricted service account whose Keycloak
+              # roles and Permify tuple must authorize members.list. Missing
+              # credentials or a denied protected call are release failures.
               TOKEN_RESPONSE=$(curl -sf -X POST \
                 "$KEYCLOAK_URL/realms/lanai/protocol/openid-connect/token" \
                 -d "grant_type=client_credentials" \
-                -d "client_id=lanai-portal" \
-                -d "client_secret=placeholder-replace-with-secret" \
+                -d "client_id=$KEYCLOAK_SMOKE_CLIENT_ID" \
+                -d "client_secret=$KEYCLOAK_SMOKE_CLIENT_SECRET" \
                 2>/dev/null) || TOKEN_RESPONSE=""
-              printf "  %-40s" "Keycloak token issuance"
+              printf "  %-40s" "Keycloak smoke-client token issuance"
               if echo "$TOKEN_RESPONSE" | grep -q "access_token"; then
                 echo "✅ PASS"
                 PASS=$((PASS + 1))
                 ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | sed 's/.*"access_token":"\([^"]*\)".*/\1/')
-                # Use the token to call the portal
                 AUTH_RESPONSE=$(curl -sf -o /dev/null -w "%{http_code}" \
                   -H "Authorization: Bearer $ACCESS_TOKEN" \
-                  "$PORTAL_URL/api/trpc/system.health?input=%7B%22timestamp%22%3A1%7D" 2>/dev/null) || AUTH_RESPONSE="000"
-                printf "  %-40s" "Authenticated portal call"
+                  "$PORTAL_URL/api/trpc/members.list" 2>/dev/null) || AUTH_RESPONSE="000"
+                printf "  %-40s" "Keycloak + Permify protected portal call"
                 if [ "$AUTH_RESPONSE" = "200" ]; then
                   echo "✅ PASS"
                   PASS=$((PASS + 1))
                 else
-                  echo "⚠️  SKIP (token may lack portal permissions: $AUTH_RESPONSE)"
-                  SKIP=$((SKIP + 1))
+                  echo "❌ FAIL (protected call denied: $AUTH_RESPONSE)"
+                  FAIL=$((FAIL + 1))
                 fi
               else
-                echo "⚠️  SKIP (client_secret not configured for smoke test)"
-                SKIP=$((SKIP + 1))
+                echo "❌ FAIL (smoke-client credentials missing or rejected)"
+                FAIL=$((FAIL + 1))
               fi
               echo ""
 

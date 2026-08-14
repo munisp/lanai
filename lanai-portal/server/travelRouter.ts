@@ -11,7 +11,6 @@ import {
   travelRequests,
 } from "../drizzle/schema";
 import { Permify } from "./_core/infrastructure";
-import { recordBookingCommission } from "./_core/ledger";
 import { dispatchOutboxBatch, enqueueDomainEvent } from "./_core/outbox";
 import { instantiateBookingStageTasks } from "./_core/bookingTaskAutomation";
 
