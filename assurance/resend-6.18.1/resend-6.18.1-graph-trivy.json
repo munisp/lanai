@@ -1,0 +1,131 @@
+{
+  "SchemaVersion": 2,
+  "Trivy": {
+    "Version": "0.71.2"
+  },
+  "ReportID": "01a00594-5af9-700b-841d-bba6b845779e",
+  "CreatedAt": "2026-08-15T13:20:03.833004111Z",
+  "ArtifactName": "/tmp/resend-sbom-work",
+  "ArtifactType": "filesystem",
+  "Results": [
+    {
+      "Target": "package-lock.json",
+      "Class": "lang-pkgs",
+      "Type": "npm",
+      "Packages": [
+        {
+          "ID": "resend@6.18.1",
+          "Name": "resend",
+          "Identifier": {
+            "PURL": "pkg:npm/resend@6.18.1",
+            "UID": "516f4444a74144a7"
+          },
+          "Version": "6.18.1",
+          "Licenses": [
+            "MIT"
+          ],
+          "Relationship": "direct",
+          "DependsOn": [
+            "postal-mime@2.7.5",
+            "standardwebhooks@1.0.0"
+          ],
+          "Locations": [
+            {
+              "StartLine": 32,
+              "EndLine": 52
+            }
+          ],
+          "AnalyzedBy": "npm"
+        },
+        {
+          "ID": "@stablelib/base64@1.0.1",
+          "Name": "@stablelib/base64",
+          "Identifier": {
+            "PURL": "pkg:npm/%40stablelib/base64@1.0.1",
+            "UID": "b1e987c3fe11ca1b"
+          },
+          "Version": "1.0.1",
+          "Licenses": [
+            "MIT"
+          ],
+          "Indirect": true,
+          "Relationship": "indirect",
+          "Locations": [
+            {
+              "StartLine": 14,
+              "EndLine": 19
+            }
+          ],
+          "AnalyzedBy": "npm"
+        },
+        {
+          "ID": "fast-sha256@1.3.0",
+          "Name": "fast-sha256",
+          "Identifier": {
+            "PURL": "pkg:npm/fast-sha256@1.3.0",
+            "UID": "ca7a616d8a5c5508"
+          },
+          "Version": "1.3.0",
+          "Licenses": [
+            "Unlicense"
+          ],
+          "Indirect": true,
+          "Relationship": "indirect",
+          "Locations": [
+            {
+              "StartLine": 20,
+              "EndLine": 25
+            }
+          ],
+          "AnalyzedBy": "npm"
+        },
+        {
+          "ID": "postal-mime@2.7.5",
+          "Name": "postal-mime",
+          "Identifier": {
+            "PURL": "pkg:npm/postal-mime@2.7.5",
+            "UID": "9949f49934d5f23a"
+          },
+          "Version": "2.7.5",
+          "Licenses": [
+            "MIT-0"
+          ],
+          "Indirect": true,
+          "Relationship": "indirect",
+          "Locations": [
+            {
+              "StartLine": 26,
+              "EndLine": 31
+            }
+          ],
+          "AnalyzedBy": "npm"
+        },
+        {
+          "ID": "standardwebhooks@1.0.0",
+          "Name": "standardwebhooks",
+          "Identifier": {
+            "PURL": "pkg:npm/standardwebhooks@1.0.0",
+            "UID": "83a22bfac1949e2c"
+          },
+          "Version": "1.0.0",
+          "Licenses": [
+            "MIT"
+          ],
+          "Indirect": true,
+          "Relationship": "indirect",
+          "DependsOn": [
+            "@stablelib/base64@1.0.1",
+            "fast-sha256@1.3.0"
+          ],
+          "Locations": [
+            {
+              "StartLine": 53,
+              "EndLine": 62
+            }
+          ],
+          "AnalyzedBy": "npm"
+        }
+      ]
+    }
+  ]
+}
