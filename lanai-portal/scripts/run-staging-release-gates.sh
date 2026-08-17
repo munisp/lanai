@@ -14,6 +14,42 @@ require_env() {
   fi
 }
 
+require_namespace() {
+  local name="$1" value="$2"
+  if [[ ! "$value" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]]; then
+    printf '%s must be a valid lowercase Kubernetes namespace.\n' "$name" >&2
+    exit 65
+  fi
+}
+
+require_can_i() {
+  local namespace="$1" verb="$2" resource="$3"
+  if [[ "$(kubectl auth can-i "$verb" "$resource" -n "$namespace")" != "yes" ]]; then
+    printf 'Active identity cannot %s %s in namespace %s.\n' \
+      "$verb" "$resource" "$namespace" >&2
+    exit 77
+  fi
+}
+
+require_namespace_label() {
+  local namespace="$1" expected_environment="$2"
+  if [[ "$(kubectl get namespace "$namespace" -o jsonpath='{.metadata.labels.environment}' 2>/dev/null)" != "$expected_environment" ]]; then
+    printf 'Namespace %q does not carry environment=%q.\n' \
+      "$namespace" "$expected_environment" >&2
+    exit 65
+  fi
+}
+
+require_secret_key() {
+  local namespace="$1" secret="$2" key="$3"
+  if ! kubectl get secret "$secret" -n "$namespace" \
+    -o "jsonpath={.data.${key}}" 2>/dev/null | grep -q .; then
+    printf 'Secret %s/%s is missing required key %s.\n' \
+      "$namespace" "$secret" "$key" >&2
+    exit 78
+  fi
+}
+
 for name in \
   LANAI_APPROVE_STAGING_EXECUTION \
   LANAI_STAGING_CONTEXT \
@@ -35,6 +71,17 @@ if ! command -v kubectl >/dev/null 2>&1; then
   exit 69
 fi
 
+require_namespace LANAI_STAGING_NAMESPACE "$LANAI_STAGING_NAMESPACE"
+require_namespace LANAI_FINANCIAL_NAMESPACE "$LANAI_FINANCIAL_NAMESPACE"
+if [[ ! "$LANAI_FINANCIAL_RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$ ]]; then
+  printf 'LANAI_FINANCIAL_RUN_ID must be 3–128 safe identifier characters.\n' >&2
+  exit 65
+fi
+if [[ ! "$LANAI_FINANCIAL_RUNNER_IMAGE" =~ ^[a-z0-9][a-z0-9./_-]*@sha256:[a-f0-9]{64}$ ]]; then
+  printf 'LANAI_FINANCIAL_RUNNER_IMAGE must be a lowercase immutable sha256 image digest.\n' >&2
+  exit 65
+fi
+
 current_context="$(kubectl config current-context)"
 if [[ "$current_context" != "$LANAI_STAGING_CONTEXT" ]]; then
   printf 'Current context %q does not match approved staging context %q.\n' \
@@ -42,46 +89,46 @@ if [[ "$current_context" != "$LANAI_STAGING_CONTEXT" ]]; then
   exit 65
 fi
 
-if [[ "$(kubectl get namespace "$LANAI_STAGING_NAMESPACE" -o jsonpath='{.metadata.labels.environment}' 2>/dev/null)" != "$LANAI_STAGING_ENVIRONMENT" ]]; then
-  printf 'Target namespace %q does not carry environment=%q.\n' \
-    "$LANAI_STAGING_NAMESPACE" "$LANAI_STAGING_ENVIRONMENT" >&2
-  exit 65
+# Namespace reads are cluster-scoped; subsequent operations are constrained to
+# the explicitly approved staging and isolated financial namespaces.
+if [[ "$(kubectl auth can-i get namespaces)" != "yes" ]]; then
+  printf 'Active identity cannot read namespaces for environment-label validation.\n' >&2
+  exit 77
 fi
+require_namespace_label "$LANAI_STAGING_NAMESPACE" "$LANAI_STAGING_ENVIRONMENT"
+require_namespace_label "$LANAI_FINANCIAL_NAMESPACE" "$LANAI_STAGING_ENVIRONMENT"
 
+# The admission helper performs server-side dry-runs of the platform manifests.
+# The smoke application itself persists a Job and a suspended CronJob.
 for permission in \
   "create deployment" \
-  "create job" \
-  "delete job" \
-  "get secret"; do
+  "create job" "get job" "patch job" "delete job" \
+  "create cronjob" "get cronjob" "patch cronjob" \
+  "get secret" "get pod" "get pods/log"; do
   read -r verb resource <<<"$permission"
-  if [[ "$(kubectl auth can-i "$verb" "$resource" -n "$LANAI_STAGING_NAMESPACE")" != "yes" ]]; then
-    printf 'Active identity cannot %s %s in %s.\n' "$verb" "$resource" "$LANAI_STAGING_NAMESPACE" >&2
-    exit 77
-  fi
+  require_can_i "$LANAI_STAGING_NAMESPACE" "$verb" "$resource"
 done
 
-for key in KEYCLOAK_SMOKE_CLIENT_SECRET; do
-  if ! kubectl get secret lanai-secrets -n "$LANAI_STAGING_NAMESPACE" \
-    -o "jsonpath={.data.${key}}" 2>/dev/null | grep -q .; then
-    printf 'lanai-secrets/%s is missing required key %s.\n' \
-      "$LANAI_STAGING_NAMESPACE" "$key" >&2
-    exit 78
-  fi
+# The financial evidence manifest persists a ConfigMap, NetworkPolicy, and a
+# generated Job in a separate isolated namespace.
+for permission in \
+  "create configmap" "get configmap" "patch configmap" \
+  "create networkpolicy" "get networkpolicy" "patch networkpolicy" \
+  "create job" "get job" "patch job" \
+  "get secret" "get pod" "get pods/log"; do
+  read -r verb resource <<<"$permission"
+  require_can_i "$LANAI_FINANCIAL_NAMESPACE" "$verb" "$resource"
 done
 
+require_secret_key "$LANAI_STAGING_NAMESPACE" lanai-secrets KEYCLOAK_SMOKE_CLIENT_SECRET
 for key in \
   DATABASE_URL TEMPORAL_ADDRESS TIGERBEETLE_ADDRESS FLUVIO_ENDPOINT \
   DAPR_API_TOKEN LAKEHOUSE_INGEST_URL LAKEHOUSE_INGEST_TOKEN; do
-  if ! kubectl get secret lanai-loadtest-financial-services -n "$LANAI_FINANCIAL_NAMESPACE" \
-    -o "jsonpath={.data.${key}}" 2>/dev/null | grep -q .; then
-    printf 'lanai-loadtest-financial-services/%s is missing required key %s.\n' \
-      "$LANAI_FINANCIAL_NAMESPACE" "$key" >&2
-    exit 78
-  fi
+  require_secret_key "$LANAI_FINANCIAL_NAMESPACE" lanai-loadtest-financial-services "$key"
 done
 
-# First execute the server-side admission gate. Its own context and namespace
-# validation prevents a production cluster from being targeted accidentally.
+# First execute the server-side admission gate. Its own exact-context and
+# namespace checks prevent persistence and accidental production targeting.
 export LANAI_STAGING_CONTEXT LANAI_STAGING_NAMESPACE LANAI_STAGING_ENVIRONMENT
 "$ROOT/lanai-portal/scripts/dry-run-staging-admission.sh"
 
@@ -92,28 +139,30 @@ kubectl wait --for=condition=complete job/lanai-smoke-test \
   -n "$LANAI_STAGING_NAMESPACE" --timeout=300s
 kubectl logs job/lanai-smoke-test -n "$LANAI_STAGING_NAMESPACE" --all-containers=true
 
-# Render only the deliberate evidence values; the runner image must already be
-# a signed immutable digest approved by the release process.
-if [[ "$LANAI_FINANCIAL_RUNNER_IMAGE" != *@sha256:* ]]; then
-  printf 'LANAI_FINANCIAL_RUNNER_IMAGE must be an immutable image digest.\n' >&2
-  exit 65
-fi
-
+# Render only validated release-evidence values. All financial manifest objects
+# are rewritten into the independently label-checked financial namespace.
 tmp_manifest="$(mktemp)"
 trap 'rm -f "$tmp_manifest"' EXIT
 sed \
+  -e "s|namespace: lanai-loadtest|namespace: ${LANAI_FINANCIAL_NAMESPACE}|g" \
   -e "s|replace-with-change-ticket-and-utc-run-id|${LANAI_FINANCIAL_RUN_ID}|g" \
   -e "s|ghcr.io/munisp/lanai-financial-loadtest:REPLACE_WITH_SIGNED_DIGEST|${LANAI_FINANCIAL_RUNNER_IMAGE}|g" \
   "$ROOT/config/k8s/loadtest/live-financial-workflow-runner.yaml" > "$tmp_manifest"
+if grep -qE 'REPLACE_WITH_SIGNED_DIGEST|replace-with-change-ticket-and-utc-run-id' "$tmp_manifest"; then
+  printf 'Financial evidence manifest retained an unresolved image or run-ID placeholder.\n' >&2
+  exit 70
+fi
+if [[ "$LANAI_FINANCIAL_NAMESPACE" != "lanai-loadtest" ]] \
+  && grep -q 'namespace: lanai-loadtest' "$tmp_manifest"; then
+  printf 'Financial evidence manifest retained the default financial namespace.\n' >&2
+  exit 70
+fi
 
 printf 'Running live financial evidence job in %s.\n' "$LANAI_FINANCIAL_NAMESPACE"
-kubectl apply -f "$tmp_manifest"
-job_name="$(kubectl get jobs -n "$LANAI_FINANCIAL_NAMESPACE" \
-  -l app.kubernetes.io/name=financial-workflow-runner \
-  --sort-by=.metadata.creationTimestamp \
-  -o jsonpath='{.items[-1:].metadata.name}')"
+apply_output="$(kubectl apply -n "$LANAI_FINANCIAL_NAMESPACE" -f "$tmp_manifest" -o name)"
+job_name="$(printf '%s\n' "$apply_output" | awk '/^job\.batch\// { sub(/^job\.batch\//, ""); print; exit }')"
 if [[ -z "$job_name" ]]; then
-  printf 'Financial evidence Job was not created.\n' >&2
+  printf 'Financial evidence Job was not created by the rendered manifest.\n' >&2
   exit 70
 fi
 kubectl wait --for=condition=complete "job/${job_name}" \
