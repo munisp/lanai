@@ -246,9 +246,14 @@ describe("Chaos Engineering: Financial Saga Recovery Guarantees", () => {
     console.log("✅ Financial activities retry up to 5 times with exponential backoff");
     console.log("✅ Non-retryable errors (INVALID_INPUT, DUPLICATE_TRANSFER) fail fast");
 
-    // Verify compensation logic exists
-    expect(workflowsSource).toContain("voidCommissionInTigerBeetle");
+    // Compensation has an independent durable retry boundary. A transient
+    // TigerBeetle outage must not exhaust normal business retries and leave a
+    // pending reserve outstanding.
+    expect(workflowsSource).toContain("const compensation = proxyActivities");
+    expect(workflowsSource).toContain("maximumAttempts: 0");
+    expect(workflowsSource).toContain('maximumInterval: "5m"');
+    expect(workflowsSource).toContain("await compensation.voidCommissionInTigerBeetle");
     expect(workflowsSource).toContain("SAGA_COMPENSATION");
-    console.log("✅ Saga compensation uses a real TigerBeetle pending-transfer void on PostgreSQL failure");
+    console.log("✅ Saga compensation retries deterministic TigerBeetle voids until completion or a non-retryable error");
   });
 });

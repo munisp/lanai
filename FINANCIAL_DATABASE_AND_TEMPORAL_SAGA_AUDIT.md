@@ -84,7 +84,7 @@ The Temporal worker connects to `ENV.temporalAddress`, `ENV.temporalNamespace`, 
 
 ## Financial Activity Retry Policy
 
-All financial activities use:
+Ordinary financial activities use:
 
 ```ts
 {
@@ -99,7 +99,9 @@ All financial activities use:
 }
 ```
 
-A failed mirror persistence operation first invokes the deterministic pending-transfer void, then raises a nonretryable `SAGA_COMPENSATION` `ApplicationFailure`. This prevents a retry from creating or settling a transfer after the required compensation has completed.
+Compensation uses a separate Temporal activity proxy with the same 30-second execution timeout, a one-second initial interval, a five-minute maximum interval, backoff coefficient two, and `maximumAttempts: 0` (unlimited retries subject to Temporal execution timeouts). Only `INVALID_INPUT` and `DUPLICATE_TRANSFER` are nonretryable. This prevents a transient TigerBeetle or worker outage from exhausting ordinary business retries while leaving a pending reserve outstanding.
+
+A failed mirror persistence operation first invokes the deterministic pending-transfer void through that compensation proxy, then raises a nonretryable `SAGA_COMPENSATION` `ApplicationFailure`. This prevents a retry from creating or settling a transfer after the required compensation has completed.
 
 Financial reserve, post, void, account creation, local mirror persistence, and outbox enqueue all use deterministic business identities. Existing TigerBeetle accounts/transfers are verified against the original payload. Existing mirror/settlement IDs must also match. Thus a retry after settlement may replay operations but cannot create a second transfer.
 
@@ -118,5 +120,5 @@ Financial workflows call an activity that durably enqueues a single `financial:<
 | Invalid status rejection | Passed |
 | Posted-without-settlement rejection | Passed |
 | TypeScript (`pnpm check`) | Passed — 0 errors |
-| Financial chaos regression with migrated PostgreSQL | Passed — 6/6 scenarios |
+| Financial chaos regression with migrated PostgreSQL | Passed — 6/6 scenarios, including durable compensation retry guard |
 | Live TigerBeetle/Temporal/PostgreSQL evidence | Pending isolated staging execution |

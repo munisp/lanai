@@ -39,6 +39,25 @@ export type CommissionReconciliationInput = {
 type Settlement = { settlementTransferId: string };
 type Persisted = { ledgerTransferId: number };
 
+/**
+ * Compensation must not share the ordinary five-attempt activity limit. A
+ * pending TigerBeetle reserve cannot be left outstanding simply because a
+ * transient network or worker outage outlives normal business retries. The
+ * underlying void transfer has a deterministic ID, so replay is safe.
+ */
+const compensation = proxyActivities<{
+  voidCommissionInTigerBeetle(input: PendingFinancialTransfer): Promise<void>;
+}>({
+  startToCloseTimeout: "30 seconds",
+  retry: {
+    maximumAttempts: 0,
+    initialInterval: "1s",
+    maximumInterval: "5m",
+    backoffCoefficient: 2,
+    nonRetryableErrorTypes: ["INVALID_INPUT", "DUPLICATE_TRANSFER"],
+  },
+});
+
 const financial = proxyActivities<{
   reserveCommissionInTigerBeetle(input: BookingCommissionInput): Promise<PendingFinancialTransfer>;
   persistCommissionToPostgres(input: BookingCommissionInput & PendingFinancialTransfer): Promise<Persisted>;
@@ -85,7 +104,7 @@ export async function bookingCommissionSaga(
   try {
     await financial.persistCommissionToPostgres({ ...input, ...pending });
   } catch (error) {
-    await financial.voidCommissionInTigerBeetle(pending);
+    await compensation.voidCommissionInTigerBeetle(pending);
     throw compensationFailure("commission mirror persistence", error);
   }
   const settlement = await financial.settleCommissionInTigerBeetle(pending);
@@ -106,7 +125,7 @@ export async function invoicePaymentSaga(
     await financial.persistPaymentToPostgres({ ...input, ...pending });
   } catch (error) {
     // Payment uses the same pending-transfer compensation contract as commission.
-    await financial.voidCommissionInTigerBeetle(pending);
+    await compensation.voidCommissionInTigerBeetle(pending);
     throw compensationFailure("payment mirror persistence", error);
   }
   const settlement = await financial.settlePaymentInTigerBeetle(pending);
@@ -127,7 +146,7 @@ export async function commissionReconciliationSaga(
   try {
     await financial.persistCommissionReconciliationToPostgres({ ...input, ...pending });
   } catch (error) {
-    await financial.voidCommissionInTigerBeetle(pending);
+    await compensation.voidCommissionInTigerBeetle(pending);
     throw compensationFailure("reconciliation mirror persistence", error);
   }
   const settlement = await financial.settleCommissionPayableInTigerBeetle(pending);
