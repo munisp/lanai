@@ -50,6 +50,15 @@ require_secret_key() {
   fi
 }
 
+require_resource() {
+  local namespace="$1" resource="$2" name="$3"
+  if ! kubectl get "$resource" "$name" -n "$namespace" >/dev/null 2>&1; then
+    printf 'Required resource %s/%s is unavailable in namespace %s.\n' \
+      "$resource" "$name" "$namespace" >&2
+    exit 78
+  fi
+}
+
 for name in \
   LANAI_APPROVE_STAGING_EXECUTION \
   LANAI_STAGING_CONTEXT \
@@ -120,7 +129,8 @@ for permission in \
   "create configmap" "get configmap" "patch configmap" \
   "create networkpolicy" "get networkpolicy" "patch networkpolicy" \
   "create job" "get job" "patch job" \
-  "get secret" "get pod" "get pods/log"; do
+  "get secret" "get persistentvolumeclaim" "get serviceaccount" \
+  "get pod" "get pods/log"; do
   read -r verb resource <<<"$permission"
   require_can_i "$LANAI_FINANCIAL_NAMESPACE" "$verb" "$resource"
 done
@@ -131,6 +141,8 @@ for key in \
   DAPR_API_TOKEN LAKEHOUSE_INGEST_URL LAKEHOUSE_INGEST_TOKEN; do
   require_secret_key "$LANAI_FINANCIAL_NAMESPACE" lanai-loadtest-financial-services "$key"
 done
+require_resource "$LANAI_FINANCIAL_NAMESPACE" serviceaccount ledger-soak-runner
+require_resource "$LANAI_FINANCIAL_NAMESPACE" persistentvolumeclaim ledger-soak-evidence
 
 # First execute the server-side admission gate. Its own exact-context and
 # namespace checks prevent persistence and accidental production targeting.

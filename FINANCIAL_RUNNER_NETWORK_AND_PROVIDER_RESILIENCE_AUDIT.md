@@ -52,6 +52,7 @@ The destination controls are namespace- and port-scoped rather than destination-
 | Time and retry bounds | `backoffLimit: 0`, `activeDeadlineSeconds: 10800`, and seven-day Job TTL. |
 | Evidence retention | `/evidence` is a retained `ledger-soak-evidence` PVC. |
 | Secrets | Database, Temporal, TigerBeetle, Fluvio, Dapr, and Lakehouse addresses/tokens are sourced only from `lanai-loadtest-financial-services`. |
+| Workload prerequisites | Before applying the Job, the release gate verifies `ledger-soak-runner` and `ledger-soak-evidence` exist and that the caller can read both resource types. |
 | Artifact integrity | The release runner accepts only lowercase `@sha256:` image digests and rejects unresolved image/run-ID placeholders. |
 
 ## Release-Gate Alignment Remediation
@@ -61,6 +62,7 @@ The destination controls are namespace- and port-scoped rather than destination-
 | Financial namespace was checked against `LANAI_STAGING_ENVIRONMENT`, conflicting with `lanai-loadtest`’s `lanai.io/environment: loadtest` label. | Added mandatory `LANAI_FINANCIAL_ENVIRONMENT`; financial namespace is checked against it, and `environment: loadtest` is now declared in the isolated namespace. | Hermetic approved path passed with staging=`staging` and financial=`loadtest`. |
 | Financial runner could theoretically share the platform staging namespace. | Release gate rejects equal staging and financial namespace names before Kubernetes interaction. | Hermetic co-location attempt exits 65. |
 | Runbook lacked the dedicated financial environment input. | Added `LANAI_FINANCIAL_ENVIRONMENT='loadtest'` to `lanai-portal/TESTING.md`. | Runbook matches runner requirements. |
+| Financial Job referenced a service account and evidence PVC without explicit release-gate existence checks. | Added read RBAC and existence preflights for `ledger-soak-runner` and `ledger-soak-evidence`. | Hermetic missing-PVC path exits 78 before any admission or workload mutation. |
 
 ## Provider Failure-Injection Assertions
 

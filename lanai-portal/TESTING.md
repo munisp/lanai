@@ -110,7 +110,7 @@ A passing internal run reports the isolated CRM and Stripe provider-contract tes
 
 ## Staging release evidence gate
 
-The repository provides `scripts/run-staging-release-gates.sh` for the **approved staging environment only**. It requires an exact staging context, a labelled platform staging namespace, and a separately labelled financial load-test namespace; verifies the Keycloak smoke secret and financial-service test secret keys; performs the server-side admission dry-run; runs the authenticated smoke Job; and then runs the signed-digest financial workflow evidence Job. It refuses to infer a context, use a mutable load-test image tag, or execute without an explicit approval flag.
+The repository provides `scripts/run-staging-release-gates.sh` for the **approved staging environment only**. It requires an exact staging context, a labelled platform staging namespace, and a separately labelled financial load-test namespace; verifies the Keycloak smoke secret, financial-service test secret keys, the financial runner service account, and the retained evidence PVC; performs the server-side admission dry-run; runs the authenticated smoke Job; and then runs the signed-digest financial workflow evidence Job. It refuses to infer a context, use a mutable load-test image tag, or execute without an explicit approval flag.
 
 ```bash
 export LANAI_APPROVE_STAGING_EXECUTION='1'
