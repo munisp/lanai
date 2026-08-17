@@ -1,0 +1,40 @@
+# Apply after isolated-ledger-soak.yaml and only in the dedicated lanai-loadtest
+# namespace. These components are available only to the financial workflow
+# runner app-id. Create the referenced secrets out of band:
+#   lanai-loadtest-dapr-redis: host, password
+#   lanai-loadtest-dapr-api-token: token
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+  namespace: lanai-loadtest
+spec:
+  type: state.redis
+  version: v1
+  metadata:
+    - name: redisHost
+      secretKeyRef: { name: lanai-loadtest-dapr-redis, key: host }
+    - name: redisPassword
+      secretKeyRef: { name: lanai-loadtest-dapr-redis, key: password }
+    - name: enableTLS
+      value: "true"
+scopes:
+  - lanai-financial-workflow-runner
+---
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub
+  namespace: lanai-loadtest
+spec:
+  type: pubsub.redis
+  version: v1
+  metadata:
+    - name: redisHost
+      secretKeyRef: { name: lanai-loadtest-dapr-redis, key: host }
+    - name: redisPassword
+      secretKeyRef: { name: lanai-loadtest-dapr-redis, key: password }
+    - name: enableTLS
+      value: "true"
+scopes:
+  - lanai-financial-workflow-runner

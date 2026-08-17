@@ -17,7 +17,7 @@ A review discovered that the prior release runner required the platform staging 
 | Template resource | Purpose | Security / correctness finding |
 |---|---|---|
 | `financial-workflow-settings` ConfigMap | Supplies run ID, workload count, concurrency, amount, currency, Temporal namespace/task queue, and Dapr localhost settings. | Contains no credentials. The release gate replaces the run-ID placeholder only after safe-format validation. |
-| `allow-financial-workflow-services` NetworkPolicy | Allows egress to namespaces labelled `lanai.io/platform-services=true` on TCP 3000, 7233, 9003, 8200, and 6379. | Restricts TigerBeetle, Temporal, Fluvio, Lakehouse, and platform state/pubsub reachability to an explicitly labelled namespace and fixed ports. |
+| `allow-financial-workflow-services` NetworkPolicy | Allows egress to namespaces labelled `lanai.io/platform-services=true` on TCP 3000, 7233, 9003, 8200, and 6379. | Restricts TigerBeetle, Temporal, Fluvio, Lakehouse, and Dapr Redis state/pubsub reachability to an explicitly labelled namespace and fixed ports. |
 | Financial workflow Job | Runs one generated evidence Job with bounded concurrency and 10,800-second deadline. | No retries (`backoffLimit: 0`), immutable digest supplied by release gate, service-account token disabled, evidence retained seven days. |
 | `allow-financial-workflow-dns` NetworkPolicy | Allows UDP/TCP 53 only to the `kube-system` namespace. | Supports DNS resolution without allowing general internet egress. |
 | `allow-financial-workflow-postgres` NetworkPolicy | Allows TCP 5432 only to namespaces labelled `lanai.io/loadtest-db=true`. | Restricts PostgreSQL connectivity to a deliberately designated database namespace. |
@@ -39,7 +39,7 @@ NetworkPolicy egress rules are additive: because the runner pod matches the defa
 
 Dapr itself is injected into the same pod and is addressed at `127.0.0.1:3500`; this loopback path does not require cross-pod egress. The policy intentionally does not allow arbitrary HTTPS, internet, Kubernetes API, or unrestricted namespace access.
 
-The destination controls are namespace- and port-scoped rather than destination-pod-scoped. Before live execution, the platform operator must confirm that only approved service workloads inhabit namespaces with `lanai.io/platform-services=true` or `lanai.io/loadtest-db=true`. Adding destination `podSelector` constraints is a recommended future defense-in-depth improvement once the authoritative labels for TigerBeetle, Temporal, Fluvio, Lakehouse, and PostgreSQL service pods are fixed.
+The destination controls are namespace- and port-scoped rather than destination-pod-scoped. Before live execution, the platform operator must confirm that only approved service workloads inhabit namespaces with `lanai.io/platform-services=true` or `lanai.io/loadtest-db=true`. Adding destination `podSelector` constraints is a recommended future defense-in-depth improvement once the authoritative labels for TigerBeetle, Temporal, Fluvio, Lakehouse, Redis, and PostgreSQL service pods are fixed.
 
 ## Job Hardening and Evidence Controls
 
@@ -51,8 +51,9 @@ The destination controls are namespace- and port-scoped rather than destination-
 | Resource bounds | Requests 1 CPU / 1 GiB and limits 2 CPU / 2 GiB. |
 | Time and retry bounds | `backoffLimit: 0`, `activeDeadlineSeconds: 10800`, and seven-day Job TTL. |
 | Evidence retention | `/evidence` is a retained `ledger-soak-evidence` PVC. |
-| Secrets | Database, Temporal, TigerBeetle, Fluvio, Dapr, and Lakehouse addresses/tokens are sourced only from `lanai-loadtest-financial-services`. |
-| Workload prerequisites | Before applying the Job, the release gate verifies `ledger-soak-runner` and `ledger-soak-evidence` exist and that the caller can read both resource types. |
+| Secrets | Database, Temporal, TigerBeetle, Fluvio, and Lakehouse addresses/tokens are sourced only from `lanai-loadtest-financial-services`; Dapr API and Redis values use dedicated load-test secrets. |
+| Dapr component isolation | Namespace-scoped `statestore` and `pubsub` Redis components are TLS-enabled and scoped only to `lanai-financial-workflow-runner`; their Kubernetes `secretKeyRef` values are resolved at injection time. |
+| Workload prerequisites | Before applying the Job, the release gate verifies `ledger-soak-runner`, `ledger-soak-evidence`, Dapr token/Redis keys, and the `statestore`/`pubsub` components exist and that the caller can read the required resource types. |
 | Artifact integrity | The release runner accepts only lowercase `@sha256:` image digests and rejects unresolved image/run-ID placeholders. |
 
 ## Release-Gate Alignment Remediation
@@ -63,6 +64,7 @@ The destination controls are namespace- and port-scoped rather than destination-
 | Financial runner could theoretically share the platform staging namespace. | Release gate rejects equal staging and financial namespace names before Kubernetes interaction. | Hermetic co-location attempt exits 65. |
 | Runbook lacked the dedicated financial environment input. | Added `LANAI_FINANCIAL_ENVIRONMENT='loadtest'` to `lanai-portal/TESTING.md`. | Runbook matches runner requirements. |
 | Financial Job referenced a service account and evidence PVC without explicit release-gate existence checks. | Added read RBAC and existence preflights for `ledger-soak-runner` and `ledger-soak-evidence`. | Hermetic missing-PVC path exits 78 before any admission or workload mutation. |
+| Dapr client token was mounted without sidecar API-token enforcement, and no dedicated namespace-scoped components were included. | Added `dapr.io/api-token-secret`, a matching app token mount, TLS Redis `statestore`/`pubsub` components scoped to the runner app-id, explicit sidecar resource/seccomp settings, and secret/component preflights. | Static manifest validation and hermetic release-gate paths verify the declared prerequisites; live Dapr control-plane evidence remains required. |
 
 ## Provider Failure-Injection Assertions
 
@@ -111,4 +113,4 @@ The focused fixture suite passed **4/4 tests** in **343 ms**. It tests caller-vi
 
 ## Remaining Evidence Boundary
 
-The template audit, static scans, and hermetic release-gate tests do not establish live service reachability, real policy enforcement, ledger reconciliation, or a production certification decision. Those require the committed staging gate to run with a restricted kubeconfig, correctly labelled namespaces, an approved immutable runner digest, Keycloak/Permify smoke credentials, and isolated real financial-service endpoints.
+The template audit, static scans, and hermetic release-gate tests do not establish live service reachability, real policy enforcement, ledger reconciliation, Dapr control-plane injection, or a production certification decision. Those require the committed staging gate to run with a restricted kubeconfig, correctly labelled namespaces, an approved immutable runner digest, Keycloak/Permify smoke credentials, and isolated real financial-service endpoints.

@@ -130,6 +130,7 @@ for permission in \
   "create networkpolicy" "get networkpolicy" "patch networkpolicy" \
   "create job" "get job" "patch job" \
   "get secret" "get persistentvolumeclaim" "get serviceaccount" \
+  "get components.dapr.io" \
   "get pod" "get pods/log"; do
   read -r verb resource <<<"$permission"
   require_can_i "$LANAI_FINANCIAL_NAMESPACE" "$verb" "$resource"
@@ -138,11 +139,16 @@ done
 require_secret_key "$LANAI_STAGING_NAMESPACE" lanai-secrets KEYCLOAK_SMOKE_CLIENT_SECRET
 for key in \
   DATABASE_URL TEMPORAL_ADDRESS TIGERBEETLE_ADDRESS FLUVIO_ENDPOINT \
-  DAPR_API_TOKEN LAKEHOUSE_INGEST_URL LAKEHOUSE_INGEST_TOKEN; do
+  LAKEHOUSE_INGEST_URL LAKEHOUSE_INGEST_TOKEN; do
   require_secret_key "$LANAI_FINANCIAL_NAMESPACE" lanai-loadtest-financial-services "$key"
 done
+require_secret_key "$LANAI_FINANCIAL_NAMESPACE" lanai-loadtest-dapr-api-token token
+require_secret_key "$LANAI_FINANCIAL_NAMESPACE" lanai-loadtest-dapr-redis host
+require_secret_key "$LANAI_FINANCIAL_NAMESPACE" lanai-loadtest-dapr-redis password
 require_resource "$LANAI_FINANCIAL_NAMESPACE" serviceaccount ledger-soak-runner
 require_resource "$LANAI_FINANCIAL_NAMESPACE" persistentvolumeclaim ledger-soak-evidence
+require_resource "$LANAI_FINANCIAL_NAMESPACE" components.dapr.io statestore
+require_resource "$LANAI_FINANCIAL_NAMESPACE" components.dapr.io pubsub
 
 # First execute the server-side admission gate. Its own exact-context and
 # namespace checks prevent persistence and accidental production targeting.

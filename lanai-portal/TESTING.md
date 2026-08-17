@@ -125,3 +125,5 @@ export LANAI_FINANCIAL_RUNNER_IMAGE='ghcr.io/munisp/lanai-financial-loadtest@sha
 ```
 
 This command intentionally requires a restricted kubeconfig, a provisioned Keycloak smoke-client secret, isolated service credentials, and a signed immutable financial-runner image. Those items are environment-owned release prerequisites and cannot be synthesized by local fixtures.
+
+Before executing the financial stage, apply `config/k8s/loadtest/dapr-financial-components.yaml` in `lanai-loadtest`. Provision `lanai-loadtest-dapr-api-token` with key `token` and `lanai-loadtest-dapr-redis` with keys `host` and `password`; the release gate verifies those secrets and the namespace-scoped `statestore` and `pubsub` components before it creates the financial Job. The Redis endpoint must be TLS-capable and reachable only through the existing isolated egress policy.
