@@ -1,0 +1,134 @@
+name: Nightly Security Scan & Dependency Audit
+
+on:
+  schedule:
+    # Run every night at 02:00 UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  semgrep:
+    name: Semgrep SAST
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Semgrep
+        run: semgrep scan --config auto --sarif --output semgrep-results.sarif
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep-results.sarif
+      - name: Fail on ERROR findings
+        run: |
+          semgrep scan --config auto --json --quiet > /tmp/results.json 2>/dev/null || true
+          ERRORS=$(jq '[.results[] | select(.extra.severity == "ERROR")] | length' /tmp/results.json)
+          echo "ERROR-severity findings: $ERRORS"
+          if [ "$ERRORS" -gt 0 ]; then
+            jq -r '.results[] | select(.extra.severity == "ERROR") | "\(.path):\(.start.line) \(.check_id)"' /tmp/results.json
+            exit 1
+          fi
+
+  trivy-dockerfile:
+    name: Trivy Dockerfile Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy config scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: config
+          scan-ref: lanai-portal/Dockerfile
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          format: table
+
+  trivy-image:
+    name: Trivy Container Image Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build container image
+        run: |
+          docker build -f lanai-portal/Dockerfile -t lanai-portal:nightly-scan .
+      - name: Run Trivy image scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: lanai-portal:nightly-scan
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          format: sarif
+          output: trivy-image.sarif
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-image.sarif
+
+  dependency-audit:
+    name: Dependency Vulnerability Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.20.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run production audit
+        run: pnpm audit --prod --audit-level=high
+      - name: Check for outdated critical packages
+        run: |
+          echo "## Outdated Packages (informational)" >> $GITHUB_STEP_SUMMARY
+          pnpm outdated --format=json 2>/dev/null | jq -r 'to_entries[] | "- \(.key): \(.value.current) → \(.value.latest)"' >> $GITHUB_STEP_SUMMARY || echo "All packages up to date" >> $GITHUB_STEP_SUMMARY
+
+  python-safety:
+    name: Python Dependency Safety Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install safety
+        run: pip install safety
+      - name: Check AI gateway dependencies
+        run: |
+          cd lanai_ai/gateway
+          safety check -r requirements.txt --output text
+      - name: Check lakehouse dependencies
+        run: |
+          if [ -f lakehouse_ingest/requirements.txt ]; then
+            safety check -r lakehouse_ingest/requirements.txt --output text
+          fi
+
+  report:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [semgrep, trivy-dockerfile, trivy-image, dependency-audit, python-safety]
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "# Nightly Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Semgrep SAST | ${{ needs.semgrep.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy Dockerfile | ${{ needs.trivy-dockerfile.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy Image | ${{ needs.trivy-image.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dependency Audit | ${{ needs.dependency-audit.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Python Safety | ${{ needs.python-safety.result }} |" >> $GITHUB_STEP_SUMMARY

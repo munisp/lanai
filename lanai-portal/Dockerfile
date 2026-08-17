@@ -1,22 +1,31 @@
 # ==============================================================================
 # Lanai Portal — Production image
-# A Debian/glibc base is mandatory for the Temporal and Fluvio native Node clients.
+# The Docker build context is the workspace root. This is required so the image
+# consumes the canonical root pnpm-lock.yaml under frozen-install policy.
+# A Debian/glibc base is mandatory for Temporal and Fluvio native Node clients.
 # ==============================================================================
 FROM node:22-bookworm-slim AS build
+
+ARG PNPM_VERSION=11.20.0
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 make g++ git ca-certificates \
   && rm -rf /var/lib/apt/lists/* \
-  && npm install --global pnpm@10.4.1
+  && npm install --global "pnpm@${PNPM_VERSION}"
 
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
-# Limit install concurrency + Node heap so the build fits in constrained
-# (e.g. arm64/emulated) build hosts without exhausting memory.
-ENV NODE_OPTIONS=--max-old-space-size=1536
+
+# Install from the canonical workspace manifest and lockfile before copying
+# application source, so dependency layers remain reproducible and cacheable.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY lanai-portal/package.json ./lanai-portal/package.json
 RUN pnpm install --frozen-lockfile --child-concurrency=1 --network-concurrency=4
 
-COPY . .
+COPY lanai-portal ./lanai-portal
+WORKDIR /app/lanai-portal
+
+# Limit the heap so image builds fit constrained (including emulated) builders.
+ENV NODE_OPTIONS=--max-old-space-size=1536
 ARG VITE_APP_ID=lanai-portal
 RUN VITE_APP_ID=$VITE_APP_ID pnpm build
 
@@ -28,10 +37,10 @@ RUN apt-get update \
   && useradd --uid 1001 --gid nodejs --create-home lanai
 
 WORKDIR /app
-COPY --from=build --chown=lanai:nodejs /app/dist ./dist
+COPY --from=build --chown=lanai:nodejs /app/lanai-portal/dist ./dist
 COPY --from=build --chown=lanai:nodejs /app/node_modules ./node_modules
-COPY --from=build --chown=lanai:nodejs /app/package.json ./
-COPY --from=build --chown=lanai:nodejs /app/drizzle ./drizzle
+COPY --from=build --chown=lanai:nodejs /app/lanai-portal/package.json ./
+COPY --from=build --chown=lanai:nodejs /app/lanai-portal/drizzle ./drizzle
 
 ENV NODE_ENV=production
 EXPOSE 3001

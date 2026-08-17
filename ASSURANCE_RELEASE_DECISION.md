@@ -1,107 +1,41 @@
 # Mission-Critical Code Assurance Release Decision
 
-**Assessment:** `NOT RELEASEABLE` under the supplied strict assurance authority.
+**Assessment date:** 2026-08-17 EDT
+**Disposition:** **NOT RELEASEABLE — external evidence pending.**
+**Scope:** The current `main` remediation candidate and its repository-controlled validation evidence.
 
-**Scope:** The Lanai repository assurance change set created after the prior `645bb98` revision. This decision is deliberately evidence-based: a passing local build or unit suite does not substitute for deployed staging evidence, real financial-provider behavior, or hardened Kubernetes workload controls.
+> This decision distinguishes code and control implementation from live-environment certification. A passing local build, deterministic fixture suite, or configuration scan does not substitute for real staging, identity-provider, financial-ledger, or provider-sandbox evidence.
 
-> A release decision of **Not Releaseable** is the correct outcome whenever a Critical release gate is unknown, unverified, or blocked. It is not a claim that all source code is defective; it records that the evidence required for production certification does not yet exist.
+## Current Gate Summary
 
-## Decision Summary
-
-| Gate | Result | Evidence | Decision |
+| Gate | Result | Current evidence | Decision |
 |---|---|---|---|
-| Root workspace dependency install | **Pass** | pnpm 10.26.0 frozen install after lock refresh | Reproducible locally |
-| TypeScript | **Pass** | `pnpm --filter lanai-portal check` | 0 compiler errors |
-| Production build | **Pass** | `pnpm --filter lanai-portal build` | Portal, server, workflow, worker, migration builds emitted |
-| Deterministic tests | **Pass with declared skips** | 272 passed; 11 skipped provider-gated tests | Local code gate passes; not complete provider evidence |
-| Local live Permify test | **Pass** | Real local Permify gRPC was used by smoke suites earlier in this assurance cycle | Authorization behavior is locally demonstrated |
-| Financial recovery / real TigerBeetle | **Blocked** | No dedicated staging TigerBeetle, Temporal, Fluvio, or Stripe test stack was available | Cannot certify funds flow end to end |
-| Deployed gateway / Keycloak / Permify smoke | **Blocked** | No staging kubeconfig or cluster credentials; smoke Job now fails closed instead of skipping auth | Cannot certify deployment topology |
-| Production dependency audit | **Pass for known production advisories** | `pnpm audit --prod` previously reported no known production vulnerabilities | Does not prove runtime configuration security |
-| SAST | **Manual review required** | Semgrep: 6 `ERROR` prompt-construction false positives reviewed; 1 unresolved medium dependency-graph control | Medium finding blocks strict release |
-| Kubernetes configuration scan | **Fail** | Trivy reports 35 high-severity misconfigurations across six manifests | High findings block release |
+| Supply-chain resolution | Pass | Fresh 952-entry lock resolution under seven-day maturity, no-downgrade trust, and exotic-source blocking controls | Repository control closed |
+| Frozen installation | Pass | pnpm 11.20.0 install with explicit build allowlist | Repository control closed |
+| TypeScript and production build | Pass | 0 TypeScript errors; portal/server/worker/migration artifacts emitted | Repository control closed |
+| Full local provider-enabled regression | Pass | 16 files, 290 tests, 0 failed, 0 skipped; fresh PostgreSQL and live local Permify | Local implementation evidence complete |
+| Production dependency audit | Pass | No known production vulnerabilities at HIGH threshold | Repository control closed |
+| Kubernetes configuration scan | Pass | Trivy configuration scan: 0 HIGH/CRITICAL findings | Repository control closed |
+| CI, nightly, and protected external test automation | Implemented | Tracked workflow definitions and structural validation exist | Requires GitHub environment activation and successful remote runs |
+| Docker image build and image scan | Pending external runner | Local validator has no Docker CLI; CI/nightly workflow is configured for workspace-root build and scan | Requires remote CI evidence |
+| Keycloak → APISIX → Permify live smoke | Pending staging | Fail-closed smoke Job and staging gate script are committed | Requires cluster, secret, role, and TLS evidence |
+| Live Stripe and Twenty test workspace | Pending protected environment | Test launcher rejects live Stripe keys and protected workflow is committed | Requires test-only credentials and a reviewed environment |
+| Real financial workflow / reconciliation / soak | Pending staging | Signed-digest, fail-closed runner and evidence controls are committed | Requires isolated service endpoints and retained evidence |
 
-## Claim and Coverage Control
+## Closed Repository Findings
 
-The material feature inventory is versioned at [`assurance/feature-claims.json`](assurance/feature-claims.json). It separates local structural evidence from live provider evidence. The machine validator at [`assurance/validate-feature-claims.mjs`](assurance/validate-feature-claims.mjs) intentionally fails in strict mode while material staging evidence remains unavailable.
+The current remediation resolved package-manager drift and the `pnpm@10.34.5` trust downgrade by moving to trusted `pnpm@11.20.0`. It removes the need for an unapproved Resend exception by pinning the trusted-publisher `resend@6.18.0` release, enables `blockExoticSubdeps`, and replaces pnpm 10 build settings with an explicit pnpm 11 `allowBuilds` policy. The Docker image now builds from the workspace root and canonical lockfile, avoiding the previous subdirectory-lock ambiguity.
 
-This is the required distinction between **implemented code** and **proven production behavior**.
+GitHub Actions definitions are no longer ignored by Git. The tracked CI uses deterministic local provider fixtures plus PostgreSQL and live local Permify; the separate protected external workflow runs only from `main`, schedule, or manual dispatch when a protected environment explicitly enables it. The external launcher fails before any provider call if it sees a live or malformed Stripe key.
 
-## Verified Remediations
+## Critical External Closure Conditions
 
-| Finding | Severity | Repair | Regression / Evidence |
-|---|---:|---|---|
-| Credentialed wildcard CORS fallback | High | Removed the permissive escape hatch; CORS now requires explicit origins | `server/_core/env.ts`, `server/_core/index.ts` |
-| Plaintext Permify transport in production manifests | High | Application and bootstrap jobs now require TLS (`PERMIFY_INSECURE=false`) | `config/k8s/app-tier.yaml`, `config/k8s/jobs.yaml` |
-| Inconsistent procedure authorization | High | Admin, senior-advisor, and member procedures require live Permify decisions; tests have an explicit test-only offline bypass only | `server/_core/trpc.ts` |
-| Member created without durable authorization ownership | High | New-member tuple is written to Permify; database creation is compensated on failure | `server/db.ts` |
-| Unauthenticated or invalid CRM webhook persistence | High | Signature verification now happens before parsing or persistence | `server/_core/twentyWebhook.ts`, provider-contract test |
-| Legacy direct ledger route | High | Removed direct posting helper so commission movement must use durable financial workflows | `server/_core/ledger.ts` removed; financial regression coverage retained |
-| GraphQL query interpolation | High | CRM task fields are passed as GraphQL variables | `lanai_ai/core/crm_connector.py` |
-| Proposal engine syntax defect | High | Repaired invalid nested f-string; all Python modules compile | `lanai_ai/pillars/proposals/proposal_engine.py` |
-| CI did not provide its declared live Permify dependency | High | CI now starts the isolated PostgreSQL + Permify compose stack and passes a real gRPC endpoint | `.github/workflows/ci.yml` |
-| CI/nightly used stale nested pnpm lock paths | Medium | Both use root pnpm 10.26.0 and the canonical `pnpm-lock.yaml` | CI and nightly workflow configs |
-| Nightly Python security scan masked findings | Medium | Removed `|| true`; safety failures now fail the job | `.github/workflows/nightly-security.yml` |
-| Placeholder smoke-client secret and auth `SKIP` | High | Smoke Job reads a secret and treats token/protected-call failures as failures | `config/k8s/smoke-test.yaml` |
-
-## Funds-Flow Assessment
-
-The codebase now has durable workflow and idempotency controls, but the strict evidence standard is **not met** without a real staging execution.
-
-| Required property | Code-level status | Certification status |
-|---|---|---|
-| Deterministic TigerBeetle transfer keys | Implemented in financial activities | Needs real TigerBeetle staging evidence |
-| Pending → settlement / void lifecycle | Implemented with durable workflow activities and database mirrors | Needs workflow crash-and-recovery test against real services |
-| PostgreSQL mirror uniqueness and transfer ID storage | Implemented and migration-tested locally | Needs reconciliation against real ledger balances |
-| Temporal workflow uniqueness | Implemented and unit/chaos-tested locally | Needs staging worker failover evidence |
-| Fluvio/outbox delivery evidence | Implemented and audited locally | Needs real topic delivery and replay evidence |
-| Stripe webhook idempotency | Implemented with signed webhook verification and workflow start | Needs Stripe test-mode provider evidence |
-
-**Conclusion:** The platform cannot honestly guarantee that every real-world funds-flow scenario is uncompromisable until the dedicated staging financial-workflow runner has completed with live TigerBeetle, Temporal, Fluvio, PostgreSQL, and Stripe test-mode services.
-
-## Release Blockers
-
-### Critical — must close before release
-
-1. **35 high Trivy Kubernetes configuration findings** across `config/k8s/ai-tier.yaml`, `app-tier.yaml`, `data-tier.yaml`, `jobs.yaml`, `platform-tier.yaml`, and `smoke-test.yaml`. The recurring findings are default/root security contexts and writable root filesystems. Remediation must be image-specific and staging-validated: non-root UIDs, dropped Linux capabilities, `allowPrivilegeEscalation: false`, `readOnlyRootFilesystem: true`, and explicit writable `emptyDir`/PVC paths where images require them.
-2. **No staging deployment evidence.** Provide a restricted kubeconfig and test-only service secrets, then run the hardened smoke Job and the isolated live financial workflow runner. Failures must be remediated, not converted to skips.
-3. **Permify TLS endpoint must exist.** The manifests now fail closed until `permify.permify.svc.cluster.local:3478` presents a trusted TLS certificate. The shared Permify deployment and client trust bundle need staging validation.
-4. **Keycloak smoke service account must be provisioned.** Create the `KEYCLOAK_SMOKE_CLIENT_SECRET`; grant its service account the intended restricted Keycloak role and matching Permify relationship needed for `members.list`. The new smoke Job rejects absence or denial.
-5. **Flow-of-funds evidence remains incomplete.** Execute the committed live financial-workflow runner and 24-hour dedicated staging soak process; retain signed TigerBeetle, PostgreSQL, Temporal, and Fluvio evidence bundles.
-
-### High / Medium — must close or receive explicit risk acceptance
-
-1. **Dependency graph medium finding:** `@tailwindcss/vite@4.3.3` resolves a `tailwindcss` dependency through an exotic source, preventing `blockExoticSubdeps: true`. The workspace keeps seven-day package maturity and no-downgrade trust policy but records this as an unresolved strict-supply-chain gap. Upgrade or replace the parent package with a registry-only dependency graph, then enable `blockExoticSubdeps`.
-2. **Six Semgrep ERROR findings were manually classified as false positives** because they interpolate LLM prompt text but do not execute SQL or reach a database sink. Retain this classification and add targeted Semgrep rule suppression comments only after security review; do not globally ignore the rule.
-3. **Eleven provider-gated tests are skipped locally** because they require live Stripe, CRM, and gateway credentials. These are not passing tests and must run in the dedicated staging evidence pipeline.
-
-## Deployment Instructions After Blocker Closure
-
-1. Build and sign immutable images; replace all image tags in the staging manifests with verified digests.
-2. Provision non-root-compatible manifests and validate admission against the staging policy controller.
-3. Provision mTLS for Permify, Keycloak smoke-client secret/role, and test-only Stripe/CRM credentials.
-4. Run:
-   - `kubectl apply -f config/k8s/smoke-test.yaml`
-   - `kubectl wait --for=condition=complete job/lanai-smoke-test --timeout=300s`
-   - `kubectl apply -f config/k8s/loadtest/live-financial-workflow-runner.yaml`
-   - `kubectl logs job/lanai-live-financial-workflow-runner`
-   - The guarded 24-hour isolated staging soak and its evidence exporter.
-5. Re-run Trivy, Semgrep, production dependency audit, and the full CI workflow on the immutable release revision.
-6. Reissue this release decision only when all Critical gates show current, reviewable evidence.
-
-## Evidence Locations
-
-| Artifact | Purpose |
-|---|---|
-| `ASSURANCE_BASELINE.txt` | Revision, inventory, test and deployment baseline |
-| `assurance/feature-claims.json` | Claim-and-coverage inventory |
-| `assurance/validate-feature-claims.mjs` | Strict claim evidence gate |
-| `assurance/validate-assurance-config.py` | CI, smoke, and transport configuration gate |
-| `FINANCIAL_ATOMICITY_AUDIT.md` | Financial workflow code audit and staging boundary |
-| `LIVE_FINANCIAL_WORKFLOW_OPERATIONS.md` | Controlled real-provider staging runner procedure |
-| `PERMIFY_AND_DAILY_RECONCILIATION_REVIEW.md` | Authorization and daily financial reconciliation evidence |
-| `assurance/external-sources.md` | External configuration reference used in this review |
+1. A platform operator must provide a restricted staging kubeconfig, correct namespace labels, and permission for server-side admission, smoke Job, and isolated financial evidence Job execution.
+2. The staging Keycloak service account must be provisioned in `lanai-secrets` with `KEYCLOAK_SMOKE_CLIENT_SECRET`, a restricted Keycloak role, and the matching Permify relationship. Permify must present a trusted TLS endpoint.
+3. The GitHub `external-integration` environment must be protected for `main`, maintainer-approved, and supplied only with test-only Twenty and Stripe credentials plus a sandbox price identifier.
+4. A signed immutable financial-runner image and isolated TigerBeetle, Temporal, PostgreSQL, Fluvio, Dapr, and Lakehouse endpoints must be supplied before the live funds-flow evidence runner and 24-hour soak may execute.
+5. Remote CI must retain successful Docker build, image scan, external-provider, staging smoke, and financial-reconciliation artifacts for the exact release revision.
 
 ## Certification Statement
 
-This codebase is **not certified production-ready** under the supplied assurance authority at this time. The decision is based on documented, reproducible blockers—not speculation. The corrective code and fail-closed gates added in this change set reduce risk and prevent false green signals, but they cannot replace the required staging evidence or Kubernetes hardening work.
+The repository is **implementation-ready and locally validated** for the controls described in `PRODUCTION_READINESS_REMEDIATION_2026-08-17.md`. It is **not yet production-certified** because the external evidence conditions above are deliberately unresolved rather than mocked or skipped. Once those conditions are executed successfully on an immutable release revision, this decision may be reissued as releaseable.

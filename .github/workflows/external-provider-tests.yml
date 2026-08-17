@@ -1,0 +1,64 @@
+name: Protected External Provider Tests
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '30 3 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: external-provider-tests-main
+  cancel-in-progress: false
+
+jobs:
+  external-provider-tests:
+    name: Stripe Sandbox and Twenty Test Workspace
+    if: vars.EXTERNAL_INTEGRATION_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: external-integration
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.20.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install from the canonical lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Start isolated PostgreSQL and Permify
+        run: docker compose -f docker-compose.permify-test.yml up --detach --wait
+      - name: Run guarded real-provider tests
+        run: pnpm --filter lanai-portal test:external
+        env:
+          DATABASE_URL: postgresql://lanai_test:lanai_test_only@127.0.0.1:54329/lanai_permify_test
+          PERMIFY_GRPC_ADDRESS: 127.0.0.1:34788
+          PERMIFY_TENANT_ID: lanai-test
+          PERMIFY_INSECURE: 'true'
+          TWENTY_CRM_URL: ${{ secrets.TWENTY_TEST_CRM_URL }}
+          TWENTY_CRM_API_TOKEN: ${{ secrets.TWENTY_TEST_CRM_API_TOKEN }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_TEST_SECRET_KEY }}
+          STRIPE_PRICE_ID_PLATINUM: ${{ vars.STRIPE_TEST_PRICE_ID_PLATINUM }}
+          EXTERNAL_TEST_NAMESPACE: lanai-ci
+          EXTERNAL_TEST_RUN_ID: gha-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Tear down isolated authorization stack
+        if: always()
+        run: docker compose -f docker-compose.permify-test.yml down --volumes --remove-orphans
+
+  disabled-summary:
+    name: External Evidence Gate Disabled
+    if: vars.EXTERNAL_INTEGRATION_ENABLED != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record the explicit skip reason
+        run: |
+          echo "## External Provider Evidence" >> "$GITHUB_STEP_SUMMARY"
+          echo "The protected external-integration environment is disabled." >> "$GITHUB_STEP_SUMMARY"
+          echo "No local fixture is substituted for Stripe or Twenty sandbox evidence." >> "$GITHUB_STEP_SUMMARY"

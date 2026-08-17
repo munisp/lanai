@@ -427,7 +427,8 @@ services:
 
   db-migrate:
     build:
-      context: ./lanai-portal
+      context: .
+      dockerfile: lanai-portal/Dockerfile
     restart: "no"
     networks: [app-net]
     depends_on:
@@ -438,7 +439,8 @@ services:
 
   permify-bootstrap:
     build:
-      context: ./lanai-portal
+      context: .
+      dockerfile: lanai-portal/Dockerfile
     restart: "no"
     networks: [app-net]
     depends_on:
@@ -454,7 +456,8 @@ services:
 
   lanai-portal:
     build:
-      context: ./lanai-portal
+      context: .
+      dockerfile: lanai-portal/Dockerfile
     restart: unless-stopped
     networks: [app-net]
     depends_on:
@@ -549,7 +552,8 @@ services:
 
   temporal-worker:
     build:
-      context: ./lanai-portal
+      context: .
+      dockerfile: lanai-portal/Dockerfile
     restart: unless-stopped
     networks: [app-net]
     depends_on:

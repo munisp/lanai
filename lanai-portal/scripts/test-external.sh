@@ -19,6 +19,16 @@ for name in \
   require_env "$name"
 done
 
+if [[ "$STRIPE_SECRET_KEY" == sk_live_* ]]; then
+  printf 'Refusing to run external tests with a live Stripe secret key. Use an sk_test_ sandbox key.\n' >&2
+  exit 65
+fi
+
+if [[ "$STRIPE_SECRET_KEY" != sk_test_* ]]; then
+  printf 'External Stripe tests require an sk_test_ sandbox key.\n' >&2
+  exit 65
+fi
+
 export NODE_ENV="test"
 export RUN_EXTERNAL_CRM_TESTS="1"
 export RUN_EXTERNAL_STRIPE_TESTS="1"

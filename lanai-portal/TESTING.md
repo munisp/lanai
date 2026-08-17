@@ -63,7 +63,7 @@ The bootstrap operation is intentionally opt-in; it must not be run against an u
 
 ## Protected external provider tests
 
-`pnpm test:external` validates real provider behavior. The command refuses to run unless all required values are present, and it unsets `STRIPE_API_BASE_URL` to prevent a sandbox test from accidentally using the local contract fixture.
+`pnpm test:external` validates real provider behavior. The command refuses to run unless all required values are present, rejects every `sk_live_` or non-`sk_test_` Stripe key, and unsets `STRIPE_API_BASE_URL` to prevent a sandbox test from accidentally using the local contract fixture.
 
 ```bash
 export DATABASE_URL='postgresql://lanai_test:lanai_test@127.0.0.1:5432/lanai_test'
@@ -89,7 +89,7 @@ The repository includes two workflows:
 
 | Workflow                                        | Purpose                                                       | Trigger and privilege boundary                                                      |
 | ----------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `.github/workflows/internal-tests.yml`          | Isolated, provider-contract, PostgreSQL, and Permify coverage | Pull requests, `main`, and manual runs; no provider secrets                         |
+| `.github/workflows/ci.yml`                     | TypeScript, local provider fixtures, PostgreSQL, and Permify coverage | Pull requests and `main`; no external-provider secrets |
 | `.github/workflows/external-provider-tests.yml` | Real Twenty and Stripe sandbox validation                     | `main`, nightly, and manual runs only; protected `external-integration` environment |
 
 To enable the protected external workflow, create the `external-integration` GitHub environment, allow only `main`, require a maintainer approval, and set repository variable `EXTERNAL_INTEGRATION_ENABLED` to `true`. Add the following environment-scoped values:
@@ -107,3 +107,20 @@ The external workflow intentionally has no `pull_request_target` trigger and doe
 ## Expected results
 
 A passing internal run reports the isolated CRM and Stripe provider-contract tests plus the PostgreSQL/Permify smoke suite with no failures. A passing protected external run reports the live Twenty CRM checks and four Stripe sandbox checks with no failures. If the external environment is disabled, the protected workflow is skipped rather than silently substituting mocks for real provider behavior.
+
+## Staging release evidence gate
+
+The repository provides `scripts/run-staging-release-gates.sh` for the **approved staging environment only**. It requires an exact staging context and namespace label, verifies the Keycloak smoke secret and financial-service test secret keys, performs the server-side admission dry-run, runs the authenticated smoke Job, and then runs the signed-digest financial workflow evidence Job. It refuses to infer a context, use a mutable load-test image tag, or execute without an explicit approval flag.
+
+```bash
+export LANAI_APPROVE_STAGING_EXECUTION='1'
+export LANAI_STAGING_CONTEXT='approved-staging-context'
+export LANAI_STAGING_NAMESPACE='lanai-staging'
+export LANAI_STAGING_ENVIRONMENT='staging'
+export LANAI_FINANCIAL_NAMESPACE='lanai-loadtest'
+export LANAI_FINANCIAL_RUN_ID='CHG-1234-2026-08-17T000000Z'
+export LANAI_FINANCIAL_RUNNER_IMAGE='ghcr.io/munisp/lanai-financial-loadtest@sha256:<approved-digest>'
+./scripts/run-staging-release-gates.sh
+```
+
+This command intentionally requires a restricted kubeconfig, a provisioned Keycloak smoke-client secret, isolated service credentials, and a signed immutable financial-runner image. Those items are environment-owned release prerequisites and cannot be synthesized by local fixtures.
