@@ -1,0 +1,55 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lanai-ai-gateway-ingress
+  labels:
+    app.kubernetes.io/name: lanai-ai-gateway
+    app.kubernetes.io/component: network-security
+spec:
+  podSelector:
+    matchLabels:
+      app: lanai-ai-gateway
+  policyTypes: ["Ingress"]
+  ingress:
+    # The authenticated portal is the only application caller. Public APISIX
+    # exposure is intentionally absent; probe traffic is handled by the node.
+    - from:
+        - podSelector:
+            matchLabels:
+              app: lanai-portal
+      ports:
+        - protocol: TCP
+          port: 8100
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lanai-ai-gateway-egress
+  labels:
+    app.kubernetes.io/name: lanai-ai-gateway
+    app.kubernetes.io/component: network-security
+spec:
+  podSelector:
+    matchLabels:
+      app: lanai-ai-gateway
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: ollama
+      ports:
+        - protocol: TCP
+          port: 11434
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

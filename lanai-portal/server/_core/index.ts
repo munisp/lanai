@@ -129,17 +129,16 @@ async function startServer() {
   app.use("/api/oauth", authLimiter);
 
   // ── Health check (before auth middleware) ─────────────────────────────────
+  // This is intentionally a minimal readiness signal. It is reachable by
+  // platform probes and may transit an edge route, so it must never reveal
+  // environment names, build versions, timestamps, connection details, or errors.
   app.get("/api/health", async (_req, res) => {
     try {
       await assertDatabaseReady();
-      res.json({
-        status: "ok",
-        timestamp: new Date().toISOString(),
-        version: process.env.npm_package_version ?? "1.0.0",
-        env: ENV.isProduction ? "production" : "development",
-      });
+      res.json({ status: "ok" });
     } catch (error) {
-      res.status(503).json({ status: "unavailable", detail: String(error) });
+      console.error("[health] database readiness check failed", error);
+      res.status(503).json({ status: "unavailable" });
     }
   });
 

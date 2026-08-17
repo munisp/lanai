@@ -61,23 +61,6 @@ spec:
         - serviceName: keycloak
           servicePort: 8080
 
-    - name: api-host-ai-gateway
-      priority: 10
-      match:
-        hosts:
-          - api.lanai.upi.dev
-          - api.lanai.newfire.app
-        paths:
-          - /internal/ai/*
-      backends:
-        - serviceName: lanai-ai-gateway
-          servicePort: 8100
-      plugins:
-        - name: proxy-rewrite
-          enable: true
-          config:
-            regex_uri: ["^/internal/ai/(.*)", "/$1"]
-
     - name: api-host-whatsapp-webhook
       priority: 10
       match:

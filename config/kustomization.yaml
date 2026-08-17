@@ -32,6 +32,7 @@ resources:
   - k8s/jobs.yaml
   - k8s/platform-tier.yaml
   - k8s/ai-tier.yaml
+  - k8s/ai-gateway-network-policy.yaml
   - k8s/crm-token-rotation-rbac.yaml
   - k8s/portal-network-policy.yaml
   - k8s/app-tier.yaml
