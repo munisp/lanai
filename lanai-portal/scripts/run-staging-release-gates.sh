@@ -56,6 +56,7 @@ for name in \
   LANAI_STAGING_NAMESPACE \
   LANAI_STAGING_ENVIRONMENT \
   LANAI_FINANCIAL_NAMESPACE \
+  LANAI_FINANCIAL_ENVIRONMENT \
   LANAI_FINANCIAL_RUN_ID \
   LANAI_FINANCIAL_RUNNER_IMAGE; do
   require_env "$name"
@@ -73,6 +74,10 @@ fi
 
 require_namespace LANAI_STAGING_NAMESPACE "$LANAI_STAGING_NAMESPACE"
 require_namespace LANAI_FINANCIAL_NAMESPACE "$LANAI_FINANCIAL_NAMESPACE"
+if [[ "$LANAI_STAGING_NAMESPACE" == "$LANAI_FINANCIAL_NAMESPACE" ]]; then
+  printf 'Financial evidence must use a dedicated namespace, not the platform staging namespace.\n' >&2
+  exit 65
+fi
 if [[ ! "$LANAI_FINANCIAL_RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$ ]]; then
   printf 'LANAI_FINANCIAL_RUN_ID must be 3–128 safe identifier characters.\n' >&2
   exit 65
@@ -96,7 +101,7 @@ if [[ "$(kubectl auth can-i get namespaces)" != "yes" ]]; then
   exit 77
 fi
 require_namespace_label "$LANAI_STAGING_NAMESPACE" "$LANAI_STAGING_ENVIRONMENT"
-require_namespace_label "$LANAI_FINANCIAL_NAMESPACE" "$LANAI_STAGING_ENVIRONMENT"
+require_namespace_label "$LANAI_FINANCIAL_NAMESPACE" "$LANAI_FINANCIAL_ENVIRONMENT"
 
 # The admission helper performs server-side dry-runs of the platform manifests.
 # The smoke application itself persists a Job and a suspended CronJob.

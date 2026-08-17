@@ -8,6 +8,7 @@ metadata:
   labels:
     app.kubernetes.io/part-of: lanai
     lanai.io/environment: loadtest
+    environment: loadtest
     pod-security.kubernetes.io/enforce: restricted
     pod-security.kubernetes.io/audit: restricted
 ---
