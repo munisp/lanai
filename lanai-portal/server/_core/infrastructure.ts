@@ -473,6 +473,7 @@ export const TigerBeetle = {
     debitAccountId: bigint;
     creditAccountId: bigint;
     amount: bigint;
+    pendingId: bigint;
     flags: number;
   }> {
     const [transfer] = await getTigerBeetleClient().lookupTransfers([transferId]);
@@ -484,6 +485,7 @@ export const TigerBeetle = {
       debitAccountId: transfer.debit_account_id,
       creditAccountId: transfer.credit_account_id,
       amount: transfer.amount,
+      pendingId: transfer.pending_id,
       flags: Number(transfer.flags),
     };
   },

@@ -266,19 +266,32 @@ async function main(): Promise<void> {
 
   for (const result of workflowResults) {
     const mirror = mirrorByBooking.get(result.bookingId);
-    if (!mirror || mirror.status !== "posted" || mirror.tigerBeetleSettlementTransferId !== result.settlementTransferId) {
-      throw new Error(`Invalid financial mirror for booking ${result.bookingId}`);
+    if (
+      !mirror ||
+      mirror.status !== "posted" ||
+      mirror.tigerBeetleTransferId !== result.pendingTransferId ||
+      mirror.tigerBeetleSettlementTransferId !== result.settlementTransferId
+    ) {
+      throw new Error(`Invalid financial mirror identity for booking ${result.bookingId}`);
     }
     const debit = accountById.get(mirror.debitLedgerAccountId);
     const credit = accountById.get(mirror.creditLedgerAccountId);
     if (!debit || !credit) throw new Error(`Missing ledger accounts for booking ${result.bookingId}`);
     const pending = await TigerBeetle.lookupTransfer(BigInt(result.pendingTransferId));
     const settlement = await TigerBeetle.lookupTransfer(BigInt(result.settlementTransferId));
-    if (pending.debitAccountId !== BigInt(debit.tigerBeetleAccountId) || pending.creditAccountId !== BigInt(credit.tigerBeetleAccountId)) {
-      throw new Error(`TigerBeetle debit/credit mismatch for booking ${result.bookingId}`);
+    if (
+      pending.debitAccountId !== BigInt(debit.tigerBeetleAccountId) ||
+      pending.creditAccountId !== BigInt(credit.tigerBeetleAccountId) ||
+      pending.amount !== BigInt(mirror.amountMinor)
+    ) {
+      throw new Error(`TigerBeetle pending transfer mismatch for booking ${result.bookingId}`);
     }
-    if (settlement.debitAccountId !== BigInt(debit.tigerBeetleAccountId) || settlement.creditAccountId !== BigInt(credit.tigerBeetleAccountId)) {
-      throw new Error(`TigerBeetle settlement account mismatch for booking ${result.bookingId}`);
+    if (
+      settlement.debitAccountId !== BigInt(debit.tigerBeetleAccountId) ||
+      settlement.creditAccountId !== BigInt(credit.tigerBeetleAccountId) ||
+      settlement.pendingId !== BigInt(result.pendingTransferId)
+    ) {
+      throw new Error(`TigerBeetle settlement linkage mismatch for booking ${result.bookingId}`);
     }
   }
 
