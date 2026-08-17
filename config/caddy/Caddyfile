@@ -27,6 +27,12 @@ http:// {
 }
 
 (portal_api) {
+  # Metrics are scraped directly on the private service network. Do not expose
+  # operational financial counts through public API hostnames.
+  @metrics path /api/metrics
+  handle @metrics {
+    respond "Not Found" 404
+  }
   @api path /api/*
   handle @api {
     reverse_proxy apisix:9080 {
@@ -92,11 +98,17 @@ api.{$LANAI_DOMAIN} {
       window 1h
     }
   }
-  reverse_proxy apisix:9080 {
-    header_up X-Real-IP {remote_host}
-    header_up X-Forwarded-For {remote_host}
-    header_up X-Forwarded-Proto {scheme}
-    header_up X-Forwarded-Host {host}
+  @metrics path /api/metrics
+  handle @metrics {
+    respond "Not Found" 404
+  }
+  handle {
+    reverse_proxy apisix:9080 {
+      header_up X-Real-IP {remote_host}
+      header_up X-Forwarded-For {remote_host}
+      header_up X-Forwarded-Proto {scheme}
+      header_up X-Forwarded-Host {host}
+    }
   }
 }
 
