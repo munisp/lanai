@@ -627,6 +627,7 @@ services:
       ]
     volumes:
       - ./config/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/monitoring/financial-outbox-alerts.yml:/etc/prometheus/rules/financial-outbox-alerts.yml:ro
       - prometheus_data:/prometheus
 
   grafana:

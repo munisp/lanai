@@ -18,8 +18,10 @@ import { registerChatwootProxy } from "./chatwootProxy";
 import { ENV } from "./env";
 import { registerAiRoutes } from "./aiRoutes";
 import { registerTwentyWebhook } from "./twentyWebhook";
-import { assertDatabaseReady, closeDatabase } from "../db";
+import { assertDatabaseReady, closeDatabase, getDb } from "../db";
 import { dispatchOutboxBatch } from "./outbox";
+import { outboxEvents } from "../../drizzle/schema";
+import { eq, sql } from "drizzle-orm";
 import { shutdownInfrastructure } from "./infrastructure";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -103,7 +105,7 @@ async function startServer() {
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: "Too many requests, please try again later." },
-    skip: (req) => req.path === "/api/health", // don't rate-limit health checks
+    skip: (req) => ["/api/health", "/api/metrics"].includes(req.path), // don't rate-limit probes or monitoring scrapes
   });
   app.use(globalLimiter);
 
@@ -133,6 +135,36 @@ async function startServer() {
       });
     } catch (error) {
       res.status(503).json({ status: "unavailable", detail: String(error) });
+    }
+  });
+
+  // ── Prometheus metrics (counts only; never event payloads or credentials) ───
+  app.get("/api/metrics", async (_req, res) => {
+    try {
+      const db = await getDb();
+      const rows = await db
+        .select({
+          status: outboxEvents.status,
+          count: sql<string>`count(*)`,
+        })
+        .from(outboxEvents)
+        .where(eq(outboxEvents.aggregateType, "financial"))
+        .groupBy(outboxEvents.status);
+      const counts = new Map(rows.map((row) => [row.status, Number(row.count)]));
+      const statuses = ["pending", "publishing", "published", "failed", "dead_letter"] as const;
+      const body = [
+        "# HELP lanai_financial_outbox_events Number of financial outbox events by delivery status.",
+        "# TYPE lanai_financial_outbox_events gauge",
+        ...statuses.map(
+          (status) =>
+            `lanai_financial_outbox_events{status=\"${status}\"} ${counts.get(status) ?? 0}`,
+        ),
+      ].join("\n");
+      res.setHeader("Cache-Control", "no-store");
+      res.type("text/plain; version=0.0.4; charset=utf-8").send(`${body}\n`);
+    } catch (error) {
+      console.error("[metrics] financial outbox metric query failed", error);
+      res.status(503).type("text/plain").send("# financial outbox metrics unavailable\n");
     }
   });
 

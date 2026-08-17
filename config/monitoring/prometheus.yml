@@ -10,7 +10,8 @@ alerting:
     - static_configs:
         - targets: []
 
-rule_files: []
+rule_files:
+  - /etc/prometheus/rules/*.yml
 
 scrape_configs:
   # Prometheus self-monitoring
@@ -18,7 +19,9 @@ scrape_configs:
     static_configs:
       - targets: [localhost:9090]
 
-  # Lanai Portal (Node.js) — exposes /api/metrics
+  # Lanai Portal (Node.js) — exposes /api/metrics including financial outbox status gauges
+# used by financial-outbox-alerts.yml. Alertmanager receiver configuration remains
+# environment-owned and must be supplied by the deployment operator.
   - job_name: lanai-portal
     static_configs:
       - targets: [lanai-portal:3001]

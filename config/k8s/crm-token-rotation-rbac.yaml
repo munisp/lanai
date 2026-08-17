@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: lanai-crm-token-rotator
+  labels:
+    app.kubernetes.io/name: lanai-crm-token-rotator
+    app.kubernetes.io/component: credential-rotation
+# This is the sole workload identity permitted to mount an API token for CRM
+# secret rotation. Application and financial-runner identities remain tokenless.
+automountServiceAccountToken: true
+---
+# This identity is intended only for an approved in-cluster rotation controller
+# or tightly scoped administrative Job. It deliberately cannot list secrets,
+# read other secrets, create secrets, or restart workloads.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: lanai-crm-token-rotator
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["lanai-crm-secrets"]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: lanai-crm-token-rotator
+subjects:
+  - kind: ServiceAccount
+    name: lanai-crm-token-rotator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: lanai-crm-token-rotator

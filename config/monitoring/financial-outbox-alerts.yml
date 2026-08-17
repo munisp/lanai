@@ -1,0 +1,14 @@
+groups:
+  - name: lanai-financial-outbox
+    rules:
+      - alert: LanaiFinancialOutboxDeadLetter
+        expr: lanai_financial_outbox_events{status="dead_letter"} > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: lanai-portal
+          domain: financial
+        annotations:
+          summary: "Lanai financial outbox event is dead-lettered"
+          description: "{{ $value }} financial outbox event(s) require operator reconciliation and replay after the downstream dependency is restored."
+          runbook: "CRM_TOKEN_ROTATION_AND_FINANCIAL_OUTBOX_RUNBOOK.md"

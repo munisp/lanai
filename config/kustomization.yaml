@@ -32,6 +32,7 @@ resources:
   - k8s/jobs.yaml
   - k8s/platform-tier.yaml
   - k8s/ai-tier.yaml
+  - k8s/crm-token-rotation-rbac.yaml
   - k8s/app-tier.yaml
 
 # Generated straight from the docker-compose config files so they stay in
