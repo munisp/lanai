@@ -34,8 +34,9 @@ import {
   jsonb,
   index,
   uniqueIndex,
+  check,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
@@ -2079,6 +2080,22 @@ export const ledgerTransfers = pgTable(
     index("ledger_transfers_credit_created_idx").on(
       t.creditLedgerAccountId,
       t.createdAt,
+    ),
+    check(
+      "ledger_transfers_distinct_accounts_check",
+      sql`"debitLedgerAccountId" <> "creditLedgerAccountId"`,
+    ),
+    check(
+      "ledger_transfers_positive_amount_check",
+      sql`"amountMinor" > 0`,
+    ),
+    check(
+      "ledger_transfers_status_check",
+      sql`"status" IN ('pending', 'posted', 'voided')`,
+    ),
+    check(
+      "ledger_transfers_final_status_requires_settlement_check",
+      sql`"status" = 'pending' OR "tigerBeetleSettlementTransferId" IS NOT NULL`,
     ),
   ],
 );
