@@ -143,6 +143,11 @@ async function startServer() {
     }
   });
 
+  // Metrics moved to the dedicated private listener below. Explicitly retire the
+  // former route so direct application-port access cannot fall through to static
+  // routing or return a misleading success response.
+  app.get("/api/metrics", (_req, res) => res.status(404).end());
+
   // ── Prometheus metrics (counts only; never event payloads or credentials) ───
   metricsApp.get("/metrics", async (_req, res) => {
     try {
