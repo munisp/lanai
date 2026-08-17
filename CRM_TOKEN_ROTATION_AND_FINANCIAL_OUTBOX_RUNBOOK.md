@@ -39,7 +39,7 @@ Its namespaced Role is restricted to `get`, `patch`, and `update` on the one sec
 
 ## Dead-Letter Monitoring and Recovery
 
-The portal exposes the Prometheus gauge `lanai_financial_outbox_events{status="..."}`. `config/monitoring/financial-outbox-alerts.yml` defines a critical alert whenever the financial `dead_letter` value remains above zero for one minute.
+The portal exposes the Prometheus gauge `lanai_financial_outbox_events{status="..."}` on the dedicated private listener `lanai-portal:9464/metrics`. The portal NetworkPolicy allows that port only from namespaces labelled `lanai.io/monitoring=true`; public Caddy routes return `404` for the former `/api/metrics` path. `config/monitoring/financial-outbox-alerts.yml` defines a critical alert whenever the financial `dead_letter` value remains above zero for one minute.
 
 Prometheus evaluates the rule, but the Alertmanager receiver and escalation destination are deployment-owned. Operators must configure a production Alertmanager receiver and retain alert evidence; an empty receiver list is not notification delivery.
 

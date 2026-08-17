@@ -19,13 +19,13 @@ scrape_configs:
     static_configs:
       - targets: [localhost:9090]
 
-  # Lanai Portal (Node.js) — exposes /api/metrics including financial outbox status gauges
-# used by financial-outbox-alerts.yml. Alertmanager receiver configuration remains
-# environment-owned and must be supplied by the deployment operator.
+  # Lanai Portal (Node.js) — exposes financial outbox status gauges on its
+  # dedicated private metrics listener. Alertmanager receiver configuration
+  # remains environment-owned and must be supplied by the deployment operator.
   - job_name: lanai-portal
     static_configs:
-      - targets: [lanai-portal:3001]
-    metrics_path: /api/metrics
+      - targets: [lanai-portal:9464]
+    metrics_path: /metrics
 
   # APISIX API Gateway
   - job_name: apisix

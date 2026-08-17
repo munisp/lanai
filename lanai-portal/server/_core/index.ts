@@ -46,6 +46,11 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  // Metrics use a separate listener so network policy can grant port access only
+  // to the monitoring namespace without changing application ingress behavior.
+  const metricsApp = express();
+  metricsApp.disable("x-powered-by");
+  const metricsServer = createServer(metricsApp);
 
   // ── Security headers (helmet) ─────────────────────────────────────────────
   app.use(
@@ -105,7 +110,7 @@ async function startServer() {
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: "Too many requests, please try again later." },
-    skip: (req) => ["/api/health", "/api/metrics"].includes(req.path), // don't rate-limit probes or monitoring scrapes
+    skip: (req) => req.path === "/api/health", // don't rate-limit health checks
   });
   app.use(globalLimiter);
 
@@ -139,7 +144,7 @@ async function startServer() {
   });
 
   // ── Prometheus metrics (counts only; never event payloads or credentials) ───
-  app.get("/api/metrics", async (_req, res) => {
+  metricsApp.get("/metrics", async (_req, res) => {
     try {
       const db = await getDb();
       const rows = await db
@@ -231,6 +236,7 @@ async function startServer() {
   const port = ENV.isProduction
     ? preferredPort
     : await findAvailablePort(preferredPort);
+  const metricsPort = ENV.isProduction ? 9464 : await findAvailablePort(9464);
   if (ENV.isProduction) {
     await assertDatabaseReady();
   }
@@ -251,16 +257,21 @@ async function startServer() {
     );
     console.log(`Health check: http://localhost:${port}/api/health`);
   });
+  metricsServer.listen(metricsPort, () => {
+    console.log(`Prometheus metrics available on http://localhost:${metricsPort}/metrics`);
+  });
 
   // ── Graceful shutdown ─────────────────────────────────────────────────────
   const shutdown = (signal: string) => {
     console.log(`\n[Server] Received ${signal}. Shutting down gracefully...`);
     clearInterval(outboxTimer);
-    server.close(async () => {
-      await closeDatabase();
-      shutdownInfrastructure();
-      console.log("[Server] HTTP server closed.");
-      process.exit(0);
+    server.close(() => {
+      metricsServer.close(async () => {
+        await closeDatabase();
+        shutdownInfrastructure();
+        console.log("[Server] HTTP and metrics servers closed.");
+        process.exit(0);
+      });
     });
     setTimeout(() => {
       console.error("[Server] Forced shutdown after timeout.");

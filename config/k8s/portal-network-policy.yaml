@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lanai-portal-ingress
+  labels:
+    app.kubernetes.io/name: lanai-portal
+    app.kubernetes.io/component: network-security
+spec:
+  podSelector:
+    matchLabels:
+      app: lanai-portal
+  policyTypes: ["Ingress"]
+  ingress:
+    # Primary application traffic continues to traverse Caddy/APISIX and is
+    # protected by their routing, authentication, and application controls.
+    - ports:
+        - protocol: TCP
+          port: 3001
+    # The Prometheus listener is not exposed through public proxies. Only pods
+    # in a namespace explicitly labelled lanai.io/monitoring=true may scrape it.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              lanai.io/monitoring: "true"
+      ports:
+        - protocol: TCP
+          port: 9464

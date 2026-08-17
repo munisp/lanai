@@ -24,7 +24,8 @@ The generic dispatcher has no automatic dead-letter replay function. This is int
 
 ## Financial Dead-Letter Monitoring
 
-The portal now exposes only status counts, never event payloads, CRM data, payment identifiers, or credentials:
+The portal now exposes only status counts, never event payloads, CRM data, payment identifiers, or credentials. It listens on the dedicated private endpoint `lanai-portal:9464/metrics`; public Caddy routes return `404` for `/api/metrics`, and the portal NetworkPolicy allows port 9464 only from namespaces labelled `lanai.io/monitoring=true`.
+
 
 ```text
 lanai_financial_outbox_events{status="pending"}
