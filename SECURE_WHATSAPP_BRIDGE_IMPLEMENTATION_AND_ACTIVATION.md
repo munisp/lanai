@@ -24,7 +24,7 @@ Migration `0007_whatsapp_webhook_events.sql` creates `whatsapp_webhook_events` w
 
 Migrations `0008_outbox_claim_leases.sql` and `0009_whatsapp_consumer_leases.sql` add opaque ownership leases and claim-expiry indexes. The dispatcher converts expired or legacy unleased `publishing` rows into durable retries before selecting work; claim-token-guarded final updates prevent a stale dispatcher from overwriting a later attempt. The consumer applies the equivalent lease protocol to `processing` webhook-event rows.
 
-`whatsapp_event_consumer.py` consumes only `whatsapp.message.received` events whose source outbox row is `published`. It claims work using `FOR UPDATE SKIP LOCKED`, invokes the bounded WhatsApp triage AI pillar, validates untrusted model output, and atomically records its projections plus a deterministic `whatsapp.triaged` outbox event. A cooperative claim-renewal thread extends an owned lease every 60 seconds by default during long AI calls; its conditional update requires the original claim token, so it cannot revive a claim recovered by another worker. The webhook still performs no CRM or AI side effects synchronously.
+`whatsapp_event_consumer.py` consumes only `whatsapp.message.received` events whose source outbox row is `published`. It claims work using `FOR UPDATE SKIP LOCKED`, invokes the bounded WhatsApp triage AI pillar, validates untrusted model output, and atomically records its projections plus a deterministic `whatsapp.triaged` outbox event. A cooperative claim-renewal thread extends an owned lease every 60 seconds by default during long AI calls. Transient heartbeat database failures use bounded exponential retries from 1 to 30 seconds with 20% symmetric jitter; the conditional renewal update requires the original claim token, so it cannot revive a claim recovered by another worker. The worker stops heartbeats before its short token-fenced terminal transaction to suppress a benign post-success ownership-loss warning. The webhook still performs no CRM or AI side effects synchronously.
 
 ## Test Evidence
 
@@ -43,6 +43,9 @@ The isolated PostgreSQL integration suite validates:
 | Concurrent consumer claim | Two spawned Python processes race for one published event; exactly one claims it and the row has one attempt. |
 | Real row-lock contention | A child process holds `FOR UPDATE`; a second worker’s claim returns no row in under two seconds because `SKIP LOCKED` does not wait. |
 | Active consumer renewal | A live renewal thread extends its original lease while preserving one attempt and the same claim token. |
+| Transient heartbeat retry | Retry delay doubles from the configured initial delay, is capped, and remains jittered within bounded limits. |
+| Completion-aware shutdown | A renewal returning false after the terminal transition does not emit a false ownership-loss warning. |
+| Stale-token projection fence | A reclaimed/failed row rejects `complete_claim()` before any timeline, inference, or downstream outbox insert. |
 
 ## Zero-Trust Deployment Draft
 

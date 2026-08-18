@@ -12,6 +12,7 @@ import hashlib
 import json
 import logging
 import os
+import random
 import signal
 import threading
 import time
@@ -34,6 +35,18 @@ CLAIM_RENEWAL_INTERVAL_SECONDS = float(
         "WHATSAPP_CONSUMER_CLAIM_RENEWAL_INTERVAL_SECONDS",
         str(max(1, min(60, CLAIM_LEASE_SECONDS // 3))),
     )
+)
+CLAIM_RENEWAL_RETRY_INITIAL_SECONDS = float(
+    os.getenv("WHATSAPP_CONSUMER_CLAIM_RETRY_INITIAL_SECONDS", "1")
+)
+CLAIM_RENEWAL_RETRY_MAX_SECONDS = float(
+    os.getenv(
+        "WHATSAPP_CONSUMER_CLAIM_RETRY_MAX_SECONDS",
+        str(max(1, min(30, CLAIM_LEASE_SECONDS // 4))),
+    )
+)
+CLAIM_RENEWAL_RETRY_JITTER_RATIO = float(
+    os.getenv("WHATSAPP_CONSUMER_CLAIM_RETRY_JITTER_RATIO", "0.20")
 )
 
 logger = logging.getLogger("lanai.whatsapp.consumer")
@@ -221,12 +234,28 @@ def renew_claim(event: ClaimedInboundEvent, now: datetime | None = None) -> bool
             return cursor.fetchone() is not None
 
 
+def claim_renewal_retry_delay(failures: int) -> float:
+    """Return bounded symmetric-jitter exponential delay after a heartbeat DB failure."""
+    if failures <= 0:
+        return CLAIM_RENEWAL_INTERVAL_SECONDS
+    capped = min(
+        CLAIM_RENEWAL_RETRY_MAX_SECONDS,
+        CLAIM_RENEWAL_RETRY_INITIAL_SECONDS * (2 ** min(failures - 1, 10)),
+    )
+    spread = capped * CLAIM_RENEWAL_RETRY_JITTER_RATIO
+    return random.uniform(
+        max(0.0, capped - spread),
+        min(CLAIM_RENEWAL_RETRY_MAX_SECONDS, capped + spread),
+    )
+
+
 class ClaimLeaseRenewer:
     """Cooperatively renew a worker lease while an external AI call is in flight."""
 
     def __init__(self, event: ClaimedInboundEvent) -> None:
         self._event = event
         self._stop = threading.Event()
+        self._terminal_transition = threading.Event()
         self._lost = threading.Event()
         self._thread = threading.Thread(
             target=self._run,
@@ -241,21 +270,44 @@ class ClaimLeaseRenewer:
     def start(self) -> None:
         self._thread.start()
 
+    def begin_terminal_transition(self) -> None:
+        """Stop heartbeats before a short, token-fenced final state transition.
+
+        A renewal that races after a successful completion would otherwise see a
+        processed row, report an ownership-loss warning, and create misleading
+        operational noise. The final transaction retains the authoritative
+        token/state fence and reports a genuine loss to the main worker.
+        """
+        self._terminal_transition.set()
+        self._stop.set()
+
     def stop(self) -> None:
         self._stop.set()
         self._thread.join(timeout=max(1.0, CLAIM_RENEWAL_INTERVAL_SECONDS + 1.0))
 
     def _run(self) -> None:
-        while not self._stop.wait(CLAIM_RENEWAL_INTERVAL_SECONDS):
+        failures = 0
+        delay = CLAIM_RENEWAL_INTERVAL_SECONDS
+        while not self._stop.wait(delay):
             try:
                 if not renew_claim(self._event):
-                    self._lost.set()
-                    logger.warning("WhatsApp consumer claim ownership was lost during renewal")
+                    if not self._terminal_transition.is_set():
+                        self._lost.set()
+                        logger.warning("WhatsApp consumer claim ownership was lost during renewal")
                     return
+                failures = 0
+                delay = CLAIM_RENEWAL_INTERVAL_SECONDS
             except (psycopg.Error, RuntimeError) as error:
-                # Preserve ownership until the lease deadline. A later renewal
-                # may succeed; only an explicit ownership mismatch marks it lost.
-                logger.warning("WhatsApp consumer claim renewal failed type=%s", type(error).__name__)
+                failures += 1
+                delay = claim_renewal_retry_delay(failures)
+                # A failed heartbeat does not establish ownership loss. It is
+                # retried sooner with full jitter to avoid synchronized retries
+                # across replicas while retaining several chances before expiry.
+                logger.warning(
+                    "WhatsApp consumer claim renewal failed type=%s retry_seconds=%.3f",
+                    type(error).__name__,
+                    delay,
+                )
 
 
 def _member_context(cursor: psycopg.Cursor[Any], sender: str) -> tuple[int | None, str, str]:
@@ -461,13 +513,18 @@ def process_next_event() -> bool:
                 system=WHATSAPP_TRIAGE_SYSTEM,
             )
         )
-        if renewer.lost or not complete_claim(event, triage, started_at):
+        if renewer.lost:
             logger.warning("WhatsApp consumer claim lost before persistence")
         else:
-            logger.info("WhatsApp event triaged and persisted")
+            renewer.begin_terminal_transition()
+            if not complete_claim(event, triage, started_at):
+                logger.warning("WhatsApp consumer claim lost before persistence")
+            else:
+                logger.info("WhatsApp event triaged and persisted")
     except (ConsumerValidationError, OllamaInferenceError, psycopg.Error, RuntimeError) as error:
         logger.error("WhatsApp consumer processing failed type=%s", type(error).__name__)
         try:
+            renewer.begin_terminal_transition()
             fail_claim(event, error)
         except (psycopg.Error, RuntimeError):
             # The active lease will make this safe to recover after the database is available.
@@ -490,6 +547,10 @@ def run_forever() -> None:
         or MAX_ATTEMPTS <= 0
         or CLAIM_RENEWAL_INTERVAL_SECONDS <= 0
         or CLAIM_RENEWAL_INTERVAL_SECONDS >= CLAIM_LEASE_SECONDS
+        or CLAIM_RENEWAL_RETRY_INITIAL_SECONDS <= 0
+        or CLAIM_RENEWAL_RETRY_MAX_SECONDS < CLAIM_RENEWAL_RETRY_INITIAL_SECONDS
+        or CLAIM_RENEWAL_RETRY_MAX_SECONDS >= CLAIM_LEASE_SECONDS
+        or not 0 <= CLAIM_RENEWAL_RETRY_JITTER_RATIO < 1
     ):
         raise RuntimeError("consumer timing configuration is invalid")
     signal.signal(signal.SIGTERM, _request_shutdown)

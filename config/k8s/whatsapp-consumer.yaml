@@ -63,6 +63,12 @@ spec:
               value: "300"
             - name: WHATSAPP_CONSUMER_CLAIM_RENEWAL_INTERVAL_SECONDS
               value: "60"
+            - name: WHATSAPP_CONSUMER_CLAIM_RETRY_INITIAL_SECONDS
+              value: "1"
+            - name: WHATSAPP_CONSUMER_CLAIM_RETRY_MAX_SECONDS
+              value: "30"
+            - name: WHATSAPP_CONSUMER_CLAIM_RETRY_JITTER_RATIO
+              value: "0.20"
             - name: WHATSAPP_CONSUMER_MAX_ATTEMPTS
               value: "10"
           resources:

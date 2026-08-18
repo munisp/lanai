@@ -13,6 +13,7 @@ import multiprocessing
 import os
 import queue
 import sys
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -102,6 +103,7 @@ def _get_result(results: multiprocessing.queues.Queue[Any]) -> dict[str, Any]:
 def _clean_concurrency_rows() -> None:
     with psycopg.connect(DATABASE_URL) as connection:
         with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM ai_inference_runs WHERE capability = 'whatsapp_triage'")
             cursor.execute(
                 "DELETE FROM whatsapp_webhook_events WHERE provider_event_id LIKE 'concurrency-%'"
             )
@@ -112,6 +114,7 @@ def _clean_concurrency_rows() -> None:
     yield
     with psycopg.connect(DATABASE_URL) as connection:
         with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM ai_inference_runs WHERE capability = 'whatsapp_triage'")
             cursor.execute(
                 "DELETE FROM whatsapp_webhook_events WHERE provider_event_id LIKE 'concurrency-%'"
             )
@@ -251,6 +254,105 @@ def test_active_worker_renews_its_claim_without_creating_another_attempt(monkeyp
     assert attempts == 1
     assert claim_token == claimed.claim_token
     assert renewed_expiry > initial_expiry
+
+
+def test_renewal_retry_delay_uses_bounded_exponential_backoff_with_jitter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    os.environ["DATABASE_URL"] = DATABASE_URL
+    from lanai_ai.pillars.whatsapp import whatsapp_event_consumer as consumer
+
+    monkeypatch.setattr(consumer, "CLAIM_RENEWAL_INTERVAL_SECONDS", 60.0)
+    monkeypatch.setattr(consumer, "CLAIM_RENEWAL_RETRY_INITIAL_SECONDS", 1.0)
+    monkeypatch.setattr(consumer, "CLAIM_RENEWAL_RETRY_MAX_SECONDS", 8.0)
+    monkeypatch.setattr(consumer, "CLAIM_RENEWAL_RETRY_JITTER_RATIO", 0.20)
+    ranges: list[tuple[float, float]] = []
+
+    def choose_upper(lower: float, upper: float) -> float:
+        ranges.append((lower, upper))
+        return upper
+
+    monkeypatch.setattr(consumer.random, "uniform", choose_upper)
+    assert consumer.claim_renewal_retry_delay(0) == 60.0
+    assert consumer.claim_renewal_retry_delay(1) == 1.2
+    assert consumer.claim_renewal_retry_delay(2) == 2.4
+    assert consumer.claim_renewal_retry_delay(3) == 4.8
+    assert consumer.claim_renewal_retry_delay(4) == 8.0
+    assert consumer.claim_renewal_retry_delay(10) == 8.0
+    assert ranges == [(0.8, 1.2), (1.6, 2.4), (3.2, 4.8), (6.4, 8.0), (6.4, 8.0)]
+
+
+def test_terminal_transition_suppresses_benign_lost_claim_warning(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    os.environ["DATABASE_URL"] = DATABASE_URL
+    from lanai_ai.pillars.whatsapp import whatsapp_event_consumer as consumer
+
+    monkeypatch.setattr(consumer, "CLAIM_RENEWAL_INTERVAL_SECONDS", 0.01)
+    entered = threading.Event()
+    release = threading.Event()
+
+    def complete_after_terminal_transition(_event: Any) -> bool:
+        entered.set()
+        assert release.wait(timeout=5)
+        return False
+
+    monkeypatch.setattr(consumer, "renew_claim", complete_after_terminal_transition)
+    renewer = consumer.ClaimLeaseRenewer(
+        consumer.ClaimedInboundEvent(
+            id=999_001,
+            provider_event_id="concurrency-terminal-transition",
+            payload={},
+            attempts=1,
+            claim_token="test-token",
+        )
+    )
+    with caplog.at_level("WARNING", logger="lanai.whatsapp.consumer"):
+        renewer.start()
+        assert entered.wait(timeout=5)
+        renewer.begin_terminal_transition()
+        release.set()
+        renewer.stop()
+    assert not renewer.lost
+    assert not any("ownership was lost during renewal" in record.message for record in caplog.records)
+
+
+def test_complete_claim_rejects_a_stale_token_before_any_projection() -> None:
+    event_id, _provider_event_id = _seed_published_event()
+    os.environ["DATABASE_URL"] = DATABASE_URL
+    from lanai_ai.pillars.whatsapp import whatsapp_event_consumer as consumer
+
+    claimed = consumer.claim_next_event()
+    assert claimed is not None
+    with psycopg.connect(DATABASE_URL) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE whatsapp_webhook_events
+                SET status = 'failed', claim_token = NULL, claim_expires_at = NULL
+                WHERE id = %s
+                """,
+                (event_id,),
+            )
+
+    triage = {
+        "intent": "TRAVEL_REQUEST",
+        "urgency": "MEDIUM",
+        "sentiment": "NEUTRAL",
+        "summary": "Client is requesting a luxury beach holiday.",
+        "suggested_action": "Ask the advisor to confirm dates.",
+        "draft_reply": "I will prepare tailored options.",
+        "tags": ["beach"],
+        "estimated_value": 25000,
+    }
+    assert not consumer.complete_claim(claimed, triage, consumer._utcnow())
+    with psycopg.connect(DATABASE_URL) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT count(*) FROM ai_inference_runs WHERE capability = 'whatsapp_triage'")
+            assert cursor.fetchone()[0] == 0
+            cursor.execute("SELECT count(*) FROM outbox_events WHERE \"eventType\" = 'whatsapp.triaged'")
+            assert cursor.fetchone()[0] == 0
 
 
 def test_claim_skips_a_row_locked_by_another_process_without_waiting() -> None:
