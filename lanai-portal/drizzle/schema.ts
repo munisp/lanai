@@ -1859,6 +1859,9 @@ export const outboxEvents = pgTable(
     attempts: integer("attempts").default(0).notNull(),
     nextAttemptAt: timestamp("nextAttemptAt").defaultNow().notNull(),
     lastError: text("lastError"),
+    /** Opaque ownership lease for a dispatcher that is actively publishing. */
+    claimToken: varchar("claimToken", { length: 64 }),
+    claimExpiresAt: timestamp("claimExpiresAt"),
     publishedAt: timestamp("publishedAt"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
@@ -1867,6 +1870,10 @@ export const outboxEvents = pgTable(
     index("outbox_events_status_next_attempt_idx").on(
       t.status,
       t.nextAttemptAt,
+    ),
+    index("outbox_events_publishing_claim_idx").on(
+      t.status,
+      t.claimExpiresAt,
     ),
     index("outbox_events_aggregate_idx").on(
       t.aggregateType,
@@ -1895,6 +1902,9 @@ export const whatsappWebhookEvents = pgTable(
     attempts: integer("attempts").default(0).notNull(),
     nextAttemptAt: timestamp("next_attempt_at").defaultNow().notNull(),
     lastError: text("last_error"),
+    /** Opaque ownership lease for the asynchronous WhatsApp event consumer. */
+    claimToken: varchar("claim_token", { length: 64 }),
+    claimExpiresAt: timestamp("claim_expires_at"),
     outboxEventId: integer("outbox_event_id")
       .notNull()
       .references(() => outboxEvents.id, { onDelete: "restrict" }),
@@ -1909,9 +1919,10 @@ export const whatsappWebhookEvents = pgTable(
     ),
     uniqueIndex("whatsapp_webhook_events_outbox_event_unique").on(t.outboxEventId),
     index("whatsapp_webhook_events_status_next_attempt_idx").on(t.status, t.nextAttemptAt),
+    index("whatsapp_webhook_events_processing_claim_idx").on(t.status, t.claimExpiresAt),
     index("whatsapp_webhook_events_created_at_idx").on(t.createdAt),
     check("whatsapp_webhook_events_payload_sha256_check", sql`${t.payloadSha256} ~ '^[a-f0-9]{64}$'`),
-    check("whatsapp_webhook_events_status_check", sql`${t.status} IN ('received', 'processing', 'processed', 'failed')`),
+    check("whatsapp_webhook_events_status_check", sql`${t.status} IN ('received', 'processing', 'processed', 'failed', 'dead_letter')`),
     check("whatsapp_webhook_events_attempts_nonnegative_check", sql`${t.attempts} >= 0`),
   ],
 );

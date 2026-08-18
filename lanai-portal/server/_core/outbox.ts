@@ -1,4 +1,4 @@
-import { and, eq, inArray, lte, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
   eventDeliveries,
@@ -19,6 +19,13 @@ import { TwentyCrmClient } from "./twentyClient";
 const DELIVERY_TARGETS = ["fluvio", "dapr", "lakehouse", "crm"] as const;
 type DeliveryTarget = (typeof DELIVERY_TARGETS)[number];
 
+/**
+ * A dispatcher owns a publishing row only while this lease is valid.  Completion
+ * updates include the opaque claim token, so a process that is paused or loses
+ * database connectivity cannot overwrite a replacement dispatcher's outcome.
+ */
+export const OUTBOX_CLAIM_LEASE_MS = 60_000;
+
 export type DomainEventInput = {
   aggregateType: string;
   aggregateId: string | number;
@@ -31,6 +38,12 @@ export type DomainEventEnvelope = DomainEventInput & {
   eventId: string;
   occurredAt: string;
   schemaVersion: number;
+};
+
+type ClaimedOutboxEvent = {
+  row: OutboxEvent;
+  claimToken: string;
+  attempts: number;
 };
 
 function topicFor(event: DomainEventEnvelope): string {
@@ -172,15 +185,107 @@ async function publish(event: OutboxEvent): Promise<void> {
 }
 
 /**
- * Publishes a bounded batch. A caller should run this on application startup,
- * after mutations, and from the Temporal outbox workflow. The handler is safe to
- * invoke concurrently because only due rows move to the publishing state.
+ * Converts expired publishing leases into durable retries. The claim token is
+ * cleared in the same update, so no dispatcher can accidentally finalize a
+ * claim that has been recovered by another process.
+ */
+export async function recoverStaleOutboxClaims(
+  now = new Date(),
+): Promise<number> {
+  const db = await getDb();
+  const recovered = await db
+    .update(outboxEvents)
+    .set({
+      status: "failed",
+      claimToken: null,
+      claimExpiresAt: null,
+      lastError: "dispatcher claim lease expired before completion",
+      nextAttemptAt: now,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(outboxEvents.status, "publishing"),
+        or(
+          lte(outboxEvents.claimExpiresAt, now),
+          isNull(outboxEvents.claimExpiresAt),
+        ),
+      ),
+    )
+    .returning({ id: outboxEvents.id });
+  return recovered.length;
+}
+
+async function claimOutboxEvent(
+  row: OutboxEvent,
+  now: Date,
+): Promise<ClaimedOutboxEvent | null> {
+  const db = await getDb();
+  const claimToken = nanoid(32);
+  const claimExpiresAt = new Date(now.getTime() + OUTBOX_CLAIM_LEASE_MS);
+  const claimed = await db
+    .update(outboxEvents)
+    .set({
+      status: "publishing",
+      attempts: sql`${outboxEvents.attempts} + 1`,
+      claimToken,
+      claimExpiresAt,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(outboxEvents.id, row.id),
+        inArray(outboxEvents.status, ["pending", "failed"]),
+      ),
+    )
+    .returning({ attempts: outboxEvents.attempts });
+  if (claimed.length === 0) return null;
+  return { row, claimToken, attempts: claimed[0]!.attempts };
+}
+
+async function finalizeClaim(
+  claimed: ClaimedOutboxEvent,
+  status: "published" | "failed" | "dead_letter",
+  values: {
+    lastError: string | null;
+    nextAttemptAt?: Date;
+    publishedAt?: Date;
+  },
+): Promise<boolean> {
+  const db = await getDb();
+  const updated = await db
+    .update(outboxEvents)
+    .set({
+      status,
+      claimToken: null,
+      claimExpiresAt: null,
+      lastError: values.lastError,
+      nextAttemptAt: values.nextAttemptAt ?? new Date(),
+      publishedAt: values.publishedAt,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(outboxEvents.id, claimed.row.id),
+        eq(outboxEvents.status, "publishing"),
+        eq(outboxEvents.claimToken, claimed.claimToken),
+      ),
+    )
+    .returning({ id: outboxEvents.id });
+  return updated.length === 1;
+}
+
+/**
+ * Publishes a bounded batch. Expired publishing claims are recovered before
+ * selection. Each completion is ownership-guarded, providing at-least-once
+ * delivery without allowing a stale dispatcher to overwrite a newer attempt.
  */
 export async function dispatchOutboxBatch(
   limit = 50,
-): Promise<{ attempted: number; published: number; failed: number }> {
+): Promise<{ attempted: number; published: number; failed: number; recovered: number }> {
   const db = await getDb();
   const now = new Date();
+  const recovered = await recoverStaleOutboxClaims(now);
   const due = await db
     .select()
     .from(outboxEvents)
@@ -195,49 +300,29 @@ export async function dispatchOutboxBatch(
   let published = 0;
   let failed = 0;
   for (const row of due) {
-    const claimed = await db
-      .update(outboxEvents)
-      .set({
-        status: "publishing",
-        attempts: sql`${outboxEvents.attempts} + 1`,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(outboxEvents.id, row.id),
-          inArray(outboxEvents.status, ["pending", "failed"]),
-        ),
-      )
-      .returning({ attempts: outboxEvents.attempts });
-    if (claimed.length === 0) continue;
+    const claimed = await claimOutboxEvent(row, now);
+    if (!claimed) continue;
     try {
       await publish(row);
-      await db
-        .update(outboxEvents)
-        .set({
-          status: "published",
-          publishedAt: new Date(),
-          lastError: null,
-          updatedAt: new Date(),
-        })
-        .where(eq(outboxEvents.id, row.id));
-      published += 1;
+      const finalized = await finalizeClaim(claimed, "published", {
+        lastError: null,
+        publishedAt: new Date(),
+      });
+      if (finalized) published += 1;
     } catch (error) {
-      const attempts = claimed[0]!.attempts;
-      const terminal = attempts >= 10;
-      await db
-        .update(outboxEvents)
-        .set({
-          status: terminal ? "dead_letter" : "failed",
+      const terminal = claimed.attempts >= 10;
+      const finalized = await finalizeClaim(
+        claimed,
+        terminal ? "dead_letter" : "failed",
+        {
           lastError: String(error).slice(0, 4_000),
-          nextAttemptAt: retryAt(attempts),
-          updatedAt: new Date(),
-        })
-        .where(eq(outboxEvents.id, row.id));
-      failed += 1;
+          nextAttemptAt: retryAt(claimed.attempts),
+        },
+      );
+      if (finalized) failed += 1;
     }
   }
-  return { attempted: due.length, published, failed };
+  return { attempted: due.length, published, failed, recovered };
 }
 
 export async function enqueueAndDispatch(

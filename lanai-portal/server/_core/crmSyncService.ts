@@ -579,6 +579,12 @@ export async function synchronizeOutboxEventToCrm(
   if (!TwentyCrmClient.isConfigured()) {
     return { attempted: false, synced: 0, skipped: true };
   }
+  // WhatsApp events carry provider payload and AI triage metadata. They are
+  // intentionally not generic CRM projections: a future reviewed mapping must
+  // resolve a member and project only approved fields, never raw message data.
+  if (event.aggregateType === "whatsapp") {
+    return { attempted: false, synced: 0, skipped: true };
+  }
   const prefix = `crm:${event.eventId}:${event.schemaVersion}`;
   const aggregateId = Number(event.aggregateId);
   if (!Number.isInteger(aggregateId) || aggregateId <= 0) {

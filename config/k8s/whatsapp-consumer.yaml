@@ -1,0 +1,124 @@
+# Draft activation manifest. Keep excluded from root Kustomization until the
+# reviewed bridge image, dedicated consumer database role, and staging evidence
+# are approved together with the bridge activation gate.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: lanai-whatsapp-consumer
+  namespace: lanai
+  labels:
+    app: lanai-whatsapp-consumer
+    app.kubernetes.io/part-of: lanai
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lanai-whatsapp-consumer
+  namespace: lanai
+  labels:
+    app: lanai-whatsapp-consumer
+    app.kubernetes.io/part-of: lanai
+    app.kubernetes.io/component: event-consumer
+spec:
+  replicas: 2
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: lanai-whatsapp-consumer
+  template:
+    metadata:
+      labels:
+        app: lanai-whatsapp-consumer
+        app.kubernetes.io/part-of: lanai
+        app.kubernetes.io/component: event-consumer
+    spec:
+      serviceAccountName: lanai-whatsapp-consumer
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: consumer
+          # Replace only through approved image provenance/signature verification.
+          image: registry.example.invalid/lanai-whatsapp-bridge@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "lanai_ai.pillars.whatsapp.whatsapp_event_consumer"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: lanai-whatsapp-consumer-secrets
+                  key: DATABASE_URL
+            - name: OLLAMA_BASE_URL
+              value: "http://ollama.lanai.svc.cluster.local:11434"
+            - name: WHATSAPP_CONSUMER_POLL_SECONDS
+              value: "1"
+            - name: WHATSAPP_CONSUMER_CLAIM_LEASE_SECONDS
+              value: "300"
+            - name: WHATSAPP_CONSUMER_MAX_ATTEMPTS
+              value: "10"
+          resources:
+            requests:
+              cpu: 150m
+              memory: 384Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 32Mi
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lanai-whatsapp-consumer-egress
+  namespace: lanai
+spec:
+  podSelector:
+    matchLabels:
+      app: lanai-whatsapp-consumer
+  policyTypes: ["Ingress", "Egress"]
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              lanai.io/platform-db: "true"
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              app: ollama
+      ports:
+        - protocol: TCP
+          port: 11434
