@@ -1,6 +1,6 @@
 # API Endpoint Security Audit and Staging Checklist
 
-**Scope:** This review covers the portal HTTP entry point, the dedicated metrics listener, Caddy, APISIX, public webhook/callback exceptions, and the staging validation required after the `4e966cb` dedicated-metrics change and its follow-on hardening.
+**Scope:** This review covers the portal HTTP entry point, the dedicated metrics listener, Caddy, APISIX, public webhook/callback exceptions, and the staging validation required after the `4e966cb` dedicated-metrics change through the current `047d479` WhatsApp-route disablement hardening baseline.
 
 ## Executive Disposition
 
@@ -60,7 +60,7 @@ The AI gateway is isolated with `lanai-ai-gateway-ingress`, allowing only Pods l
 
 | Prerequisite | Required evidence |
 |---|---|
-| Immutable portal image | Digest references a build containing `4e966cb` and the follow-on API hardening changes |
+| Immutable portal image | Digest/provenance attests to a build containing current hardening through `047d479` (metrics isolation, health redaction, internal-AI route removal, and WhatsApp-route disablement) |
 | Kubernetes tooling | Approved kubeconfig, `kubectl`, `kustomize`, and server-side dry-run permission |
 | Monitoring namespace | Namespace carrying `lanai.io/monitoring=true`; Prometheus Pod deployed there |
 | CNI enforcement | Staging CNI enforces Kubernetes `NetworkPolicy` for ingress and egress |
@@ -74,7 +74,7 @@ The AI gateway is isolated with `lanai-ai-gateway-ingress`, allowing only Pods l
 1. Confirm the target revision and render the overlay locally:
 
    ```bash
-   git rev-parse --verify 4e966cb
+   git rev-parse --verify 047d479
    kustomize build config > /tmp/lanai-rendered.yaml
    kubectl --context "$LANAI_STAGING_CONTEXT" apply \
      --server-side --dry-run=server --validate=strict \
