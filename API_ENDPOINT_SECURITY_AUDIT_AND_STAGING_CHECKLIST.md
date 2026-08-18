@@ -106,7 +106,7 @@ The AI gateway is isolated with `lanai-ai-gateway-ingress`, allowing only Pods l
      wget -qO- http://lanai-portal.lanai.svc.cluster.local:9464/metrics
    ```
 
-5. Verify the AI gateway is not exposed through the API host and only the authenticated portal can reach it. Use an ingress request to `/internal/ai/` and a labelled/unlabelled namespace connectivity probe; retain controller and CNI evidence.
+5. Verify the AI gateway is not exposed through the API host and only the authenticated portal can reach it. An ingress request to `/internal/ai/` must not reach the AI gateway or return AI-generated content; record its status/body class because the APISIX default portal backend may handle the retired path. Retain labelled/unlabelled namespace connectivity probe evidence for TCP `8100`.
 
 6. Execute `lanai-portal/scripts/dry-run-staging-admission.sh`, then the guarded `run-staging-release-gates.sh` only after all required platform, financial, Dapr, PVC, service-account, RBAC, secret, and immutable-image inputs are present.
 
