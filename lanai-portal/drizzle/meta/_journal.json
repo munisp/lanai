@@ -50,6 +50,13 @@
       "when": 1786935256172,
       "tag": "0006_ledger_transfer_invariants",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787022205674,
+      "tag": "0007_whatsapp_webhook_events",
+      "breakpoints": true
     }
   ]
 }

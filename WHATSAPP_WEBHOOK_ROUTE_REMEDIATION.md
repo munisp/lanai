@@ -12,7 +12,7 @@ lanai_ai/pillars/whatsapp/whatsapp_ai_bridge.py
 
 The sweep found no Kubernetes Deployment, Service, Secret reference, NetworkPolicy, container image, CI integration test, or APISIX authentication plugin configuration for `lanai-whatsapp-bridge`. `local-dev.sh` can start the Python bridge on port `5555`, but it is not a production deployment contract.
 
-## Verified Bridge Deficiencies
+## Pre-Remediation Bridge Deficiencies
 
 | Control | Source observation | Risk |
 |---|---|---|
@@ -26,7 +26,7 @@ The sweep found no Kubernetes Deployment, Service, Secret reference, NetworkPoli
 
 The GET verification endpoint does check `hub.mode=subscribe` and compares `hub.verify_token` with `WHATSAPP_VERIFY_TOKEN`, but this only supports subscription verification. It does not authenticate inbound POST events.
 
-## Applied Remediation
+## Applied Route Remediation
 
 The following APISIX route was removed from `config/apisix/apisixroute.yaml`:
 
@@ -46,9 +46,9 @@ The following APISIX route was removed from `config/apisix/apisixroute.yaml`:
 
 No public gateway rule now forwards `/webhook/whatsapp` to the unverified bridge. The API-host default backend may still handle the path as an ordinary portal request, but it cannot reach the bridge service.
 
-## Re-enable Criteria
+## Staging Activation Criteria
 
-A future bridge implementation must meet every criterion below before an APISIX route is restored.
+The secure bridge source now implements raw-body HMAC verification, constant-time comparison, durable provider-event and outbox persistence, bounded payload parsing, redacted logging, internal authorization for non-webhook APIs, and minimal health output. It still must meet every criterion below in a deployed staging environment before an APISIX route is restored.
 
 | Category | Required control |
 |---|---|
@@ -63,6 +63,6 @@ A future bridge implementation must meet every criterion below before an APISIX 
 | Tests | Add raw-body HMAC valid/invalid cases, malformed input, duplicate event, stale replay, outbound authorization, provider error, token-missing, and log-redaction tests. |
 | Staging evidence | Demonstrate Meta verification, valid signed test event, invalid-signature rejection, duplicate no-op, protected outbound test, and audited CRM projection in an isolated staging workspace. |
 
-## Validation of the Disablement
+## Validation of the Disablement and Secure Implementation
 
-Static validation confirms the APISIX route file contains neither `lanai-whatsapp-bridge` nor `/webhook/whatsapp`. The bridge source compiles as Python but its only `msg_id` occurrence is assignment, and no signature-header or `hmac.compare_digest` path exists. This is evidence for disablement, not evidence that the bridge is safe to deploy.
+Static validation confirms the APISIX route file contains neither `lanai-whatsapp-bridge` nor `/webhook/whatsapp`. The secure bridge integration suite applies migration `0007` to an isolated PostgreSQL database and verifies valid HMAC intake, exact replay acknowledgment without a second outbox row, conflicting replay rejection, invalid-signature rejection with no database side effect, and GET verification-token handling. This is evidence for local implementation and route disablement, not evidence that the bridge is ready for public staging activation.

@@ -1879,6 +1879,45 @@ export const outboxEvents = pgTable(
 export type OutboxEvent = typeof outboxEvents.$inferSelect;
 export type InsertOutboxEvent = typeof outboxEvents.$inferInsert;
 
+// ─── WhatsApp provider webhook ingestion ────────────────────────────────────
+// Each Meta message/event ID has one durable record and exactly one linked
+// outbox event. The bridge inserts both in a single PostgreSQL transaction
+// before acknowledging a signed provider request.
+export const whatsappWebhookEvents = pgTable(
+  "whatsapp_webhook_events",
+  {
+    id: serial("id").primaryKey(),
+    provider: varchar("provider", { length: 32 }).notNull(),
+    providerEventId: varchar("provider_event_id", { length: 256 }).notNull(),
+    payloadSha256: varchar("payload_sha256", { length: 64 }).notNull(),
+    payload: jsonb("payload").notNull(),
+    status: varchar("status", { length: 16 }).default("received").notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    nextAttemptAt: timestamp("next_attempt_at").defaultNow().notNull(),
+    lastError: text("last_error"),
+    outboxEventId: integer("outbox_event_id")
+      .notNull()
+      .references(() => outboxEvents.id, { onDelete: "restrict" }),
+    processedAt: timestamp("processed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("whatsapp_webhook_events_provider_event_unique").on(
+      t.provider,
+      t.providerEventId,
+    ),
+    uniqueIndex("whatsapp_webhook_events_outbox_event_unique").on(t.outboxEventId),
+    index("whatsapp_webhook_events_status_next_attempt_idx").on(t.status, t.nextAttemptAt),
+    index("whatsapp_webhook_events_created_at_idx").on(t.createdAt),
+    check("whatsapp_webhook_events_payload_sha256_check", sql`${t.payloadSha256} ~ '^[a-f0-9]{64}$'`),
+    check("whatsapp_webhook_events_status_check", sql`${t.status} IN ('received', 'processing', 'processed', 'failed')`),
+    check("whatsapp_webhook_events_attempts_nonnegative_check", sql`${t.attempts} >= 0`),
+  ],
+);
+export type WhatsappWebhookEvent = typeof whatsappWebhookEvents.$inferSelect;
+export type InsertWhatsappWebhookEvent = typeof whatsappWebhookEvents.$inferInsert;
+
 export const eventDeliveries = pgTable(
   "event_deliveries",
   {

@@ -1,0 +1,210 @@
+# Draft activation manifest. This file is intentionally not referenced by the root
+# kustomization until a reviewed immutable image, Secret, egress gateway, and
+# signed-webhook staging evidence are available.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: lanai-whatsapp-bridge
+  namespace: lanai
+  labels:
+    app: lanai-whatsapp-bridge
+    app.kubernetes.io/part-of: lanai
+    app.kubernetes.io/component: webhook-bridge
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lanai-whatsapp-bridge
+  namespace: lanai
+  labels:
+    app: lanai-whatsapp-bridge
+    app.kubernetes.io/part-of: lanai
+spec:
+  type: ClusterIP
+  selector:
+    app: lanai-whatsapp-bridge
+  ports:
+    - name: http
+      protocol: TCP
+      port: 5555
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lanai-whatsapp-bridge
+  namespace: lanai
+  labels:
+    app: lanai-whatsapp-bridge
+    app.kubernetes.io/part-of: lanai
+    app.kubernetes.io/component: webhook-bridge
+spec:
+  replicas: 2
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: lanai-whatsapp-bridge
+  template:
+    metadata:
+      labels:
+        app: lanai-whatsapp-bridge
+        app.kubernetes.io/part-of: lanai
+        app.kubernetes.io/component: webhook-bridge
+    spec:
+      serviceAccountName: lanai-whatsapp-bridge
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: bridge
+          # Replace only through approved image provenance/signature verification.
+          image: registry.example.invalid/lanai-whatsapp-bridge@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5555
+              protocol: TCP
+          env:
+            - name: BIND_HOST
+              value: "0.0.0.0"
+            - name: PORT
+              value: "5555"
+            - name: WHATSAPP_WEBHOOK_MAX_BYTES
+              value: "131072"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: lanai-whatsapp-bridge-secrets
+                  key: DATABASE_URL
+            - name: WHATSAPP_VERIFY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lanai-whatsapp-bridge-secrets
+                  key: WHATSAPP_VERIFY_TOKEN
+            - name: WHATSAPP_APP_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: lanai-whatsapp-bridge-secrets
+                  key: WHATSAPP_APP_SECRET
+            - name: WHATSAPP_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lanai-whatsapp-bridge-secrets
+                  key: WHATSAPP_ACCESS_TOKEN
+            - name: WHATSAPP_PHONE_NUMBER_ID
+              valueFrom:
+                secretKeyRef:
+                  name: lanai-whatsapp-bridge-secrets
+                  key: WHATSAPP_PHONE_NUMBER_ID
+            - name: WHATSAPP_BRIDGE_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lanai-whatsapp-bridge-secrets
+                  key: WHATSAPP_BRIDGE_INTERNAL_TOKEN
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 768Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            timeoutSeconds: 2
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            timeoutSeconds: 2
+            periodSeconds: 20
+            failureThreshold: 3
+      volumes:
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 32Mi
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lanai-whatsapp-bridge-ingress
+  namespace: lanai
+spec:
+  podSelector:
+    matchLabels:
+      app: lanai-whatsapp-bridge
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              lanai.io/gateway: "true"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: apisix
+      ports:
+        - protocol: TCP
+          port: 5555
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lanai-whatsapp-bridge-egress
+  namespace: lanai
+spec:
+  podSelector:
+    matchLabels:
+      app: lanai-whatsapp-bridge
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              lanai.io/platform-db: "true"
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # External Meta Graph API access must traverse a reviewed egress gateway.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              lanai.io/approved-egress: "true"
+          podSelector:
+            matchLabels:
+              app: lanai-egress-gateway
+      ports:
+        - protocol: TCP
+          port: 443

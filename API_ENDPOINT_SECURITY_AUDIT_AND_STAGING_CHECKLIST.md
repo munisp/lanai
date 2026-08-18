@@ -22,7 +22,7 @@ The audit also removed the public APISIX route to `/internal/ai/*` and introduce
 | `/api/oauth/*` | Public identity transition | Auth limiter and OIDC callback state validation | Verify invalid/expired state is rejected without token leakage |
 | `/api/stripe/webhook` | Public provider callback | Raw body before JSON parser; Stripe signature verification | Verify unsigned/invalid request is rejected and valid sandbox event is durable |
 | `/api/crm/twenty/webhook` | Public provider callback | Raw body before JSON parser; Twenty webhook validation | Verify unsigned/invalid request is rejected in the configured provider environment |
-| `/webhook/whatsapp` | Disabled pending verified bridge | Public APISIX route removed because the repository bridge lacks signature verification and deployment evidence | Do not re-enable until a verified bridge provides raw-body HMAC validation, replay defense, idempotency, secret injection, and staging tests |
+| `/webhook/whatsapp` | Disabled pending staging activation | Secure bridge source, durable event migration, tests, and zero-trust draft manifests are committed; public APISIX route remains removed | Do not re-enable until the activation gate validates deployed HMAC verification, replay/outbox behavior, secrets, network isolation, and provider staging evidence |
 | `/internal/ai/*` through API host | Retired public internal route | APISIX rule removed; AI gateway has no public ingress route | Verify ingress does not reach the AI gateway or return AI-generated content, and direct gateway connection is limited to portal Pods |
 
 ## Repository-Controlled Hardening Applied
