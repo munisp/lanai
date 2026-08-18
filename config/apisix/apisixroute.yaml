@@ -61,18 +61,6 @@ spec:
         - serviceName: keycloak
           servicePort: 8080
 
-    - name: api-host-whatsapp-webhook
-      priority: 10
-      match:
-        hosts:
-          - api.lanai.upi.dev
-          - api.lanai.newfire.app
-        paths:
-          - /webhook/whatsapp
-      backends:
-        - serviceName: lanai-whatsapp-bridge
-          servicePort: 5555
-
     - name: api-host-default
       priority: 0
       match:
