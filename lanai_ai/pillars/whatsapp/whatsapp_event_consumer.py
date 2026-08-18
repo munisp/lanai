@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import signal
+import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -28,6 +29,12 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 POLL_INTERVAL_SECONDS = float(os.getenv("WHATSAPP_CONSUMER_POLL_SECONDS", "1"))
 CLAIM_LEASE_SECONDS = int(os.getenv("WHATSAPP_CONSUMER_CLAIM_LEASE_SECONDS", "300"))
 MAX_ATTEMPTS = int(os.getenv("WHATSAPP_CONSUMER_MAX_ATTEMPTS", "10"))
+CLAIM_RENEWAL_INTERVAL_SECONDS = float(
+    os.getenv(
+        "WHATSAPP_CONSUMER_CLAIM_RENEWAL_INTERVAL_SECONDS",
+        str(max(1, min(60, CLAIM_LEASE_SECONDS // 3))),
+    )
+)
 
 logger = logging.getLogger("lanai.whatsapp.consumer")
 _shutdown_requested = False
@@ -186,6 +193,69 @@ def claim_next_event(now: datetime | None = None) -> ClaimedInboundEvent | None:
         attempts=row[3],
         claim_token=row[4],
     )
+
+
+def renew_claim(event: ClaimedInboundEvent, now: datetime | None = None) -> bool:
+    """Extend an owned processing lease without changing its attempt count.
+
+    A false result means ownership was lost through a recovery/reclaim race. It
+    is never safe for this worker to commit projections after that point.
+    """
+    _require_configured(DATABASE_URL, "DATABASE_URL")
+    now = now or _utcnow()
+    lease_expires_at = now + timedelta(seconds=CLAIM_LEASE_SECONDS)
+    with psycopg.connect(DATABASE_URL) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE whatsapp_webhook_events
+                SET claim_expires_at = %s,
+                    updated_at = %s
+                WHERE id = %s
+                  AND status = 'processing'
+                  AND claim_token = %s
+                RETURNING id
+                """,
+                (lease_expires_at, now, event.id, event.claim_token),
+            )
+            return cursor.fetchone() is not None
+
+
+class ClaimLeaseRenewer:
+    """Cooperatively renew a worker lease while an external AI call is in flight."""
+
+    def __init__(self, event: ClaimedInboundEvent) -> None:
+        self._event = event
+        self._stop = threading.Event()
+        self._lost = threading.Event()
+        self._thread = threading.Thread(
+            target=self._run,
+            name=f"whatsapp-claim-renewer-{event.id}",
+            daemon=True,
+        )
+
+    @property
+    def lost(self) -> bool:
+        return self._lost.is_set()
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._thread.join(timeout=max(1.0, CLAIM_RENEWAL_INTERVAL_SECONDS + 1.0))
+
+    def _run(self) -> None:
+        while not self._stop.wait(CLAIM_RENEWAL_INTERVAL_SECONDS):
+            try:
+                if not renew_claim(self._event):
+                    self._lost.set()
+                    logger.warning("WhatsApp consumer claim ownership was lost during renewal")
+                    return
+            except (psycopg.Error, RuntimeError) as error:
+                # Preserve ownership until the lease deadline. A later renewal
+                # may succeed; only an explicit ownership mismatch marks it lost.
+                logger.warning("WhatsApp consumer claim renewal failed type=%s", type(error).__name__)
 
 
 def _member_context(cursor: psycopg.Cursor[Any], sender: str) -> tuple[int | None, str, str]:
@@ -378,6 +448,8 @@ def process_next_event() -> bool:
     if event is None:
         return False
     started_at = _utcnow()
+    renewer = ClaimLeaseRenewer(event)
+    renewer.start()
     try:
         _provider_event_id, sender, message_text = _payload_fields(event.payload)
         with psycopg.connect(DATABASE_URL) as connection:
@@ -389,7 +461,7 @@ def process_next_event() -> bool:
                 system=WHATSAPP_TRIAGE_SYSTEM,
             )
         )
-        if not complete_claim(event, triage, started_at):
+        if renewer.lost or not complete_claim(event, triage, started_at):
             logger.warning("WhatsApp consumer claim lost before persistence")
         else:
             logger.info("WhatsApp event triaged and persisted")
@@ -400,6 +472,8 @@ def process_next_event() -> bool:
         except (psycopg.Error, RuntimeError):
             # The active lease will make this safe to recover after the database is available.
             logger.error("WhatsApp consumer could not record failure; lease recovery required")
+    finally:
+        renewer.stop()
     return True
 
 
@@ -410,7 +484,13 @@ def _request_shutdown(_signum: int, _frame: Any) -> None:
 
 def run_forever() -> None:
     _require_configured(DATABASE_URL, "DATABASE_URL")
-    if POLL_INTERVAL_SECONDS <= 0 or CLAIM_LEASE_SECONDS <= 0 or MAX_ATTEMPTS <= 0:
+    if (
+        POLL_INTERVAL_SECONDS <= 0
+        or CLAIM_LEASE_SECONDS <= 1
+        or MAX_ATTEMPTS <= 0
+        or CLAIM_RENEWAL_INTERVAL_SECONDS <= 0
+        or CLAIM_RENEWAL_INTERVAL_SECONDS >= CLAIM_LEASE_SECONDS
+    ):
         raise RuntimeError("consumer timing configuration is invalid")
     signal.signal(signal.SIGTERM, _request_shutdown)
     signal.signal(signal.SIGINT, _request_shutdown)

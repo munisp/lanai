@@ -61,6 +61,8 @@ spec:
               value: "1"
             - name: WHATSAPP_CONSUMER_CLAIM_LEASE_SECONDS
               value: "300"
+            - name: WHATSAPP_CONSUMER_CLAIM_RENEWAL_INTERVAL_SECONDS
+              value: "60"
             - name: WHATSAPP_CONSUMER_MAX_ATTEMPTS
               value: "10"
           resources:

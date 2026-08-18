@@ -24,7 +24,7 @@ Migration `0007_whatsapp_webhook_events.sql` creates `whatsapp_webhook_events` w
 
 Migrations `0008_outbox_claim_leases.sql` and `0009_whatsapp_consumer_leases.sql` add opaque ownership leases and claim-expiry indexes. The dispatcher converts expired or legacy unleased `publishing` rows into durable retries before selecting work; claim-token-guarded final updates prevent a stale dispatcher from overwriting a later attempt. The consumer applies the equivalent lease protocol to `processing` webhook-event rows.
 
-`whatsapp_event_consumer.py` consumes only `whatsapp.message.received` events whose source outbox row is `published`. It claims work using `FOR UPDATE SKIP LOCKED`, invokes the bounded WhatsApp triage AI pillar, validates untrusted model output, and atomically records its projections plus a deterministic `whatsapp.triaged` outbox event. The webhook still performs no CRM or AI side effects synchronously.
+`whatsapp_event_consumer.py` consumes only `whatsapp.message.received` events whose source outbox row is `published`. It claims work using `FOR UPDATE SKIP LOCKED`, invokes the bounded WhatsApp triage AI pillar, validates untrusted model output, and atomically records its projections plus a deterministic `whatsapp.triaged` outbox event. A cooperative claim-renewal thread extends an owned lease every 60 seconds by default during long AI calls; its conditional update requires the original claim token, so it cannot revive a claim recovered by another worker. The webhook still performs no CRM or AI side effects synchronously.
 
 ## Test Evidence
 
@@ -40,6 +40,9 @@ The isolated PostgreSQL integration suite validates:
 | Published consumer event | Exactly one validated AI inference record and one deterministic `whatsapp.triaged` outbox event are committed. |
 | Expired consumer claim | The row is recovered and subsequently processed once. |
 | Expired dispatcher claim | Lease recovery clears only expired/legacy publishing claims and leaves valid claims owned. |
+| Concurrent consumer claim | Two spawned Python processes race for one published event; exactly one claims it and the row has one attempt. |
+| Real row-lock contention | A child process holds `FOR UPDATE`; a second worker’s claim returns no row in under two seconds because `SKIP LOCKED` does not wait. |
+| Active consumer renewal | A live renewal thread extends its original lease while preserving one attempt and the same claim token. |
 
 ## Zero-Trust Deployment Draft
 
@@ -64,7 +67,7 @@ The route must remain disabled until all conditions hold:
 4. Provision and label the actual APISIX namespace, platform database namespace, and approved egress gateway namespace exactly as required by the NetworkPolicies.
 5. Apply the bridge manifest only in isolated staging, validate CNI enforcement with allowed/denied ingress and egress probes, and prove service-account token absence.
 6. Run valid and invalid Meta signature tests, GET verification, 128-KiB payload rejection, duplicate replay, conflicting replay, and bridge log-redaction tests.
-7. Deploy and verify the idempotent asynchronous `whatsapp.message.received` consumer before sending any live signed event. Demonstrate consumer stale-claim recovery, output-validation failure and retry, exactly-once committed projections for a duplicate delivery, and consumer dead-letter alerting.
+7. Deploy and verify the idempotent asynchronous `whatsapp.message.received` consumer before sending any live signed event. Demonstrate consumer stale-claim recovery, output-validation failure and retry, exactly-once committed projections for a duplicate delivery, renewal behavior during a deliberately slow inference, and consumer dead-letter alerting.
 8. Verify advisor authentication, recipient authorization, audit trail, provider rate limits, and error sanitization for outbound send/draft paths.
 9. Reintroduce an APISIX public webhook route only after the above evidence is reviewed and approved. The route must target the internal ClusterIP Service, preserve the raw request body, and not add an authentication transformation that invalidates the provider signature.
 
