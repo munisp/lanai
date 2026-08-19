@@ -46,7 +46,7 @@ The following gap was found during this reconciliation and closed in this revisi
 
 | Gap | Implemented remediation |
 |---|---|
-| Chatwoot inbound delivery was pull-only and did not provide signed real-time synchronization | Added `server/chatwootWebhook.ts`, raw-body timestamped HMAC verification, constant-time comparison, five-minute replay window, durable delivery record, local conversation/message projection, migration `0010_chatwoot_webhook_events.sql`, typed schema, environment contract, and raw signature/replay tests. |
+| Chatwoot inbound delivery was pull-only and did not provide signed real-time synchronization | Added `server/chatwootWebhook.ts`, raw-body timestamped HMAC verification, constant-time comparison, five-minute replay window, durable delivery record, local conversation/message projection, migration `0010_chatwoot_webhook_events.sql`, typed schema, environment contract, and raw signature/replay/conflicting-delivery tests. |
 
 The receiver persists one delivery fingerprint before projection. Exact retries are acknowledged without duplicate records; invalid signatures and stale timestamps are rejected before any database write. It remains unexposed through APISIX until a Chatwoot staging account, secret, narrow route, raw-body preservation proof, and CNI controls are available.
 
@@ -60,7 +60,7 @@ The receiver persists one delivery fingerprint before projection. Exact retries 
 | Python AI, WhatsApp bridge, consumer, multiprocess, metrics, and gateway contracts | 21/21 tests passed |
 | Supply-chain/configuration assurance | 38/38 controls passed |
 | Feature-claim structural validation | 7/7 claims passed |
-| New Chatwoot raw-body HMAC and replay regression | 2/2 tests passed |
+| New Chatwoot raw-body HMAC, exact-replay, and conflicting-delivery regression | 3/3 tests passed |
 | Diff and configuration hygiene | Passed |
 
 Local provider fixtures simulate Stripe, CRM, and AI gateway behavior, including authenticated requests, idempotency, rate limits, and transient errors. They are test-only adapters. Production paths fail explicitly if their required provider configuration is unavailable.

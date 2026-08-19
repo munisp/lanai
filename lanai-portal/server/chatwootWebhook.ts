@@ -19,6 +19,8 @@ type ProjectionTransaction = Pick<
 const MAX_BODY_BYTES = 512 * 1024;
 const SIGNATURE_PREFIX = "sha256=";
 
+class ChatwootWebhookConflictError extends Error {}
+
 function asRecord(value: unknown): JsonRecord | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? (value as JsonRecord)
@@ -121,6 +123,10 @@ export function registerChatwootWebhook(app: express.Express): void {
         const accepted = await persistDelivery({ deliveryId, eventType, payloadSha256, payload, now });
         res.status(200).json({ accepted: accepted ? 1 : 0, duplicates: accepted ? 0 : 1 });
       } catch (error) {
+        if (error instanceof ChatwootWebhookConflictError) {
+          res.status(409).json({ error: "Conflicting Chatwoot webhook delivery" });
+          return;
+        }
         console.error("[Chatwoot webhook] durable intake failed type=", error instanceof Error ? error.name : "Unknown");
         res.status(503).json({ error: "Chatwoot webhook persistence unavailable" });
       }
@@ -148,7 +154,18 @@ async function persistDelivery(input: {
       })
       .onConflictDoNothing({ target: chatwootWebhookEvents.deliveryId })
       .returning({ id: chatwootWebhookEvents.id });
-    if (!delivery) return false;
+    if (!delivery) {
+      const [existing] = await tx
+        .select({ payloadSha256: chatwootWebhookEvents.payloadSha256 })
+        .from(chatwootWebhookEvents)
+        .where(eq(chatwootWebhookEvents.deliveryId, input.deliveryId))
+        .limit(1);
+      if (!existing) throw new Error("Chatwoot webhook delivery conflict lookup failed");
+      if (!crypto.timingSafeEqual(Buffer.from(existing.payloadSha256), Buffer.from(input.payloadSha256))) {
+        throw new ChatwootWebhookConflictError("Chatwoot delivery payload differs from its original delivery");
+      }
+      return false;
+    }
 
     if (eventStatus(input.payload) === "processed") {
       await projectMessage(tx, input.payload, input.now);

@@ -111,6 +111,37 @@ describe("signed Chatwoot webhook", () => {
     expect(messages[0]).toMatchObject({ messageType: "inbound", content: "Please arrange airport fast track." });
   });
 
+  it("rejects a signed changed payload that reuses an accepted delivery identity", async () => {
+    const db = await getDb();
+    const [member] = await db
+      .insert(members)
+      .values({ email: "chatwoot-webhook@example.test", name: "Webhook Member", tier: "gold" })
+      .returning({ id: members.id });
+    const original = {
+      event: "message_created",
+      id: 991003,
+      content: "Original concierge request.",
+      message_type: "incoming",
+      conversation: { id: 881003, status: "open" },
+      contact: { additional_attributes: { lanai_member_id: String(member!.id) } },
+      inbox: { channel_type: "whatsapp" },
+    };
+    const deliveryHeaders = signedHeaders(original, { "X-Chatwoot-Delivery": "delivery-webhook-test-conflict" });
+    expect((await postWebhook(original, deliveryHeaders)).status).toBe(200);
+
+    const changed = { ...original, content: "Changed request must not overwrite the original." };
+    const conflict = await postWebhook(changed, signedHeaders(changed, { "X-Chatwoot-Delivery": "delivery-webhook-test-conflict" }));
+    expect(conflict.status).toBe(409);
+    await expect(conflict.json()).resolves.toEqual({ error: "Conflicting Chatwoot webhook delivery" });
+
+    const [persisted] = await db
+      .select({ payloadSha256: chatwootWebhookEvents.payloadSha256, payload: chatwootWebhookEvents.payload })
+      .from(chatwootWebhookEvents)
+      .where(eq(chatwootWebhookEvents.deliveryId, "delivery-webhook-test-conflict"));
+    expect(persisted!.payloadSha256).toBe(crypto.createHash("sha256").update(JSON.stringify(original)).digest("hex"));
+    expect((persisted!.payload as { content: string }).content).toBe("Original concierge request.");
+  });
+
   it("rejects invalid signatures and stale timestamps before database persistence", async () => {
     const payload = { event: "message_created", id: 991002, content: "must not persist" };
     const invalid = await postWebhook(payload, signedHeaders(payload, { "X-Chatwoot-Signature": "sha256=" + "0".repeat(64), "X-Chatwoot-Delivery": "delivery-webhook-test-invalid" }));
