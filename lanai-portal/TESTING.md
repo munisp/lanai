@@ -91,6 +91,7 @@ The repository includes two workflows:
 | ----------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | `.github/workflows/ci.yml`                     | TypeScript, local provider fixtures, PostgreSQL, and Permify coverage | Pull requests and `main`; no external-provider secrets |
 | `.github/workflows/external-provider-tests.yml` | Real Twenty and Stripe sandbox validation                     | `main`, nightly, and manual runs only; protected `external-integration` environment |
+| `.github/workflows/release-images.yml`           | Tag-gated release images, Trivy scan, provenance attestation, and keyless Cosign signature | Protected `release` environment; version tags only |
 
 To enable the protected external workflow, create the `external-integration` GitHub environment, allow only `main`, require a maintainer approval, and set repository variable `EXTERNAL_INTEGRATION_ENABLED` to `true`. Add the following environment-scoped values:
 
@@ -120,10 +121,10 @@ export LANAI_STAGING_ENVIRONMENT='staging'
 export LANAI_FINANCIAL_NAMESPACE='lanai-loadtest'
 export LANAI_FINANCIAL_ENVIRONMENT='loadtest'
 export LANAI_FINANCIAL_RUN_ID='CHG-1234-2026-08-17T000000Z'
-export LANAI_FINANCIAL_RUNNER_IMAGE='ghcr.io/munisp/lanai-financial-loadtest@sha256:<approved-digest>'
+export LANAI_FINANCIAL_RUNNER_IMAGE='ghcr.io/munisp/lanai-financial-workflow-runner@sha256:<approved-digest>'
 ./scripts/run-staging-release-gates.sh
 ```
 
-This command intentionally requires a restricted kubeconfig, a provisioned Keycloak smoke-client secret, isolated service credentials, and a signed immutable financial-runner image. Those items are environment-owned release prerequisites and cannot be synthesized by local fixtures.
+This command intentionally requires a restricted kubeconfig, a provisioned Keycloak smoke-client secret, isolated service credentials, and a trusted immutable financial-runner image. It verifies the digest with Cosign against the keyless `release-images.yml` GitHub Actions identity and the GitHub Actions OIDC issuer before any cluster mutation. Operators need `cosign` installed; exceptional registries require explicit reviewed `LANAI_COSIGN_IDENTITY_REGEX` and `LANAI_COSIGN_OIDC_ISSUER` overrides. Those items are environment-owned release prerequisites and cannot be synthesized by local fixtures.
 
 Before executing the financial stage, apply `config/k8s/loadtest/dapr-financial-components.yaml` in `lanai-loadtest`. Provision `lanai-loadtest-dapr-api-token` with key `token` and `lanai-loadtest-dapr-redis` with keys `host` and `password`; the release gate verifies those secrets and the namespace-scoped `statestore` and `pubsub` components before it creates the financial Job. The Redis endpoint must be TLS-capable and reachable only through the existing isolated egress policy.

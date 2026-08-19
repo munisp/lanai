@@ -114,7 +114,7 @@ spec:
             seccompProfile: { type: RuntimeDefault }
           containers:
             - name: financial-audit-collector
-              image: ghcr.io/munisp/lanai-financial-loadtest:REPLACE_WITH_SIGNED_DIGEST
+              image: ghcr.io/munisp/lanai-financial-workflow-runner:REPLACE_WITH_SIGNED_DIGEST
               imagePullPolicy: IfNotPresent
               command: ["pnpm", "--filter", "lanai-portal", "exec", "tsx", "server/test/collect-staging-financial-audit.ts"]
               args: ["--since-hours", "$(WINDOW_HOURS)", "--output-dir", "/evidence"]

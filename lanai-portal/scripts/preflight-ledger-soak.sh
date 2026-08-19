@@ -17,6 +17,7 @@ require() {
 require kubectl
 require grep
 require sed
+require cosign
 
 if [[ -z "$required_context" ]]; then
   printf '%s\n' 'Refusing launch: set ALLOW_LOADTEST_CONTEXT to the exact approved kubeconfig context.' >&2
@@ -37,6 +38,16 @@ if grep -q 'REPLACE_WITH_SIGNED_DIGEST' "$manifest"; then
 fi
 if ! grep -Eq 'image: .+@sha256:[a-f0-9]{64}$' "$manifest"; then
   printf '%s\n' 'Refusing launch: runner image must be an immutable sha256 digest.' >&2
+  exit 2
+fi
+runner_image="$(grep -E '^[[:space:]]*image: .+@sha256:[a-f0-9]{64}$' "$manifest" | sed -E 's/^[[:space:]]*image:[[:space:]]*//' | head -n 1)"
+identity_regex="${LANAI_COSIGN_IDENTITY_REGEX:-^https://github\\.com/munisp/lanai/\\.github/workflows/release-images\\.yml@refs/tags/v.+$}"
+issuer="${LANAI_COSIGN_OIDC_ISSUER:-https://token.actions.githubusercontent.com}"
+if ! cosign verify \
+  --certificate-identity-regexp "$identity_regex" \
+  --certificate-oidc-issuer "$issuer" \
+  "$runner_image" >/dev/null; then
+  printf 'Refusing launch: runner image has no trusted release-workflow Cosign signature: %s\n' "$runner_image" >&2
   exit 2
 fi
 

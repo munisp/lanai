@@ -82,8 +82,8 @@ spec:
       containers:
         - name: financial-workflow-runner
           # Replace with a signed, scanned immutable digest built from
-          # Dockerfile.financial-loadtest in the approved registry.
-          image: ghcr.io/munisp/lanai-financial-loadtest:REPLACE_WITH_SIGNED_DIGEST
+          # Dockerfile.financial-workflow-runner in the approved registry.
+          image: ghcr.io/munisp/lanai-financial-workflow-runner:REPLACE_WITH_SIGNED_DIGEST
           imagePullPolicy: IfNotPresent
           args:
             - --run-id

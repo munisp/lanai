@@ -59,6 +59,23 @@ require_resource() {
   fi
 }
 
+verify_release_signature() {
+  local image="$1"
+  local identity_regex="${LANAI_COSIGN_IDENTITY_REGEX:-^https://github\\.com/munisp/lanai/\\.github/workflows/release-images\\.yml@refs/tags/v.+$}"
+  local issuer="${LANAI_COSIGN_OIDC_ISSUER:-https://token.actions.githubusercontent.com}"
+  if ! command -v cosign >/dev/null 2>&1; then
+    printf 'cosign is required to verify the immutable financial runner image.\n' >&2
+    exit 69
+  fi
+  if ! cosign verify \
+    --certificate-identity-regexp "$identity_regex" \
+    --certificate-oidc-issuer "$issuer" \
+    "$image" >/dev/null; then
+    printf 'Financial runner image has no trusted release-workflow Cosign signature: %s\n' "$image" >&2
+    exit 70
+  fi
+}
+
 for name in \
   LANAI_APPROVE_STAGING_EXECUTION \
   LANAI_STAGING_CONTEXT \
@@ -95,6 +112,7 @@ if [[ ! "$LANAI_FINANCIAL_RUNNER_IMAGE" =~ ^[a-z0-9][a-z0-9./_-]*@sha256:[a-f0-9
   printf 'LANAI_FINANCIAL_RUNNER_IMAGE must be a lowercase immutable sha256 image digest.\n' >&2
   exit 65
 fi
+verify_release_signature "$LANAI_FINANCIAL_RUNNER_IMAGE"
 
 current_context="$(kubectl config current-context)"
 if [[ "$current_context" != "$LANAI_STAGING_CONTEXT" ]]; then
@@ -169,7 +187,7 @@ trap 'rm -f "$tmp_manifest"' EXIT
 sed \
   -e "s|namespace: lanai-loadtest|namespace: ${LANAI_FINANCIAL_NAMESPACE}|g" \
   -e "s|replace-with-change-ticket-and-utc-run-id|${LANAI_FINANCIAL_RUN_ID}|g" \
-  -e "s|ghcr.io/munisp/lanai-financial-loadtest:REPLACE_WITH_SIGNED_DIGEST|${LANAI_FINANCIAL_RUNNER_IMAGE}|g" \
+  -e "s|ghcr.io/munisp/lanai-financial-workflow-runner:REPLACE_WITH_SIGNED_DIGEST|${LANAI_FINANCIAL_RUNNER_IMAGE}|g" \
   "$ROOT/config/k8s/loadtest/live-financial-workflow-runner.yaml" > "$tmp_manifest"
 if grep -qE 'REPLACE_WITH_SIGNED_DIGEST|replace-with-change-ticket-and-utc-run-id' "$tmp_manifest"; then
   printf 'Financial evidence manifest retained an unresolved image or run-ID placeholder.\n' >&2
