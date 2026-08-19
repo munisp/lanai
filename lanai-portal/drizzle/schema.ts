@@ -1814,6 +1814,32 @@ export const chatwootMessages = pgTable(
 export type ChatwootMessage = typeof chatwootMessages.$inferSelect;
 export type InsertChatwootMessage = typeof chatwootMessages.$inferInsert;
 
+// ─── Chatwoot signed webhook deliveries ──────────────────────────────────────
+// Every accepted Chatwoot delivery is retained before any local mirror projection.
+// The unique delivery fingerprint makes provider retries and raw-body fallback
+// identities idempotent without exposing communication payloads to operations APIs.
+export const chatwootWebhookEvents = pgTable(
+  "chatwoot_webhook_events",
+  {
+    id: serial("id").primaryKey(),
+    deliveryId: varchar("delivery_id", { length: 128 }).notNull(),
+    eventType: varchar("event_type", { length: 128 }).notNull(),
+    payloadSha256: varchar("payload_sha256", { length: 64 }).notNull(),
+    payload: jsonb("payload").notNull(),
+    status: varchar("status", { length: 16 }).default("received").notNull(),
+    processedAt: timestamp("processed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("chatwoot_webhook_events_delivery_unique").on(t.deliveryId),
+    index("chatwoot_webhook_events_status_created_idx").on(t.status, t.createdAt),
+    check("chatwoot_webhook_events_payload_sha256_check", sql`${t.payloadSha256} ~ '^[a-f0-9]{64}$'`),
+    check("chatwoot_webhook_events_status_check", sql`${t.status} IN ('received', 'processed', 'ignored')`),
+  ],
+);
+export type ChatwootWebhookEvent = typeof chatwootWebhookEvents.$inferSelect;
+
 // ─── Platform Integration Contracts ──────────────────────────────────────────
 // These tables make cross-service work durable and idempotent. They are deliberately
 // kept in PostgreSQL so an application mutation and its integration event can be

@@ -71,6 +71,13 @@
       "when": 1787024800000,
       "tag": "0009_whatsapp_consumer_leases",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787222400000,
+      "tag": "0010_chatwoot_webhook_events",
+      "breakpoints": true
     }
   ]
 }

@@ -15,6 +15,7 @@ import { serveStatic, setupVite } from "./vite";
 import { registerCrmProxy } from "./crmProxy";
 import { registerStripeWebhook } from "../stripeRouter";
 import { registerChatwootProxy } from "./chatwootProxy";
+import { registerChatwootWebhook } from "../chatwootWebhook";
 import { ENV } from "./env";
 import { registerAiRoutes } from "./aiRoutes";
 import { registerTwentyWebhook } from "./twentyWebhook";
@@ -185,6 +186,7 @@ async function startServer() {
     express.raw({ type: "application/json", limit: "2mb" }),
   );
   registerTwentyWebhook(app);
+  registerChatwootWebhook(app);
 
   // ── Body parsers ──────────────────────────────────────────────────────────
   app.use(express.json({ limit: "50mb" }));

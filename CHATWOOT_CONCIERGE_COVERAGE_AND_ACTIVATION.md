@@ -20,7 +20,7 @@ Chatwoot’s official materials describe it as an open-source omnichannel suppor
 | Member ownership | Implemented in the member portal; a member may read only conversations linked to their own member record. |
 | Advisor workspace | Implemented. Authorized advisors receive the complete synchronized local inbox. Remote assignment is not yet mirrored to `advisorUserId`; this is an explicitly documented configuration/integration gap. |
 | AI assistance | Implemented as a draft-only path. AI cannot send a message or promise a booking; an advisor reviews and sends. |
-| Inbound webhook synchronization | Not implemented. Current synchronization is an authenticated pull from Chatwoot; production activation requires a dedicated raw-body, timestamped-HMAC, replay-safe Chatwoot webhook receiver. |
+| Inbound webhook synchronization | Implemented in `chatwootWebhook.ts`. The raw-body receiver validates timestamped HMAC, enforces a replay window, deduplicates durable delivery records, and transactionally projects authorized member-linked messages. Public APISIX exposure remains a staging-gated deployment step. |
 | External channel activation | Staging gate. WhatsApp, email, social, SMS, Telegram, and Line require the relevant Chatwoot inbox and channel-provider configuration. |
 
 ## Twenty concierge use cases
@@ -54,11 +54,11 @@ Chatwoot’s official materials describe it as an open-source omnichannel suppor
 2. Configure one approved account, dedicated inboxes, and a default inbound inbox. Store the Lanai API token only in the secret manager.
 3. Validate the Lanai server-side connection check and contact synchronization using test members; confirm no token is returned by tRPC or browser proxy APIs.
 4. Configure relevant provider channels in test mode, including consent and data-retention policies for each channel.
-5. Implement and validate the signed Chatwoot webhook receiver. Chatwoot documents HMAC-SHA256 over `timestamp.raw_body`, timestamp and delivery headers, constant-time comparison, and replay-window validation.[4]
+5. Provision `CHATWOOT_WEBHOOK_SECRET`, add the narrow APISIX route only after staging approval, and validate the implemented signed Chatwoot webhook receiver. Chatwoot documents HMAC-SHA256 over `timestamp.raw_body`, timestamp and delivery headers, constant-time comparison, and replay-window validation.[4]
 6. Configure rules, labels, teams, agent capacity, business hours, SLA, templates, macros, and campaign permission boundaries in Chatwoot according to the approved concierge operating model.[3]
 7. Validate webhook/API delivery, remote assignment, reports, error handling, data minimization, and member/advisor authorization against a real staging instance.
 
-> **Release position:** Chatwoot can support all twenty listed communication-desk capabilities, but several require administrator configuration and the missing signed inbound webhook receiver. The repository must not claim real-time omnichannel synchronization, provider channel availability, SLA, campaigns, or Chatwoot report ingestion until staging evidence exists.
+> **Release position:** Chatwoot can support all twenty listed communication-desk capabilities, and the repository now includes a signed durable inbound receiver. Real-time omnichannel synchronization, provider channel availability, SLA, campaigns, and Chatwoot report ingestion remain unclaimed until a staged Chatwoot account, narrow public route, and provider evidence are validated.
 
 ## References
 

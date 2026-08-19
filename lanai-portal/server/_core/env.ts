@@ -86,6 +86,11 @@ export const ENV = {
     process.env.CHATWOOT_TOKEN ?? process.env.CHATWOOT_ACCESS_TOKEN ?? "",
   chatwootAccountId: requireEnvInt("CHATWOOT_ACCOUNT_ID", 1),
   chatwootSiteScriptId: process.env.CHATWOOT_SITE_SCRIPT_ID ?? "",
+  chatwootWebhookSecret: process.env.CHATWOOT_WEBHOOK_SECRET ?? "",
+  chatwootWebhookMaxAgeSeconds: requireEnvInt(
+    "CHATWOOT_WEBHOOK_MAX_AGE_SECONDS",
+    300,
+  ),
 
   // Cache and distributed service mesh
   redisUrl: process.env.REDIS_URL ?? "",
