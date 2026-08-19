@@ -116,6 +116,7 @@ type ResolvedChatwootConfig = {
   instanceUrl: string;
   accessToken: string;
   accountId: number;
+  defaultInboxId: number | null;
 };
 
 /**
@@ -147,7 +148,12 @@ async function resolveChatwootConfig(): Promise<ResolvedChatwootConfig> {
     throw new Error("Chatwoot requires an HTTPS instance URL in production");
   }
 
-  return { instanceUrl, accessToken, accountId };
+  return {
+    instanceUrl,
+    accessToken,
+    accountId,
+    defaultInboxId: persisted?.defaultInboxId ?? null,
+  };
 }
 
 async function chatwootRequest(
@@ -192,8 +198,11 @@ export async function syncContactForMember(
 
   try {
     const config = await resolveChatwootConfig();
+    if (!config.defaultInboxId) {
+      throw new Error("Chatwoot default inbox is not configured");
+    }
     const res = await chatwootRequest(
-      `/contacts?inbox_id=${config.accountId}&identifier=${sourceId}`,
+      `/contacts?inbox_id=${config.defaultInboxId}&identifier=${sourceId}`,
     );
     const data = (await res.json()) as { payload: ChatwootContact[] };
     if (data.payload.length > 0) {
@@ -217,7 +226,7 @@ export async function syncContactForMember(
       const createRes = await chatwootRequest("/contacts", {
         method: "POST",
         body: JSON.stringify({
-          inbox_id: ENV.chatwootAccountId,
+          inbox_id: config.defaultInboxId,
           first_name: firstName,
           last_name: lastName,
           email,
@@ -309,7 +318,12 @@ export async function getConversationsForContact(
  * Syncs local conversation mirror from Chatwoot API.
  */
 export async function syncConversations(): Promise<number> {
-  // Fetch all contacts first
+  // Fetch all contacts first. Inboxes provide the actual source channel, so the
+  // local communications timeline never mislabels social/email traffic as web.
+  const inboxes = await listInboxes();
+  const channelByInbox = new Map(
+    inboxes.map((inbox) => [inbox.id, inbox.channel?.type ?? "unknown"]),
+  );
   const contactsRes = await chatwootRequest("/contacts");
   const contactsData = (await contactsRes.json()) as {
     payload: ChatwootContact[];
@@ -362,7 +376,7 @@ export async function syncConversations(): Promise<number> {
             contactIdentifier: contact.phone_number ?? contact.email ?? "",
             contactName: `${contact.first_name} ${contact.last_name}`,
             contactEmail: contact.email,
-            channel: "website",
+            channel: channelByInbox.get(conv.inbox_id) ?? "unknown",
             status: conv.status,
             lastMessage: lastMsg?.content ?? null,
           }).then(async (id) =>
@@ -374,19 +388,22 @@ export async function syncConversations(): Promise<number> {
         );
       }
 
-      // Persist only a remote message that has not already been mirrored.
-      if (lastMsg) {
-        const localMessageId = `msg_${lastMsg.id}`;
+      // Persist every supplied remote message. The local unique Chatwoot ID
+      // makes repeated syncs idempotent and preserves usable transcript context
+      // for concierge handoff and AI drafting rather than retaining only the last
+      // message of each conversation.
+      for (const remoteMessage of conv.messages ?? []) {
+        const localMessageId = `msg_${remoteMessage.id}`;
         const mirrored = await getChatwootMessageByChatwootId(localMessageId);
         if (!mirrored) {
           await createChatwootMessage({
             chatwootId: localMessageId,
             conversationId: localConversation.id,
             messageType:
-              lastMsg.message_type === "incoming" ? "inbound" : "outbound",
-            content: lastMsg.content,
-            attachmentUrl: lastMsg.attachments?.[0]?.file_url ?? null,
-            isTemplate: lastMsg.content_type === "template",
+              remoteMessage.message_type === "incoming" ? "inbound" : "outbound",
+            content: remoteMessage.content.slice(0, 16_000),
+            attachmentUrl: remoteMessage.attachments?.[0]?.file_url ?? null,
+            isTemplate: remoteMessage.content_type === "template",
           });
         }
       }

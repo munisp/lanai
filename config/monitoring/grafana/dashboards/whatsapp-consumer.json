@@ -1,0 +1,85 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Dead-letter Events",
+      "gridPos": { "h": 7, "w": 6, "x": 0, "y": 0 },
+      "targets": [{ "expr": "lanai_whatsapp_consumer_events{status=\"dead_letter\"}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "auto", "textMode": "auto" }
+    },
+    {
+      "type": "stat",
+      "title": "Expired Processing Leases",
+      "gridPos": { "h": 7, "w": 6, "x": 6, "y": 0 },
+      "targets": [{ "expr": "lanai_whatsapp_consumer_processing_lease_expired", "refId": "A" }],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "auto", "textMode": "auto" }
+    },
+    {
+      "type": "stat",
+      "title": "Oldest Ready Event",
+      "gridPos": { "h": 7, "w": 6, "x": 12, "y": 0 },
+      "targets": [{ "expr": "lanai_whatsapp_consumer_oldest_ready_seconds", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 300 }, { "color": "red", "value": 900 }] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "auto", "textMode": "auto" }
+    },
+    {
+      "type": "stat",
+      "title": "Consumer Scrape Health",
+      "gridPos": { "h": 7, "w": 6, "x": 18, "y": 0 },
+      "targets": [{ "expr": "up{job=\"lanai-whatsapp-consumer\"}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "mappings": [{ "options": { "0": { "color": "red", "text": "Down" }, "1": { "color": "green", "text": "Up" } }, "type": "value" }], "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "auto", "textMode": "auto" }
+    },
+    {
+      "type": "timeseries",
+      "title": "Durable Event Queue by Status",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 7 },
+      "targets": [{ "expr": "lanai_whatsapp_consumer_events", "legendFormat": "{{status}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "lineInterpolation": "stepAfter", "lineWidth": 2, "fillOpacity": 12, "showPoints": "never", "stacking": { "mode": "normal", "group": "A" } }, "unit": "short" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Consumer Throughput and Failure Rates",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 7 },
+      "targets": [
+        { "expr": "sum(rate(lanai_whatsapp_consumer_processed_total[5m]))", "legendFormat": "processed / second", "refId": "A" },
+        { "expr": "sum(rate(lanai_whatsapp_consumer_failed_total[5m]))", "legendFormat": "failed / second", "refId": "B" },
+        { "expr": "sum(rate(lanai_whatsapp_consumer_dead_lettered_total[5m]))", "legendFormat": "dead-lettered / second", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "lineInterpolation": "linear", "lineWidth": 2, "fillOpacity": 8, "showPoints": "never", "stacking": { "mode": "none", "group": "A" } }, "unit": "ops" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Lease Recovery and Heartbeat Health",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 16 },
+      "targets": [
+        { "expr": "sum(rate(lanai_whatsapp_consumer_stale_claim_recoveries_total[5m]))", "legendFormat": "stale recoveries / second", "refId": "A" },
+        { "expr": "sum(rate(lanai_whatsapp_consumer_lease_renewals_total[5m]))", "legendFormat": "renewals / second", "refId": "B" },
+        { "expr": "sum(rate(lanai_whatsapp_consumer_lease_renewal_failures_total[5m]))", "legendFormat": "renewal failures / second", "refId": "C" },
+        { "expr": "sum(rate(lanai_whatsapp_consumer_lease_ownership_losses_total[5m]))", "legendFormat": "ownership losses / second", "refId": "D" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "lineInterpolation": "linear", "lineWidth": 2, "fillOpacity": 8, "showPoints": "never", "stacking": { "mode": "none", "group": "A" } }, "unit": "ops" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    }
+  ],
+  "refresh": "15s",
+  "schemaVersion": 39,
+  "tags": ["lanai", "whatsapp", "operations"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "title": "Lanai WhatsApp Consumer Operations",
+  "uid": "lanai-whatsapp-consumer",
+  "version": 1,
+  "weekStart": ""
+}

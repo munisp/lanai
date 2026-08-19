@@ -1,0 +1,62 @@
+groups:
+  - name: lanai-whatsapp-consumer
+    rules:
+      - alert: LanaiWhatsAppConsumerDeadLetter
+        expr: lanai_whatsapp_consumer_events{status="dead_letter"} > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: lanai-whatsapp-consumer
+          domain: communications
+        annotations:
+          summary: "WhatsApp consumer event is dead-lettered"
+          description: "{{ $value }} durable WhatsApp event(s) require authorized inspection and replay after the underlying cause is corrected."
+          runbook: "SECURE_WHATSAPP_BRIDGE_IMPLEMENTATION_AND_ACTIVATION.md"
+
+      - alert: LanaiWhatsAppConsumerExpiredLease
+        expr: lanai_whatsapp_consumer_processing_lease_expired > 0
+        for: 2m
+        labels:
+          severity: warning
+          service: lanai-whatsapp-consumer
+          domain: communications
+        annotations:
+          summary: "WhatsApp consumer processing lease has expired"
+          description: "{{ $value }} WhatsApp consumer event(s) remain processing with an expired or missing lease; stale-claim recovery should requeue them."
+          runbook: "SECURE_WHATSAPP_BRIDGE_IMPLEMENTATION_AND_ACTIVATION.md"
+
+      - alert: LanaiWhatsAppConsumerHeartbeatFailures
+        expr: increase(lanai_whatsapp_consumer_lease_renewal_failures_total[5m]) >= 3
+        for: 2m
+        labels:
+          severity: warning
+          service: lanai-whatsapp-consumer
+          domain: communications
+        annotations:
+          summary: "WhatsApp consumer heartbeat renewals are failing"
+          description: "At least {{ $value }} claim-renewal failures occurred in five minutes. Check PostgreSQL connectivity before consumer leases expire."
+          runbook: "SECURE_WHATSAPP_BRIDGE_IMPLEMENTATION_AND_ACTIVATION.md"
+
+      - alert: LanaiWhatsAppConsumerBacklogAge
+        expr: lanai_whatsapp_consumer_oldest_ready_seconds > 300
+        for: 5m
+        labels:
+          severity: warning
+          service: lanai-whatsapp-consumer
+          domain: communications
+        annotations:
+          summary: "WhatsApp consumer backlog exceeds five minutes"
+          description: "The oldest due WhatsApp event has been ready for {{ $value }} seconds. Verify worker availability and AI runtime health."
+          runbook: "SECURE_WHATSAPP_BRIDGE_IMPLEMENTATION_AND_ACTIVATION.md"
+
+      - alert: LanaiWhatsAppConsumerMetricsUnavailable
+        expr: up{job="lanai-whatsapp-consumer"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: lanai-whatsapp-consumer
+          domain: communications
+        annotations:
+          summary: "WhatsApp consumer metrics endpoint is unavailable"
+          description: "Prometheus cannot scrape the private WhatsApp consumer metrics endpoint. Verify the consumer, Service, and monitoring NetworkPolicy labels."
+          runbook: "SECURE_WHATSAPP_BRIDGE_IMPLEMENTATION_AND_ACTIVATION.md"

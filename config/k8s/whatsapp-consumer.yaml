@@ -71,6 +71,12 @@ spec:
               value: "0.20"
             - name: WHATSAPP_CONSUMER_MAX_ATTEMPTS
               value: "10"
+            - name: WHATSAPP_CONSUMER_METRICS_PORT
+              value: "9465"
+          ports:
+            - name: metrics
+              containerPort: 9465
+              protocol: TCP
           resources:
             requests:
               cpu: 150m
@@ -92,6 +98,24 @@ spec:
             medium: Memory
             sizeLimit: 32Mi
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lanai-whatsapp-consumer-metrics
+  namespace: lanai
+  labels:
+    app: lanai-whatsapp-consumer
+    app.kubernetes.io/part-of: lanai
+spec:
+  type: ClusterIP
+  selector:
+    app: lanai-whatsapp-consumer
+  ports:
+    - name: metrics
+      port: 9465
+      targetPort: 9465
+      protocol: TCP
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -102,7 +126,14 @@ spec:
     matchLabels:
       app: lanai-whatsapp-consumer
   policyTypes: ["Ingress", "Egress"]
-  ingress: []
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              lanai.io/monitoring: "true"
+      ports:
+        - protocol: TCP
+          port: 9465
   egress:
     - to:
         - namespaceSelector:

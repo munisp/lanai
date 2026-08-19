@@ -428,11 +428,15 @@ export async function createChatwootMessage(
     .onConflictDoNothing({ target: chatwootMessages.chatwootId })
     .returning({ id: chatwootMessages.id });
   const id = result[0]?.id;
-  if (!id)
-    throw new Error(
-      "Chatwoot message creation did not return a persisted identifier",
-    );
-  return id;
+  if (id) return id;
+
+  // A competing sync/webhook worker may have inserted the same immutable remote
+  // message after our preflight. Treat that expected unique-key race as success
+  // and return the existing mirror identity rather than turning it into a false
+  // integration failure.
+  const existing = await getChatwootMessageByChatwootId(data.chatwootId);
+  if (existing) return existing.id;
+  throw new Error("Chatwoot message creation did not return a persisted identifier");
 }
 
 export async function getChatwootMessageByChatwootId(

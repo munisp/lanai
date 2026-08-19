@@ -60,6 +60,13 @@ scrape_configs:
     static_configs:
       - targets: [postgres:5432]
 
+  # Durable WhatsApp event consumer. The Service and NetworkPolicy permit only
+  # namespaces explicitly labelled lanai.io/monitoring=true to reach this port.
+  - job_name: lanai-whatsapp-consumer
+    static_configs:
+      - targets: [lanai-whatsapp-consumer-metrics:9465]
+    metrics_path: /metrics
+
   # Chatwoot AI Bridge
   - job_name: chatwoot-ai-bridge
     static_configs:

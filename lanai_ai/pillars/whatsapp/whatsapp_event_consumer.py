@@ -24,6 +24,10 @@ import psycopg
 
 from lanai_ai.core.ollama_client import DEFAULT_MODEL, OllamaInferenceError, ask_json
 from lanai_ai.core.prompts import WHATSAPP_TRIAGE_SYSTEM, whatsapp_triage_prompt
+from lanai_ai.pillars.whatsapp.whatsapp_consumer_metrics import (
+    increment as increment_metric,
+    start_metrics_exporter,
+)
 
 PROVIDER = "meta_whatsapp"
 DATABASE_URL = os.getenv("DATABASE_URL", "")
@@ -158,7 +162,10 @@ def recover_stale_claims(now: datetime | None = None) -> int:
                 """,
                 (now, now, now),
             )
-            return len(cursor.fetchall())
+            recovered = len(cursor.fetchall())
+    if recovered:
+        increment_metric("stale_claim_recoveries_total", recovered)
+    return recovered
 
 
 def claim_next_event(now: datetime | None = None) -> ClaimedInboundEvent | None:
@@ -198,6 +205,7 @@ def claim_next_event(now: datetime | None = None) -> ClaimedInboundEvent | None:
             row = cursor.fetchone()
     if row is None:
         return None
+    increment_metric("claims_total")
     payload = _as_dict(row[2], "payload")
     return ClaimedInboundEvent(
         id=row[0],
@@ -231,7 +239,10 @@ def renew_claim(event: ClaimedInboundEvent, now: datetime | None = None) -> bool
                 """,
                 (lease_expires_at, now, event.id, event.claim_token),
             )
-            return cursor.fetchone() is not None
+            renewed = cursor.fetchone() is not None
+    if renewed:
+        increment_metric("lease_renewals_total")
+    return renewed
 
 
 def claim_renewal_retry_delay(failures: int) -> float:
@@ -293,16 +304,18 @@ class ClaimLeaseRenewer:
                 if not renew_claim(self._event):
                     if not self._terminal_transition.is_set():
                         self._lost.set()
+                        increment_metric("lease_ownership_losses_total")
                         logger.warning("WhatsApp consumer claim ownership was lost during renewal")
                     return
                 failures = 0
                 delay = CLAIM_RENEWAL_INTERVAL_SECONDS
             except (psycopg.Error, RuntimeError) as error:
                 failures += 1
+                increment_metric("lease_renewal_failures_total")
                 delay = claim_renewal_retry_delay(failures)
                 # A failed heartbeat does not establish ownership loss. It is
-                # retried sooner with full jitter to avoid synchronized retries
-                # across replicas while retaining several chances before expiry.
+                # retried with bounded symmetric jitter to avoid synchronized
+                # replicas while retaining several chances before expiry.
                 logger.warning(
                     "WhatsApp consumer claim renewal failed type=%s retry_seconds=%.3f",
                     type(error).__name__,
@@ -490,7 +503,10 @@ def fail_claim(event: ClaimedInboundEvent, error: Exception) -> bool:
                     event.claim_token,
                 ),
             )
-            return cursor.fetchone() is not None
+            updated = cursor.fetchone() is not None
+    if updated:
+        increment_metric("dead_lettered_total" if status == "dead_letter" else "failed_total")
+    return updated
 
 
 def process_next_event() -> bool:
@@ -520,6 +536,7 @@ def process_next_event() -> bool:
             if not complete_claim(event, triage, started_at):
                 logger.warning("WhatsApp consumer claim lost before persistence")
             else:
+                increment_metric("processed_total")
                 logger.info("WhatsApp event triaged and persisted")
     except (ConsumerValidationError, OllamaInferenceError, psycopg.Error, RuntimeError) as error:
         logger.error("WhatsApp consumer processing failed type=%s", type(error).__name__)
@@ -555,6 +572,7 @@ def run_forever() -> None:
         raise RuntimeError("consumer timing configuration is invalid")
     signal.signal(signal.SIGTERM, _request_shutdown)
     signal.signal(signal.SIGINT, _request_shutdown)
+    start_metrics_exporter()
     logger.info("Starting durable WhatsApp event consumer")
     while not _shutdown_requested:
         try:

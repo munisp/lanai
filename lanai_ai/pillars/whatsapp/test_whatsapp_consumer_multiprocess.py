@@ -104,6 +104,11 @@ def _clean_concurrency_rows() -> None:
     with psycopg.connect(DATABASE_URL) as connection:
         with connection.cursor() as cursor:
             cursor.execute("DELETE FROM ai_inference_runs WHERE capability = 'whatsapp_triage'")
+            # This concurrency suite must be the only eligible consumer workload.
+            # Other integration files also create published Meta events; leaving
+            # those rows in place would let the losing process claim unrelated work.
+            cursor.execute("DELETE FROM whatsapp_webhook_events WHERE provider = 'meta_whatsapp'")
+            cursor.execute('DELETE FROM outbox_events WHERE "eventType" = %s', ("whatsapp.triaged",))
             cursor.execute(
                 "DELETE FROM whatsapp_webhook_events WHERE provider_event_id LIKE 'concurrency-%'"
             )
@@ -115,6 +120,11 @@ def _clean_concurrency_rows() -> None:
     with psycopg.connect(DATABASE_URL) as connection:
         with connection.cursor() as cursor:
             cursor.execute("DELETE FROM ai_inference_runs WHERE capability = 'whatsapp_triage'")
+            # This concurrency suite must be the only eligible consumer workload.
+            # Other integration files also create published Meta events; leaving
+            # those rows in place would let the losing process claim unrelated work.
+            cursor.execute("DELETE FROM whatsapp_webhook_events WHERE provider = 'meta_whatsapp'")
+            cursor.execute('DELETE FROM outbox_events WHERE "eventType" = %s', ("whatsapp.triaged",))
             cursor.execute(
                 "DELETE FROM whatsapp_webhook_events WHERE provider_event_id LIKE 'concurrency-%'"
             )

@@ -2,7 +2,7 @@
  * Chatwoot tRPC router — procedures for managing the Chatwoot integration.
  */
 import { z } from "zod";
-import { memberProcedure, protectedProcedure, router } from "./_core/trpc";
+import { adminProcedure, memberProcedure, protectedProcedure, router } from "./_core/trpc";
 import { invokeLocalAi } from "./_core/localAi";
 import {
   listInboxes,
@@ -47,8 +47,8 @@ export const chatwootRouter = router({
     return toPublicChatwootConfig(await getChatwootConfigService());
   }),
 
-  /** Updates Chatwoot configuration (advisor-only). */
-  updateConfig: protectedProcedure
+  /** Updates Chatwoot configuration (administrator-only). */
+  updateConfig: adminProcedure
     .input(
       z.object({
         instanceUrl: z.string().url().optional(),
@@ -75,8 +75,8 @@ export const chatwootRouter = router({
       };
     }),
 
-  /** Tests the Chatwoot API connection. */
-  testConnection: protectedProcedure.mutation(async () => {
+  /** Tests the Chatwoot API connection (administrator-only). */
+  testConnection: adminProcedure.mutation(async () => {
     return testChatwootConnection();
   }),
 
@@ -110,10 +110,13 @@ export const chatwootRouter = router({
 
   // ── Conversations ──────────────────────────────────────────────────────
 
-  /** Lists conversations for the current advisor (or all if admin). */
-  listConversations: protectedProcedure.query(async ({ ctx }) => {
+  /** Lists the durable communication mirror for an authorized advisor. */
+  listConversations: protectedProcedure.query(async () => {
     await syncChatwootConversations();
-    return listChatwootConversations(ctx.user.id);
+    // Chatwoot remote assignment is not yet mirrored into advisorUserId. Filtering
+    // by the local field would silently hide every unassigned conversation, so the
+    // authorized CRM workspace receives the complete synchronized inbox.
+    return listChatwootConversations();
   }),
 
   /** Lists conversations for a specific member (advisor-only). */
