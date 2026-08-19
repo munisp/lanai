@@ -61,12 +61,13 @@ function isFreshTimestamp(timestamp: string): boolean {
   return skew <= ENV.chatwootWebhookMaxAgeSeconds * 1_000;
 }
 
-function deliveryFingerprint(rawBody: Buffer, timestamp: string): string {
+function deliveryFingerprint(rawBody: Buffer): string {
+  // A provider that omits a stable delivery header can still retry the exact
+  // body with a fresh signature timestamp. The fallback must therefore exclude
+  // the timestamp and be derived solely from the signed raw bytes.
   return crypto
     .createHash("sha256")
     .update("chatwoot:")
-    .update(timestamp)
-    .update(":")
     .update(rawBody)
     .digest("hex");
 }
@@ -115,7 +116,7 @@ export function registerChatwootWebhook(app: express.Express): void {
         res.status(400).json({ error: "Chatwoot event type is required" });
         return;
       }
-      const deliveryId = stringValue(req.header("X-Chatwoot-Delivery"), 128) ?? deliveryFingerprint(rawBody, timestamp);
+      const deliveryId = stringValue(req.header("X-Chatwoot-Delivery"), 128) ?? deliveryFingerprint(rawBody);
       const payloadSha256 = crypto.createHash("sha256").update(rawBody).digest("hex");
       const now = new Date();
 

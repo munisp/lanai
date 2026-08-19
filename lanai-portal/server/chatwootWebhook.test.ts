@@ -111,6 +111,34 @@ describe("signed Chatwoot webhook", () => {
     expect(messages[0]).toMatchObject({ messageType: "inbound", content: "Please arrange airport fast track." });
   });
 
+  it("deduplicates a headerless exact retry even when its signature timestamp changes", async () => {
+    const db = await getDb();
+    const [member] = await db
+      .insert(members)
+      .values({ email: "chatwoot-webhook@example.test", name: "Webhook Member", tier: "gold" })
+      .returning({ id: members.id });
+    const payload = {
+      event: "message_created",
+      id: 991004,
+      content: "Headerless retry test.",
+      message_type: "incoming",
+      conversation: { id: 881004, status: "open" },
+      contact: { additional_attributes: { lanai_member_id: String(member!.id) } },
+      inbox: { channel_type: "email" },
+    };
+    const firstHeaders = signedHeaders(payload);
+    delete firstHeaders["X-Chatwoot-Delivery"];
+    const secondHeaders = signedHeaders(payload, {
+      "X-Chatwoot-Timestamp": String(Math.floor(Date.now() / 1_000) + 1),
+    });
+    delete secondHeaders["X-Chatwoot-Delivery"];
+
+    await expect((await postWebhook(payload, firstHeaders)).json()).resolves.toEqual({ accepted: 1, duplicates: 0 });
+    await expect((await postWebhook(payload, secondHeaders)).json()).resolves.toEqual({ accepted: 0, duplicates: 1 });
+    const persisted = await db.select().from(chatwootWebhookEvents);
+    expect(persisted).toHaveLength(1);
+  });
+
   it("rejects a signed changed payload that reuses an accepted delivery identity", async () => {
     const db = await getDb();
     const [member] = await db
