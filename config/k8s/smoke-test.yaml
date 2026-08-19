@@ -43,8 +43,12 @@ spec:
           env:
             - { name: PORTAL_URL, value: "http://lanai-portal:3001" }
             - { name: KEYCLOAK_URL, value: "http://keycloak:8080" }
+            - { name: KEYCLOAK_MANAGEMENT_URL, value: "http://keycloak:9000" }
             - { name: PERMIFY_URL, value: "http://permify:3476" }
             - { name: APISIX_URL, value: "http://apisix-gateway:9080" }
+            - name: LANAI_DOMAIN
+              valueFrom: { configMapKeyRef: { name: lanai-env, key: LANAI_DOMAIN } }
+            - { name: APISIX_PORTAL_HOST, value: "api.$(LANAI_DOMAIN)" }
             - { name: AI_GATEWAY_URL, value: "http://lanai-ai-gateway:8100" }
             - { name: REDIS_HOST, value: "redis" }
             - { name: POSTGRES_HOST, value: "postgres" }
@@ -66,7 +70,7 @@ spec:
               check() {
                 local name="$1" url="$2" expected="$3"
                 printf "  %-40s" "$name"
-                RESPONSE=$(curl -sf -o /tmp/body -w "%{http_code}" "$url" 2>/dev/null) || RESPONSE="000"
+                RESPONSE=$(curl -sS -o /tmp/body -w "%{http_code}" "$url" 2>/dev/null) || RESPONSE="000"
                 BODY=$(cat /tmp/body 2>/dev/null || echo "")
                 if [ "$RESPONSE" = "$expected" ]; then
                   echo "✅ PASS ($RESPONSE)"
@@ -95,13 +99,16 @@ spec:
 
               echo "━━━ 1. Core Services Health ━━━━━━━━━━━━━━━━━━━━━━"
               check "Portal /api/health" "$PORTAL_URL/api/health" "200"
-              check "Keycloak /health/ready" "$KEYCLOAK_URL/health/ready" "200"
+              check "Keycloak /health/ready" "$KEYCLOAK_MANAGEMENT_URL/health/ready" "200"
               check "Permify /healthz" "$PERMIFY_URL/healthz" "200"
               check "AI Gateway /health" "$AI_GATEWAY_URL/health" "200"
               echo ""
 
-              echo "━━━ 2. Database Connectivity ━━━━━━━━━━━━━━━━━━━━━"
-              check_contains "Portal DB connected" "$PORTAL_URL/api/health" "database"
+              echo "━━━ 2. Hardened Health Contract ━━━━━━━━━━━━━━━━━━━"
+              # The public health response intentionally exposes only status;
+              # database detail is logged server-side and must not be asserted
+              # or leaked through this smoke Job.
+              check "Portal minimal health" "$PORTAL_URL/api/health" "200"
               echo ""
 
               echo "━━━ 3. Authentication Chain ━━━━━━━━━━━━━━━━━━━━━━"
@@ -126,8 +133,20 @@ spec:
 
               echo "━━━ 5. APISIX Gateway ━━━━━━━━━━━━━━━━━━━━━━━━━━━"
               check "APISIX health" "$APISIX_URL/apisix/status" "200"
-              # Verify APISIX rejects requests without JWT
-              check "APISIX rejects no-JWT" "$APISIX_URL/api/v1/members" "401"
+              # APISIX supplies the in-cluster gateway route; the portal then
+              # rejects the unauthenticated protected tRPC request. Supplying
+              # the public API host is required to exercise the actual rule.
+              GATEWAY_NOAUTH=$(curl -sS -o /dev/null -w "%{http_code}" \
+                -H "Host: $APISIX_PORTAL_HOST" \
+                "$APISIX_URL/api/trpc/members.list" 2>/dev/null) || GATEWAY_NOAUTH="000"
+              printf "  %-40s" "APISIX route + portal rejects no JWT"
+              if [ "$GATEWAY_NOAUTH" = "401" ]; then
+                echo "✅ PASS"
+                PASS=$((PASS + 1))
+              else
+                echo "❌ FAIL (got $GATEWAY_NOAUTH, expected 401)"
+                FAIL=$((FAIL + 1))
+              fi
               echo ""
 
               echo "━━━ 6. AI Services ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -149,10 +168,11 @@ spec:
                 echo "✅ PASS"
                 PASS=$((PASS + 1))
                 ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | sed 's/.*"access_token":"\([^"]*\)".*/\1/')
-                AUTH_RESPONSE=$(curl -sf -o /dev/null -w "%{http_code}" \
+                AUTH_RESPONSE=$(curl -sS -o /dev/null -w "%{http_code}" \
+                  -H "Host: $APISIX_PORTAL_HOST" \
                   -H "Authorization: Bearer $ACCESS_TOKEN" \
-                  "$PORTAL_URL/api/trpc/members.list" 2>/dev/null) || AUTH_RESPONSE="000"
-                printf "  %-40s" "Keycloak + Permify protected portal call"
+                  "$APISIX_URL/api/trpc/members.list" 2>/dev/null) || AUTH_RESPONSE="000"
+                printf "  %-40s" "Keycloak + APISIX + Permify protected call"
                 if [ "$AUTH_RESPONSE" = "200" ]; then
                   echo "✅ PASS"
                   PASS=$((PASS + 1))
@@ -223,12 +243,13 @@ spec:
               env:
                 - { name: PORTAL_URL, value: "http://lanai-portal:3001" }
                 - { name: KEYCLOAK_URL, value: "http://keycloak:8080" }
+                - { name: KEYCLOAK_MANAGEMENT_URL, value: "http://keycloak:9000" }
                 - { name: PERMIFY_URL, value: "http://permify:3476" }
               command: ["/bin/sh", "-ec"]
               args:
                 - |
                   FAIL=0
-                  for svc in "$PORTAL_URL/api/health" "$KEYCLOAK_URL/health/ready" "$PERMIFY_URL/healthz"; do
+                  for svc in "$PORTAL_URL/api/health" "$KEYCLOAK_MANAGEMENT_URL/health/ready" "$PERMIFY_URL/healthz"; do
                     CODE=$(curl -sf -o /dev/null -w "%{http_code}" "$svc" 2>/dev/null) || CODE="000"
                     if [ "$CODE" != "200" ]; then
                       echo "FAIL: $svc returned $CODE"
