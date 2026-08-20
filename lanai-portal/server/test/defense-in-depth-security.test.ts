@@ -34,6 +34,9 @@ describe("defence-in-depth release controls", () => {
     expect(caddy).toContain("zone admin_api");
     expect(caddy).toContain("zone inbox_api");
     expect(caddy).toContain('Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"');
+    const caddyDockerfile = read("config/caddy/Dockerfile");
+    expect(caddyDockerfile).toContain("Host: health.invalid");
+    expect(caddyDockerfile).not.toContain("localhost:2019/health");
   });
 
   it("keeps the OpenAppSec policy in prevention mode with active high-risk protections", () => {

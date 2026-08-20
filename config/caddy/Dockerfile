@@ -12,7 +12,9 @@ COPY Caddyfile /etc/caddy/Caddyfile
 RUN mkdir -p /var/log/caddy /data /config \
   && chown -R caddy:caddy /var/log/caddy /data /config
 USER caddy
-EXPOSE 80 443 443/udp 2019
+EXPOSE 80 443 443/udp
+# Caddy's admin API is intentionally disabled; probe the bound HTTP listener
+# instead. The catch-all HTTP handler returns a permanent HTTPS redirect.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl --fail http://localhost:2019/health || exit 1
+  CMD curl --fail --silent --max-time 3 http://127.0.0.1/ -H 'Host: health.invalid' || exit 1
 CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
