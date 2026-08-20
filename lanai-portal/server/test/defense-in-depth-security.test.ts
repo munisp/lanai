@@ -52,6 +52,7 @@ describe("defence-in-depth release controls", () => {
     expect(policy).toContain("@sha256:");
     expect(policy).toContain("allowPrivilegeEscalation=false");
     expect(policy).toContain("readOnlyRootFilesystem=true");
+    expect(policy).toContain("not input.review.object.spec.securityContext.runAsNonRoot == true");
     expect(policy).toContain("automountServiceAccountToken=false");
     expect(policy).toContain("enforcementAction: dryrun");
   });

@@ -63,7 +63,7 @@ spec:
         }
 
         violation[{"msg": msg}] {
-          input.review.object.spec.securityContext.runAsNonRoot != true
+          not input.review.object.spec.securityContext.runAsNonRoot == true
           msg := "pod must set runAsNonRoot=true"
         }
 
