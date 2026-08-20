@@ -42,7 +42,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: ollama
-          image: ollama/ollama:0.6.2
+          image: ollama/ollama:0.6.2@sha256:74a0929e1e082a09e4fdeef8594b8f4537f661366a04080e600c90ea9f712721
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -113,7 +113,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: ollama-model-init
-          image: ollama/ollama:0.6.2
+          image: ollama/ollama:0.6.2@sha256:74a0929e1e082a09e4fdeef8594b8f4537f661366a04080e600c90ea9f712721
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -160,7 +160,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: lanai-ai-gateway
-          image: lanai-ai-gateway
+          image: ghcr.io/munisp/lanai-ai-gateway:REPLACE_WITH_SIGNED_DIGEST
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

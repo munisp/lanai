@@ -4,7 +4,7 @@
 # consumes the canonical root pnpm-lock.yaml under frozen-install policy.
 # A Debian/glibc base is mandatory for Temporal and Fluvio native Node clients.
 # ==============================================================================
-FROM node:22-bookworm-slim AS build
+FROM node:22-bookworm-slim@sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436 AS build
 
 ARG PNPM_VERSION=11.20.0
 
@@ -29,7 +29,7 @@ ENV NODE_OPTIONS=--max-old-space-size=1536
 ARG VITE_APP_ID=lanai-portal
 RUN VITE_APP_ID=$VITE_APP_ID pnpm build
 
-FROM node:22-bookworm-slim AS runtime
+FROM node:22-bookworm-slim@sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436 AS runtime
 RUN apt-get update \
   && apt-get install -y --no-install-recommends dumb-init curl ca-certificates \
   && rm -rf /var/lib/apt/lists/* \

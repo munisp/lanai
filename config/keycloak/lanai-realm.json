@@ -258,12 +258,22 @@
   ],
   "passwordPolicy": "length(12) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and notUsername(undefined) and passwordHistory(5)",
   "otpPolicyType": "totp",
-  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyAlgorithm": "HmacSHA256",
   "otpPolicyInitialCounter": 0,
   "otpPolicyDigits": 6,
   "otpPolicyLookAheadWindow": 1,
   "otpPolicyPeriod": 30,
   "otpSupportedApplications": ["FreeOTP", "Google Authenticator", "Microsoft Authenticator"],
+  "requiredActions": [
+    {
+      "alias": "CONFIGURE_TOTP",
+      "name": "Configure OTP",
+      "providerId": "CONFIGURE_TOTP",
+      "enabled": true,
+      "defaultAction": true,
+      "priority": 10
+    }
+  ],
   "smtpServer": {
     "host": "${SMTP_HOST}",
     "port": "${SMTP_PORT}",
@@ -285,7 +295,9 @@
     "UPDATE_PASSWORD", "UPDATE_PASSWORD_ERROR", "RESET_PASSWORD",
     "SEND_VERIFY_EMAIL", "VERIFY_EMAIL", "SEND_RESET_PASSWORD",
     "CLIENT_LOGIN", "CLIENT_LOGIN_ERROR", "TOKEN_EXCHANGE",
-    "PERMISSION_TOKEN", "INTROSPECT_TOKEN", "INTROSPECT_TOKEN_ERROR"
+    "PERMISSION_TOKEN", "INTROSPECT_TOKEN", "INTROSPECT_TOKEN_ERROR",
+    "UPDATE_TOTP", "UPDATE_TOTP_ERROR", "REMOVE_TOTP", "REMOVE_TOTP_ERROR",
+    "EXECUTE_ACTIONS", "EXECUTE_ACTIONS_ERROR"
   ],
   "adminEventsEnabled": true,
   "adminEventsDetailsEnabled": true,

@@ -33,7 +33,7 @@ spec:
         - name: realm-render
           # Build from config/k8s/images/realm-render.Dockerfile and replace
           # with a signed immutable digest before deployment.
-          image: lanai-realm-render
+          image: ghcr.io/munisp/lanai-realm-render:REPLACE_WITH_SIGNED_DIGEST
           securityContext:
             runAsNonRoot: true
             runAsUser: 10001
@@ -62,7 +62,7 @@ spec:
               envsubst < /template/lanai-realm.json > /out/lanai-realm.json
       containers:
         - name: keycloak
-          image: quay.io/keycloak/keycloak:26.0.7
+          image: quay.io/keycloak/keycloak:26.0.7@sha256:4388e2379b7e870a447adbe7b80bd61f5fbf04e925832b19669fda4957f05a81
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000

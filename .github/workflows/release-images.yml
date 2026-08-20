@@ -23,6 +23,17 @@ jobs:
           - name: portal
             image: ghcr.io/${{ github.repository_owner }}/lanai-portal
             dockerfile: lanai-portal/Dockerfile
+          - name: ai-gateway
+            image: ghcr.io/${{ github.repository_owner }}/lanai-ai-gateway
+            context: lanai_ai/gateway
+            dockerfile: lanai_ai/gateway/Dockerfile
+          - name: realm-render
+            image: ghcr.io/${{ github.repository_owner }}/lanai-realm-render
+            context: config/k8s/images
+            dockerfile: config/k8s/images/realm-render.Dockerfile
+          - name: whatsapp-bridge
+            image: ghcr.io/${{ github.repository_owner }}/lanai-whatsapp-bridge
+            dockerfile: lanai_ai/pillars/whatsapp/Dockerfile
           - name: financial-workflow-runner
             image: ghcr.io/${{ github.repository_owner }}/lanai-financial-workflow-runner
             dockerfile: lanai-portal/Dockerfile.financial-workflow-runner

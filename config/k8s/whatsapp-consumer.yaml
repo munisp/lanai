@@ -46,7 +46,7 @@ spec:
       containers:
         - name: consumer
           # Replace only through approved image provenance/signature verification.
-          image: registry.example.invalid/lanai-whatsapp-bridge@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          image: ghcr.io/munisp/lanai-whatsapp-bridge:REPLACE_WITH_SIGNED_DIGEST
           imagePullPolicy: IfNotPresent
           command: ["python", "-m", "lanai_ai.pillars.whatsapp.whatsapp_event_consumer"]
           env:

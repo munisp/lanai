@@ -23,7 +23,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: db-migrate
-          image: lanai-portal
+          image: ghcr.io/munisp/lanai-portal:REPLACE_WITH_SIGNED_DIGEST
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -108,7 +108,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: permify-bootstrap
-          image: lanai-portal
+          image: ghcr.io/munisp/lanai-portal:REPLACE_WITH_SIGNED_DIGEST
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -149,7 +149,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: temporal-namespace-register
-          image: temporalio/admin-tools:1.26.2
+          image: temporalio/admin-tools:1.26.2@sha256:37e2e33dbd7b86a12fa1daecf48f5b42544956ae503a83bd45460587f25591f2
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

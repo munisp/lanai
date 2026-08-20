@@ -11,6 +11,9 @@ describe("immutable financial evidence release controls", () => {
     expect(workflow).toContain('tags:\n      - "v*"');
     expect(workflow).toContain("id-token: write");
     expect(workflow).toContain("attestations: write");
+    expect(workflow).toContain("lanai_ai/gateway/Dockerfile");
+    expect(workflow).toContain("realm-render.Dockerfile");
+    expect(workflow).toContain("lanai_ai/pillars/whatsapp/Dockerfile");
     expect(workflow).toContain("Dockerfile.financial-workflow-runner");
     expect(workflow).toContain("Dockerfile.loadtest");
     expect(workflow).toContain("actions/attest-build-provenance@v2");
@@ -32,5 +35,7 @@ describe("immutable financial evidence release controls", () => {
     expect(soakGate).toContain("release-images");
     expect(stagingGate).toContain("certificate-identity-regexp");
     expect(soakGate).toContain("certificate-identity-regexp");
+    expect(read("lanai-portal/scripts/render-signed-kustomize.sh")).toContain("cosign verify");
+    expect(read("lanai-portal/scripts/render-signed-kustomize.sh")).toContain("Rendered manifest contains a mutable or unpinned image reference");
   });
 });

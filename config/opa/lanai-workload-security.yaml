@@ -1,0 +1,98 @@
+# OPA Gatekeeper policy for Lanai workloads. Apply the ConstraintTemplate first,
+# review dry-run violations, then set enforcementAction: deny only after every
+# released workload references a Cosign-verified immutable digest.
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8slanaiworkloadsecurity
+  labels:
+    app.kubernetes.io/part-of: lanai
+    lanai.io/control: opa-pbac
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sLanaiWorkloadSecurity
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            excludedRegistries:
+              type: array
+              items: { type: string }
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package lanaisecurity
+
+        excluded(image, registries) {
+          registry := registries[_]
+          startswith(image, registry)
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not excluded(container.image, input.parameters.excludedRegistries)
+          not contains(container.image, "@sha256:")
+          msg := sprintf("container %q must use a digest-pinned image, got %q", [container.name, container.image])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.initContainers[_]
+          not excluded(container.image, input.parameters.excludedRegistries)
+          not contains(container.image, "@sha256:")
+          msg := sprintf("init container %q must use a digest-pinned image, got %q", [container.name, container.image])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.securityContext.allowPrivilegeEscalation == false
+          msg := sprintf("container %q must set allowPrivilegeEscalation=false", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.securityContext.readOnlyRootFilesystem == true
+          msg := sprintf("container %q must set readOnlyRootFilesystem=true", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.securityContext.capabilities.drop[_] == "ALL"
+          msg := sprintf("container %q must drop all Linux capabilities", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          input.review.object.spec.securityContext.runAsNonRoot != true
+          msg := "pod must set runAsNonRoot=true"
+        }
+
+        violation[{"msg": msg}] {
+          not input.review.object.spec.automountServiceAccountToken == false
+          msg := "pod must set automountServiceAccountToken=false"
+        }
+
+        violation[{"msg": msg}] {
+          input.review.object.spec.hostNetwork == true
+          msg := "hostNetwork is prohibited"
+        }
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sLanaiWorkloadSecurity
+metadata:
+  name: lanai-workloads-baseline
+  labels:
+    app.kubernetes.io/part-of: lanai
+    lanai.io/control: opa-pbac
+spec:
+  enforcementAction: dryrun
+  match:
+    excludedNamespaces:
+      - gatekeeper-system
+      - kube-system
+      - kube-public
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+  parameters:
+    excludedRegistries: []

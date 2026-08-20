@@ -5,4 +5,13 @@ metadata:
   labels:
     app.kubernetes.io/part-of: lanai
     environment: kasi-demo
+    # Admission is enforced at the namespace boundary; Gatekeeper provides
+    # complementary image and workload policy checks in dry-run until all
+    # release images have signed digests.
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest
 

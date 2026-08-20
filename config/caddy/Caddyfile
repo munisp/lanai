@@ -3,6 +3,10 @@
   email {$CADDY_ACME_EMAIL}
   servers {
     protocols h1 h2 h3
+    # Do not trust client-supplied forwarding headers; reverse_proxy overwrites
+    # them with the directly observed peer address for upstream services.
+    trusted_proxies static private_ranges
+    trusted_proxies_strict
   }
   log {
     output stdout
@@ -21,12 +25,21 @@ http:// {
     Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
     X-Content-Type-Options "nosniff"
     Referrer-Policy "strict-origin-when-cross-origin"
+    Cross-Origin-Opener-Policy "same-origin"
+    Cross-Origin-Resource-Policy "same-site"
+    X-Permitted-Cross-Domain-Policies "none"
     -Server
     -X-Powered-By
   }
 }
 
 (portal_api) {
+  # Bound public request buffering before a request reaches APISIX or the app.
+  # Document uploads use dedicated authenticated flows; 10 MiB is the largest
+  # accepted generic API body at this edge.
+  request_body {
+    max_size 10MB
+  }
   # Metrics are scraped directly on the private service network. Do not expose
   # operational financial counts through public API hostnames.
   @metrics path /api/metrics
@@ -88,6 +101,9 @@ auth.{$LANAI_DOMAIN} {
 
 api.{$LANAI_DOMAIN} {
   import common_headers
+  request_body {
+    max_size 10MB
+  }
   header {
     X-Frame-Options "DENY"
   }
@@ -117,6 +133,13 @@ api.{$LANAI_DOMAIN} {
 # enforced per protected procedure by the portal itself.
 admin.{$LANAI_DOMAIN} {
   import common_headers
+  rate_limit {
+    zone admin_api {
+      key {remote_host}
+      events 120
+      window 15m
+    }
+  }
   header {
     X-Frame-Options "DENY"
     Cache-Control "no-store, no-cache, must-revalidate"
@@ -129,6 +152,13 @@ admin.{$LANAI_DOMAIN} {
 
 inbox.{$LANAI_DOMAIN} {
   import common_headers
+  rate_limit {
+    zone inbox_api {
+      key {remote_host}
+      events 180
+      window 15m
+    }
+  }
   header {
     X-Frame-Options "SAMEORIGIN"
   }

@@ -68,19 +68,10 @@ secretGenerator:
   - name: lanai-secrets
     envs: [k8s/secrets/.env.secrets]
 
-# Placeholder tag for the image this deployment scope actually uses —
-# before applying, run `kustomize edit set image` with the actual pushed
-# tag (see k8s/README.md), same date-stamped-tag convention as the other
-# services on this cluster. lanai-ai-gateway/lakehouse-ingest images aren't
-# referenced by any manifest right now (out of current scope) so aren't
-# listed here — add them back alongside their Deployments if that changes.
-images:
-  - name: lanai-portal
-    newName: registry.digitalocean.com/talentgraph-auth/lanai-portal
-    newTag: 0.0.1
-  - name: lanai-ai-gateway
-    newName: registry.digitalocean.com/talentgraph-auth/lanai-ai-gateway
-    newTag: kasi-20260724-0755
+# Runtime images are intentionally fail-closed signed-digest placeholders.
+# Render them only through scripts/render-signed-kustomize.sh after the
+# release workflow has published Cosign-verified digest references. Do not
+# reintroduce Kustomize mutable tag transforms here.
 
 # DOCR is a private registry — every pod needs this pull secret. Applies to
 # all Deployments/Jobs; harmless no-op on the ones pulling public images.

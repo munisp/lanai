@@ -19,17 +19,17 @@ practices:
       configmap: []
       override-mode: prevent-learn
     web-attacks:
-      max-body-size-kb: 51200
-      max-header-size-bytes: 65536
+      max-body-size-kb: 10240
+      max-header-size-bytes: 16384
       max-object-depth: 30
       max-url-size-bytes: 8192
       minimum-confidence: high
       override-mode: prevent-learn
       protections:
-        csrf-protection: inactive
-        error-disclosure: inactive
+        csrf-protection: true
+        error-disclosure: true
         non-valid-http-methods: true
-        open-redirect: inactive
+        open-redirect: true
     anti-bot:
       injected-URIs: []
       validated-URIs: []

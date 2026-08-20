@@ -41,7 +41,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: postgres
-          image: postgres:16.6-bookworm
+          image: postgres:16.6-bookworm@sha256:557fea37a744d5f4c8faab304b0a90858b53ab119735a88c131fd19dab802f36
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
