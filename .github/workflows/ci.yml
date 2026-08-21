@@ -57,6 +57,46 @@ jobs:
         if: always()
         run: docker compose -f docker-compose.permify-test.yml down --volumes --remove-orphans
 
+  coverage:
+    name: Deterministic Code Coverage
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.20.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Start isolated PostgreSQL and Permify
+        run: docker compose -f docker-compose.permify-test.yml up --detach --wait
+      - name: Generate V8 coverage report
+        run: pnpm --filter lanai-portal run test:coverage
+        env:
+          DATABASE_URL: postgresql://lanai_test:lanai_test_only@127.0.0.1:54329/lanai_permify_test
+          PERMIFY_GRPC_ADDRESS: 127.0.0.1:34788
+          PERMIFY_TENANT_ID: lanai-test
+          PERMIFY_INSECURE: "true"
+          NODE_ENV: test
+          RUN_LOCAL_PROVIDER_TESTS: "1"
+          STRIPE_SECRET_KEY: sk_test_ci_provider
+          STRIPE_PRICE_ID_PLATINUM: price_ci_provider
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lanai-portal-v8-coverage
+          path: lanai-portal/coverage
+          if-no-files-found: error
+          retention-days: 30
+      - name: Tear down isolated authorization stack
+        if: always()
+        run: docker compose -f docker-compose.permify-test.yml down --volumes --remove-orphans
+
   build:
     name: Production Build
     runs-on: ubuntu-latest
