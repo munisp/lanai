@@ -17,7 +17,7 @@ jobs:
     container:
       image: semgrep/semgrep:latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Run Semgrep
         run: semgrep scan --config auto --sarif --output semgrep-results.sarif
         env:
@@ -41,7 +41,7 @@ jobs:
     name: Trivy Dockerfile Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Run Trivy config scan
         uses: aquasecurity/trivy-action@master
         with:
@@ -55,7 +55,7 @@ jobs:
     name: Trivy Container Image Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build container image
         run: |
           docker build -f lanai-portal/Dockerfile -t lanai-portal:nightly-scan .
@@ -77,7 +77,7 @@ jobs:
     name: Dependency Vulnerability Audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
         with:
           version: 11.20.0
@@ -99,7 +99,7 @@ jobs:
     name: Python Dependency Safety Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
