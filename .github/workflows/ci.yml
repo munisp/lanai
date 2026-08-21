@@ -85,6 +85,20 @@ jobs:
           RUN_LOCAL_PROVIDER_TESTS: "1"
           STRIPE_SECRET_KEY: sk_test_ci_provider
           STRIPE_PRICE_ID_PLATINUM: price_ci_provider
+      - name: Enforce zero-coverage module regression baseline
+        run: |
+          node - <<'NODE'
+          const s = require('./lanai-portal/coverage/coverage-summary.json');
+          const zeros = Object.entries(s).filter(([p, v]) => p !== 'total' && v.lines.total > 0 && v.lines.pct === 0);
+          const baseline = 24 - 3; // Reduced by 3 for context.ts, oauth.ts, authMiddleware.ts
+          console.log(`Found ${zeros.length} zero-coverage modules (baseline: ${baseline})`);
+          if (zeros.length > baseline) {
+            console.error(`ERROR: Zero-coverage module count (${zeros.length}) exceeds baseline (${baseline}).`);
+            zeros.forEach(([p]) => console.error(`  - ${p}`));
+            process.exit(1);
+          }
+          NODE
+
       - name: Upload coverage artifact
         if: always()
         uses: actions/upload-artifact@v4
