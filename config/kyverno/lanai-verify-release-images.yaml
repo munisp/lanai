@@ -1,0 +1,49 @@
+# Cluster-level Kyverno policy. Apply only after Kyverno itself is installed with
+# a fail-closed admission webhook. This complements the OPA digest/workload
+# baseline: OPA requires immutable references; Kyverno verifies the matching
+# keyless Cosign signature and GitHub Actions release-workflow identity.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: lanai-verify-release-images
+  annotations:
+    policies.kyverno.io/title: Verify Lanai release images
+    policies.kyverno.io/category: Software Supply Chain Security
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/minversion: 1.13.0
+    policies.kyverno.io/description: >-
+      Rejects Lanai internal images that do not have a keyless Cosign signature
+      issued for munisp/lanai's protected tag release workflow.
+spec:
+  background: false
+  validationFailureAction: Enforce
+  webhookConfiguration:
+    failurePolicy: Fail
+    timeoutSeconds: 30
+  rules:
+    - name: verify-keyless-release-workflow-signature
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - lanai
+                - lanai-loadtest
+      verifyImages:
+        - imageReferences:
+            - "ghcr.io/munisp/lanai-*"
+          # OPA separately rejects tag-only references. Do not rewrite an image
+          # reference at admission: the verified deployment digest is immutable.
+          mutateDigest: false
+          required: true
+          failureAction: Enforce
+          attestors:
+            - count: 1
+              entries:
+                - keyless:
+                    issuer: https://token.actions.githubusercontent.com
+                    subject: "https://github.com/munisp/lanai/.github/workflows/release-images.yml@refs/tags/v*"
+                    rekor:
+                      url: https://rekor.sigstore.dev

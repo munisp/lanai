@@ -60,6 +60,19 @@ describe("defence-in-depth release controls", () => {
     expect(policy).toContain("enforcementAction: dryrun");
   });
 
+  it("rejects unsigned internal images unless a repository-bound Kyverno keyless signature verifies", () => {
+    const kyverno = read("config/kyverno/lanai-verify-release-images.yaml");
+    expect(kyverno).toContain("kind: ClusterPolicy");
+    expect(kyverno).toContain("validationFailureAction: Enforce");
+    expect(kyverno).toContain("failurePolicy: Fail");
+    expect(kyverno).toContain('"ghcr.io/munisp/lanai-*"');
+    expect(kyverno).toContain("required: true");
+    expect(kyverno).toContain("failureAction: Enforce");
+    expect(kyverno).toContain("issuer: https://token.actions.githubusercontent.com");
+    expect(kyverno).toContain("https://github.com/munisp/lanai/.github/workflows/release-images.yml@refs/tags/v*");
+    expect(kyverno).toContain("mutateDigest: false");
+  });
+
   it("rejects mutable image references while allowing only fail-closed signed placeholders in source templates", () => {
     const result = execFileSync(
       "bash",
