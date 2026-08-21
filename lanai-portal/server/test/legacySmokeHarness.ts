@@ -156,11 +156,11 @@ async function resetAndSeedDatabase(): Promise<void> {
     `;
   await sql`
       INSERT INTO bookings (
-        id, "proposalId", "memberId", "supplierId", "createdByUserId", "referenceNumber", "totalAmount", "commissionExpected", status
+        id, "proposalId", "memberId", "supplierId", "createdByUserId", "referenceNumber", "totalAmount", "commissionExpected", "checkOut", status
       )
       VALUES
-        (${TEST_BOOKING_ID}, ${TEST_PROPOSAL_ID}, ${TEST_MEMBER_ID}, ${TEST_SUPPLIER_ID}, ${TEST_ADVISOR_ID}, 'SEED-BOOK-1', '12000.00', '1200.00', 'pending'),
-        (${TEST_SECOND_BOOKING_ID}, ${TEST_PROPOSAL_ID}, ${TEST_MEMBER_ID}, ${TEST_SUPPLIER_ID}, ${TEST_ADVISOR_ID}, 'SEED-BOOK-2', '8000.00', '800.00', 'confirmed')
+        (${TEST_BOOKING_ID}, ${TEST_PROPOSAL_ID}, ${TEST_MEMBER_ID}, ${TEST_SUPPLIER_ID}, ${TEST_ADVISOR_ID}, 'SEED-BOOK-1', '12000.00', '1200.00', '2026-08-12', 'pending'),
+        (${TEST_SECOND_BOOKING_ID}, ${TEST_PROPOSAL_ID}, ${TEST_MEMBER_ID}, ${TEST_SUPPLIER_ID}, ${TEST_ADVISOR_ID}, 'SEED-BOOK-2', '8000.00', '800.00', '2026-08-18', 'confirmed')
     `;
   await sql`
       INSERT INTO invoices (

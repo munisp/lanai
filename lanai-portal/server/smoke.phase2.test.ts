@@ -1539,3 +1539,220 @@ describe("14. Phase 2 End-to-End Lifecycle", () => {
     console.log("✅ Phase 2 End-to-End lifecycle completed successfully");
   });
 });
+
+
+describe("15. Advanced concierge automation and AI intake", () => {
+  it("advisor: analyzes unstructured communication, clamps model output, and creates an actionable timeline record", async () => {
+    const caller = appRouter.createCaller(makeAdvisorCtx());
+    const result = await caller.communicationHub.analyzeAndLog({
+      memberId: 10,
+      communicationType: "whatsapp",
+      channel: "whatsapp",
+      direction: "inbound",
+      body: "Please arrange a private airport transfer and confirm dietary options.",
+    });
+
+    expect(result.memberId).toBe(10);
+    expect(result.summary).toBe("Classified communication");
+    expect(result.sentiment).toBe("neutral");
+    expect(result.inquiryCategory).toBe("service_request");
+    expect(result.followUpRequired).toBe(false);
+  });
+
+  it("advisor: rejects an AI analysis request without message content before database or AI processing", async () => {
+    const caller = appRouter.createCaller(makeAdvisorCtx());
+    await expect(
+      caller.communicationHub.analyzeAndLog({
+        memberId: 10,
+        communicationType: "whatsapp",
+        direction: "inbound",
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("advisor: generates idempotent candidate actions for due experience-management work", async () => {
+    const caller = appRouter.createCaller(makeAdvisorCtx());
+    const result = await caller.experienceManagement.generateDueActions({ daysAhead: 90 });
+
+    expect(result.generatedCandidates).toBeGreaterThanOrEqual(0);
+    expect(Array.isArray(result.skippedWithoutAssignedAdvisor)).toBe(true);
+  });
+
+  it("member: receives a grounded AI concierge reply and persists the portal conversation exchange", async () => {
+    const caller = appRouter.createCaller(makeMemberCtx());
+    const result = await caller.aiConcierge.chat({
+      message: "Can you suggest a discreet dining experience in Lisbon?",
+      history: [{ role: "user", content: "I prefer privacy." }],
+    });
+
+    expect(result).toEqual({
+      memberId: 10,
+      reply: "Grounded test concierge reply",
+      suggestedActions: ["Review request"],
+    });
+  });
+
+  it("advisor: generates reviewable follow-up campaign drafts only from member facts", async () => {
+    const caller = appRouter.createCaller(makeAdvisorCtx());
+    const result = await caller.aiConcierge.generateFollowUpCampaigns({ memberId: 10 });
+
+    expect(result.memberId).toBe(10);
+    expect(result.campaigns).toEqual([
+      expect.objectContaining({ type: "re_engagement", channels: ["email"] }),
+    ]);
+    expect(result.missingData).toEqual([]);
+  });
+});
+
+
+describe("16. Operational analytics aggregate branches", () => {
+  it("advisor: derives an operational finance snapshot from persisted bookings, invoices, tasks, and requests", async () => {
+    const caller = appRouter.createCaller(makeAdvisorCtx());
+    const result = await caller.revenueAnalytics.operationalSnapshot({ days: 30 });
+
+    expect(result.days).toBe(30);
+    expect(result.asOf).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(result.revenueByCategory).toEqual(
+      expect.objectContaining({
+        hotels: expect.any(Number),
+        ancillary: expect.any(Number),
+        luxuryTransport: expect.any(Number),
+        villas: expect.any(Number),
+        apartments: expect.any(Number),
+      }),
+    );
+    expect(result.bookingsCount).toBeGreaterThanOrEqual(0);
+    expect(result.activeRequestsCount).toBeGreaterThanOrEqual(0);
+    expect(result.openTasksCount).toBeGreaterThanOrEqual(0);
+  });
+
+  it("admin: aggregates current revenue categories and updates an existing daily snapshot idempotently", async () => {
+    const caller = appRouter.createCaller(makeAdminCtx());
+    const snapshotDate = new Date().toISOString().slice(0, 10);
+    const input = {
+      snapshotDate,
+      totalDailyRevenue: "12345.00",
+      averageBookingValue: "2345.00",
+      membershipFeesCollected: "2990.00",
+      revenueByCategory: {
+        hotels: 100,
+        ancillary: 200,
+        transport: 300,
+        villas: 400,
+        apartments: 500,
+      },
+      bookingsCount: 2,
+      newMembersCount: 1,
+      activeRequestsCount: 3,
+    };
+    await expect(caller.revenueAnalytics.upsertSnapshot(input)).resolves.toEqual({ success: true });
+    await expect(
+      caller.revenueAnalytics.upsertSnapshot({ ...input, totalDailyRevenue: "12346.00" }),
+    ).resolves.toEqual({ success: true });
+
+    const categories = await caller.revenueAnalytics.revenueByCategory({ days: 1 });
+    expect(categories).toEqual({
+      hotels: expect.any(Number),
+      ancillary: expect.any(Number),
+      transport: expect.any(Number),
+      villas: expect.any(Number),
+      apartments: expect.any(Number),
+      total: expect.any(Number),
+    });
+  });
+});
+
+
+describe("17. Automated commission reconciliation", () => {
+  it("advisor: generates one supplier reconciliation invoice and then skips the same period idempotently", async () => {
+    const caller = appRouter.createCaller(makeAdvisorCtx());
+    const first = await caller.invoicing.generateCommissionReconciliation({
+      month: "2026-08",
+      supplierId: 1,
+      dueDays: 21,
+    });
+
+    expect(first.eligibleBookings).toBe(1);
+    expect(first.created).toHaveLength(1);
+    expect(first.created[0]).toEqual(
+      expect.objectContaining({ supplierId: 1, totalAmount: "800" }),
+    );
+    expect(first.skipped).toEqual([]);
+
+    const retry = await caller.invoicing.generateCommissionReconciliation({
+      month: "2026-08",
+      supplierId: 1,
+      dueDays: 21,
+    });
+    expect(retry.created).toEqual([]);
+    expect(retry.skipped).toEqual([
+      { supplierId: 1, reason: "reconciliation invoice already exists" },
+    ]);
+  });
+});
+
+
+describe("18. Advisor intelligence and patch-router operations", () => {
+  it("advisor: requests grounded destination recommendations for a persisted member", async () => {
+    const caller = appRouter.createCaller(makeAdvisorCtx());
+    const result = await caller.aiConcierge.recommendDestinationsForMember({
+      memberId: 10,
+      travelStyle: ["wellness"],
+      budget: "5000",
+      travelMonth: "May",
+      partySize: 2,
+    });
+
+    expect(result.memberId).toBe(10);
+    expect(result.recommendations).toEqual([
+      expect.objectContaining({ destination: "Lisbon", highlights: ["Private dining"] }),
+    ]);
+  });
+
+  it("advisor: updates amenity state and deletes a newly created celebration through patch routers", async () => {
+    const caller = appRouter.createCaller(makeAdvisorCtx());
+    await expect(
+      caller.vipAmenities.updateStatus({ amenityId: 1, status: "confirmed" }),
+    ).resolves.toEqual({ success: true });
+    await expect(
+      caller.vipAmenities.updateStatus({ amenityId: 1, status: "delivered" }),
+    ).resolves.toEqual({ success: true });
+
+    const celebration = await caller.celebrations.add({
+      memberId: 10,
+      title: "Coverage-only celebration",
+      celebrationType: "other",
+      celebrationDate: "2030-01-01",
+      isRecurring: false,
+    });
+    await expect(
+      caller.celebrations.delete({ celebrationId: celebration.id }),
+    ).resolves.toEqual({ success: true });
+  });
+
+  it("advisor: computes member trip statistics from recorded itinerary history", async () => {
+    const caller = appRouter.createCaller(makeAdvisorCtx());
+    await caller.tripTimeline.add({
+      memberId: 10,
+      title: "Coverage trip — Lisbon I",
+      destination: "Lisbon",
+      totalSpend: "2500.00",
+      satisfactionScore: 5,
+    });
+    await caller.tripTimeline.add({
+      memberId: 10,
+      title: "Coverage trip — Lisbon II",
+      destination: "Lisbon",
+      totalSpend: "1500.00",
+      satisfactionScore: 3,
+    });
+    const result = await caller.tripTimeline.memberStats({ memberId: 10 });
+
+    expect(result).toEqual({
+      totalTrips: 2,
+      totalSpend: "4000.00",
+      avgSatisfaction: "4.0",
+      topDestination: "Lisbon",
+    });
+  });
+});
