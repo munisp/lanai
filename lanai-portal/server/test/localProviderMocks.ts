@@ -71,6 +71,9 @@ function stripeResponse(pathname: string, method: string, body: string): unknown
     return { id: "pm_card_visa", object: "payment_method", type: "card", card: { brand: "visa", last4: "4242" } };
   }
   if (method === "POST" && pathname === "/v1/subscriptions") return stripeSubscription();
+  if (method === "POST" && pathname.startsWith("/v1/subscriptions/")) {
+    return { ...stripeSubscription(pathname.split("/").at(-1)), cancel_at_period_end: params.get("cancel_at_period_end") === "true" };
+  }
   if (method === "GET" && pathname.startsWith("/v1/subscriptions/")) return stripeSubscription(pathname.split("/").at(-1));
   if (method === "GET" && pathname === "/v1/payment_methods") {
     return { object: "list", data: [{ id: "pm_card_visa", type: "card", card: { brand: "visa", last4: "4242" } }] };

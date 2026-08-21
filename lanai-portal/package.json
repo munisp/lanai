@@ -10,7 +10,7 @@
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest run --exclude server/smoke.test.ts --exclude server/smoke.phase2.test.ts --exclude 'server/*.external.test.ts' --exclude server/stripe.stripe-mock.test.ts",
-    "test:coverage": "vitest run --coverage --pool=forks --fileParallelism=false --maxWorkers=1 --exclude server/smoke.test.ts --exclude 'server/*.external.test.ts' --exclude server/stripe.stripe-mock.test.ts",
+    "test:coverage": "vitest run --coverage --pool=forks --fileParallelism=false --maxWorkers=1 --exclude server/smoke.test.ts --exclude server/crm.external.test.ts --exclude server/stripe.stripe-mock.test.ts",
     "test:provider-contract": "vitest run server/crm.provider-contract.test.ts server/twenty.provider-contract.test.ts server/stripe.provider-contract.test.ts server/stripe.stripe-mock.test.ts",
     "test:integration": "bash scripts/test-integration.sh",
     "test:external": "bash scripts/test-external.sh",

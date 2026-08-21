@@ -213,4 +213,106 @@ describe("Stripe external sandbox", () => {
     },
     60_000,
   );
+
+  it.skipIf(!stripeSuiteEnabled)(
+    "creates an idempotent one-time checkout session only for the authenticated member invoice",
+    async () => {
+      const result = await appRouter
+        .createCaller(makeMemberContext())
+        .memberPayments.createInvoiceCheckout({
+          invoiceId: 1,
+          origin: "https://lanai.test",
+        });
+
+      expect(result).toEqual({
+        invoiceId: 1,
+        checkoutUrl: expect.stringMatching(/^https:\/\//),
+      });
+      if (localProviders) {
+        expect(localProviders.requests).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              provider: "stripe",
+              method: "POST",
+              path: "/v1/checkout/sessions",
+              idempotencyKey: "invoice-payment-checkout:1",
+            }),
+          ]),
+        );
+      }
+      await expect(
+        appRouter
+          .createCaller(makeMemberContext())
+          .memberPayments.createInvoiceCheckout({ invoiceId: 999_999, origin: "https://lanai.test" }),
+      ).rejects.toThrow("Invoice was not found for the authenticated member");
+    },
+    60_000,
+  );
+
+  it.skipIf(!stripeSuiteEnabled)(
+    "marks the current subscription for end-of-period cancellation",
+    async () => {
+      const result = await appRouter
+        .createCaller(makeMemberContext())
+        .memberPayments.cancelSubscription();
+
+      expect(result.cancelAtPeriodEnd).toBe(true);
+      expect(result.currentPeriodEnd).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      if (localProviders) {
+        expect(localProviders.requests).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ method: "POST", path: `/v1/subscriptions/${subscriptionId}` }),
+          ]),
+        );
+      }
+    },
+    60_000,
+  );
+
+  it.skipIf(!stripeSuiteEnabled)(
+    "creates a Stripe customer when a persisted member has none and exposes the catalog plans",
+    async () => {
+      const db = await getDb();
+      await db
+        .update(members)
+        .set({ stripeCustomerId: null })
+        .where(eq(members.id, 10));
+
+      const caller = appRouter.createCaller(makeMemberContext());
+      const checkout = await caller.memberPayments.createCheckout({
+        tier: "platinum",
+        origin: "https://lanai.test",
+      });
+      expect(checkout).toEqual(
+        expect.objectContaining({ tier: "platinum", checkoutUrl: expect.stringMatching(/^https:\/\//) }),
+      );
+      const plans = await caller.memberPayments.plans();
+      expect(plans.plans).toEqual(
+        expect.arrayContaining([expect.objectContaining({ tier: "platinum" })]),
+      );
+      if (localProviders) {
+        expect(localProviders.requests).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ method: "POST", path: "/v1/customers" }),
+          ]),
+        );
+      }
+    },
+    60_000,
+  );
+
+  it.skipIf(!stripeSuiteEnabled)(
+    "returns an inactive response without a provider lookup when no subscription is persisted",
+    async () => {
+      const db = await getDb();
+      await db
+        .update(members)
+        .set({ stripeSubscriptionId: null })
+        .where(eq(members.id, 10));
+      await expect(
+        appRouter.createCaller(makeMemberContext()).memberPayments.getSubscription(),
+      ).resolves.toEqual({ active: false, subscription: null });
+    },
+    60_000,
+  );
 });
