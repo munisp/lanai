@@ -6,6 +6,7 @@ import compression from "compression";
 import rateLimit from "express-rate-limit";
 import { createServer } from "http";
 import net from "net";
+import { pathToFileURL } from "node:url";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
@@ -44,7 +45,7 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
   throw new Error(`No available port found starting from ${startPort}`);
 }
 
-async function startServer() {
+export async function startServer() {
   const app = express();
   const server = createServer(app);
   // Metrics use a separate listener so network policy can grant port access only
@@ -289,7 +290,9 @@ async function startServer() {
   process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
-startServer().catch((err) => {
-  console.error("[Server] Fatal startup error:", err);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  startServer().catch((err) => {
+    console.error("[Server] Fatal startup error:", err);
+    process.exit(1);
+  });
+}

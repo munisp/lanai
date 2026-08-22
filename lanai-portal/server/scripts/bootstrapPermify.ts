@@ -1,7 +1,8 @@
 import { readFile } from "node:fs/promises";
+import { pathToFileURL } from "node:url";
 import * as permify from "@permify/permify-node";
 
-async function main(): Promise<void> {
+export async function bootstrapPermify(): Promise<void> {
   const endpoint = process.env.PERMIFY_GRPC_ADDRESS;
   const tenantId = process.env.PERMIFY_TENANT_ID ?? "lanai";
   const schemaFile = process.env.PERMIFY_SCHEMA_FILE;
@@ -27,7 +28,9 @@ async function main(): Promise<void> {
   console.log(`[permify] schema applied: ${result.schemaVersion}`);
 }
 
-main().catch((error) => {
-  console.error("[permify] bootstrap failed", error);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  bootstrapPermify().catch((error) => {
+    console.error("[permify] bootstrap failed", error);
+    process.exit(1);
+  });
+}

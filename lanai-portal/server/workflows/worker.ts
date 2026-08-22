@@ -1,9 +1,10 @@
 import { NativeConnection, Worker } from "@temporalio/worker";
+import { pathToFileURL } from "node:url";
 import { ENV } from "../_core/env";
 import * as activities from "./activities";
 import * as financialActivities from "./financialActivities";
 
-async function run(): Promise<void> {
+export async function runWorker(): Promise<void> {
   const connection = await NativeConnection.connect({
     address: ENV.temporalAddress,
   });
@@ -17,7 +18,9 @@ async function run(): Promise<void> {
   await worker.run();
 }
 
-run().catch((error) => {
-  console.error("[Temporal worker] fatal error", error);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  runWorker().catch((error) => {
+    console.error("[Temporal worker] fatal error", error);
+    process.exit(1);
+  });
+}

@@ -90,7 +90,7 @@ jobs:
           node - <<'NODE'
           const s = require('./lanai-portal/coverage/coverage-summary.json');
           const zeros = Object.entries(s).filter(([p, v]) => p !== 'total' && v.lines.total > 0 && v.lines.pct === 0);
-          const baseline = 12; // Reduced from 24 as coverage eliminates zero-line modules
+          const baseline = 0; // All production source modules must execute in the deterministic coverage suite
           console.log(`Found ${zeros.length} zero-coverage modules (baseline: ${baseline})`);
           if (zeros.length > baseline) {
             console.error(`ERROR: Zero-coverage module count (${zeros.length}) exceeds baseline (${baseline}).`);

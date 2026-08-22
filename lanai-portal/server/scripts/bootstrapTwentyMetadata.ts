@@ -1,8 +1,9 @@
 import "dotenv/config";
+import { pathToFileURL } from "node:url";
 import { ENV } from "../_core/env";
 import { TwentyCrmClient } from "../_core/twentyClient";
 
-async function main() {
+export async function bootstrapTwentyMetadata() {
   if (!ENV.twentyCrmSyncEnabled) {
     throw new Error(
       "TWENTY_CRM_SYNC_ENABLED=true is required before bootstrapping Twenty metadata",
@@ -19,7 +20,9 @@ async function main() {
   console.info("Twenty CRM metadata bootstrap completed");
 }
 
-main().catch((error) => {
-  console.error("Twenty CRM metadata bootstrap failed", error);
-  process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  bootstrapTwentyMetadata().catch((error) => {
+    console.error("Twenty CRM metadata bootstrap failed", error);
+    process.exitCode = 1;
+  });
+}
