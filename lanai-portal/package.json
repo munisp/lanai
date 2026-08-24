@@ -76,7 +76,7 @@
     "http-proxy-middleware": "^4.2.0",
     "input-otp": "^1.4.2",
     "ioredis": "5.11.1",
-    "jose": "6.2.8",
+    "jose": "6.2.9",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "lucide-react": "^0.453.0",
