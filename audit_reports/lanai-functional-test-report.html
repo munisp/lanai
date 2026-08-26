@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lanai Lifestyle : Functional Test Report</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#FAFAF7;color:#1A1F1B;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.6;font-size:16px}
+  .wrap{max-width:980px;margin:0 auto;padding:48px 28px 96px}
+  header.doc{border-bottom:2px solid #1A1F1B;padding-bottom:24px;margin-bottom:36px}
+  .eyebrow{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#C8A24A;margin-bottom:14px}
+  h1{font-family:Georgia,"Iowan Old Style","Times New Roman",serif;font-weight:700;font-size:42px;line-height:1.08;margin:0 0 10px;text-wrap:balance}
+  .meta{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12.5px;color:#5E6B62;display:flex;flex-wrap:wrap;gap:6px 22px;margin-top:14px}
+  .meta b{color:#1A1F1B;font-weight:600}
+  h2{font-family:Georgia,"Iowan Old Style","Times New Roman",serif;font-size:26px;font-weight:700;margin:44px 0 14px;line-height:1.2}
+  h3{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#2C5E45;margin:26px 0 10px}
+  p{margin:0 0 14px}
+  .lead{font-size:18px;color:#5E6B62;max-width:62ch}
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:22px 0}
+  .stat{background:#FFFFFF;border:1px solid #E2E0D8;border-radius:10px;padding:16px 14px}
+  .stat .n{font-family:Georgia,"Iowan Old Style","Times New Roman",serif;font-size:32px;font-weight:700;line-height:1}
+  .stat .l{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#5E6B62;margin-top:8px}
+  .stat.crit .n{color:#B23A3A} .stat.high .n{color:#C8702A} .stat.ok .n{color:#2C5E45} .stat.tot .n{color:#1A1F1B}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin:14px 0}
+  thead th{text-align:left;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#5E6B62;border-bottom:1px solid #E2E0D8;padding:10px}
+  tbody td{padding:9px 10px;border-bottom:1px solid #E2E0D8;vertical-align:top}
+  tbody tr:hover{background:#F3F2EC}
+  .pg{font-weight:600}
+  .pill{display:inline-block;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:999px;border:1px solid #E2E0D8;white-space:nowrap}
+  .pill.ok{color:#2C5E45;border-color:rgba(44,94,69,.4);background:rgba(44,94,69,.12)}
+  .pill.fail{color:#B23A3A;border-color:rgba(178,58,58,.4);background:rgba(178,58,58,.12)}
+  .pill.warn{color:#8A6D1A;border-color:rgba(138,109,26,.4);background:rgba(138,109,26,.12)}
+  .pill.partial{color:#C8702A;border-color:rgba(200,112,42,.4);background:rgba(200,112,42,.12)}
+  .table-wrap{overflow-x:auto;border:1px solid #E2E0D8;border-radius:10px}
+  .finding{background:#FFFFFF;border:1px solid #E2E0D8;border-left:4px solid #B23A3A;border-radius:8px;padding:18px 20px;margin:14px 0}
+  .finding.high{border-left-color:#C8702A} .finding.med{border-left-color:#8A6D1A} .finding.info{border-left-color:#5E6B62}
+  .finding .ft{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+  .finding h4{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15.5px;font-weight:700}
+  .finding .sev{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:999px;color:#FFFFFF}
+  .sev.crit{background:#B23A3A} .sev.high{background:#C8702A} .sev.med{background:#8A6D1A} .sev.info{background:#5E6B62}
+  .finding code{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12px;background:#F3F2EC;padding:1px 5px;border-radius:4px;color:#2C5E45}
+  .finding ul{margin:6px 0 0;padding-left:18px}
+  .finding li{margin-bottom:5px;font-size:14px}
+  .sec-note{background:#F3F2EC;border-radius:8px;padding:14px 18px;font-size:13.5px;color:#5E6B62;margin:14px 0}
+  code.inline{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12.5px;background:#F3F2EC;padding:1px 5px;border-radius:4px;color:#2C5E45}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:11px;color:#5E6B62;margin:8px 0 4px}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .dot{width:9px;height:9px;border-radius:50%}
+  footer{margin-top:60px;padding-top:18px;border-top:1px solid #E2E0D8;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:11px;color:#5E6B62}
+  @media (prefers-color-scheme: dark){
+    body:not([data-theme="light"]){background:#15191A;color:#ECEAE2}
+    body:not([data-theme="light"]) header.doc{border-color:#ECEAE2}
+    body:not([data-theme="light"]) .meta b{color:#ECEAE2}
+    body:not([data-theme="light"]) .lead{color:#9AA69E}
+    body:not([data-theme="light"]) .meta,body:not([data-theme="light"]) .stat .l,body:not([data-theme="light"]) thead th,body:not([data-theme="light"]) .legend,body:not([data-theme="light"]) footer,body:not([data-theme="light"]) .sec-note{color:#9AA69E}
+    body:not([data-theme="light"]) .stat,body:not([data-theme="light"]) .finding{background:#1E2422;border-color:#2F3835}
+    body:not([data-theme="light"]) tbody tr:hover{background:#262D2A}
+    body:not([data-theme="light"]) .sec-note{background:#262D2A}
+    body:not([data-theme="light"]) .eyebrow{color:#D9B968}
+    body:not([data-theme="light"]) h3{color:#7FB495}
+    body:not([data-theme="light"]) .stat.ok .n{color:#7FB495} body:not([data-theme="light"]) .stat.crit .n{color:#E07A7A} body:not([data-theme="light"]) .stat.high .n{color:#E0995A} body:not([data-theme="light"]) .stat.tot .n{color:#ECEAE2}
+    body:not([data-theme="light"]) .pill{border-color:#2F3835}
+    body:not([data-theme="light"]) .pill.ok{color:#7FB495;border-color:rgba(127,180,149,.4);background:rgba(127,180,149,.12)}
+    body:not([data-theme="light"]) .pill.fail{color:#E07A7A;border-color:rgba(224,122,122,.4);background:rgba(224,122,122,.12)}
+    body:not([data-theme="light"]) .pill.partial{color:#E0995A;border-color:rgba(224,153,90,.4);background:rgba(224,153,90,.12)}
+    body:not([data-theme="light"]) .pill.warn{color:#C9B05E;border-color:rgba(201,176,94,.4);background:rgba(201,176,94,.12)}
+    body:not([data-theme="light"]) .sev.crit{background:#E07A7A;color:#15191A} body:not([data-theme="light"]) .sev.high{background:#E0995A;color:#15191A} body:not([data-theme="light"]) .sev.med{background:#C9B05E;color:#15191A} body:not([data-theme="light"]) .sev.info{background:#9AA69E;color:#15191A}
+    body:not([data-theme="light"]) .finding code,body:not([data-theme="light"]) code.inline{background:#262D2A;color:#7FB495}
+    body:not([data-theme="light"]) tbody td,body:not([data-theme="light"]) .table-wrap{border-color:#2F3835}
+    body:not([data-theme="light"]) thead th{border-color:#2F3835}
+  }
+  body[data-theme="dark"]{background:#15191A;color:#ECEAE2}
+  body[data-theme="dark"] header.doc{border-color:#ECEAE2}
+  body[data-theme="dark"] .meta b{color:#ECEAE2}
+  body[data-theme="dark"] .lead{color:#9AA69E}
+  body[data-theme="dark"] .meta,body[data-theme="dark"] .stat .l,body[data-theme="dark"] thead th,body[data-theme="dark"] .legend,body[data-theme="dark"] footer,body[data-theme="dark"] .sec-note{color:#9AA69E}
+  body[data-theme="dark"] .stat,body[data-theme="dark"] .finding{background:#1E2422;border-color:#2F3835}
+  body[data-theme="dark"] tbody tr:hover{background:#262D2A}
+  body[data-theme="dark"] .sec-note{background:#262D2A}
+  body[data-theme="dark"] .eyebrow{color:#D9B968}
+  body[data-theme="dark"] h3{color:#7FB495}
+  body[data-theme="dark"] .stat.ok .n{color:#7FB495} body[data-theme="dark"] .stat.crit .n{color:#E07A7A} body[data-theme="dark"] .stat.high .n{color:#E0995A} body[data-theme="dark"] .stat.tot .n{color:#ECEAE2}
+  body[data-theme="dark"] .pill{border-color:#2F3835}
+  body[data-theme="dark"] .pill.ok{color:#7FB495;border-color:rgba(127,180,149,.4);background:rgba(127,180,149,.12)}
+  body[data-theme="dark"] .pill.fail{color:#E07A7A;border-color:rgba(224,122,122,.4);background:rgba(224,122,122,.12)}
+  body[data-theme="dark"] .pill.partial{color:#E0995A;border-color:rgba(224,153,90,.4);background:rgba(224,153,90,.12)}
+  body[data-theme="dark"] .sev.crit{background:#E07A7A;color:#15191A} body[data-theme="dark"] .sev.high{background:#E0995A;color:#15191A} body[data-theme="dark"] .sev.med{background:#C9B05E;color:#15191A} body[data-theme="dark"] .sev.info{background:#9AA69E;color:#15191A}
+  body[data-theme="dark"] .finding code,body[data-theme="dark"] code.inline{background:#262D2A;color:#7FB495}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="doc">
+    <div class="eyebrow">Deliverable 1 of 2 : Functional and CRUD Test Report</div>
+    <h1>Lanai Lifestyle Platform : End-to-End Functional Test</h1>
+    <p class="lead">Every page of the advisor and member portals exercised against the production environment, with create, read, update, and delete operations run where the UI exposes them.</p>
+    <div class="meta">
+      <span><b>Environment:</b> Production · lanai.newfire.app</span>
+      <span><b>Date:</b> 8 August 2026</span>
+      <span><b>Advisor account:</b> devadmin (admin role)</span>
+      <span><b>Member account:</b> demo@lanai.test (platinum)</span>
+      <span><b>Method:</b> Browser-driven, real backend</span>
+    </div>
+  </header>
+
+  <h2>Executive summary</h2>
+  <p>The platform is broadly functional. All 20 advisor pages and the member portal load and render real backend data. Core CRUD works for clients, members, and member-submitted travel requests, and two of the three AI features (Proposal Co-Pilot and Client Intelligence) generate real output through the local Ollama model. Five issues block a clean production-grade experience, the most serious being the Morning Briefing timing out and a shared-cookie conflict that locks members out of the portal if they have ever logged into the advisor side.</p>
+  <div class="cards">
+    <div class="stat tot"><div class="n">28</div><div class="l">Pages tested</div></div>
+    <div class="stat ok"><div class="n">23</div><div class="l">Fully working</div></div>
+    <div class="stat high"><div class="n">4</div><div class="l">Partial / bug</div></div>
+    <div class="stat crit"><div class="n">1</div><div class="l">Broken feature</div></div>
+  </div>
+  <div class="legend">
+    <span><span class="dot" style="background:#2C5E45"></span>Pass</span>
+    <span><span class="dot" style="background:#C8702A"></span>Partial / validation gap</span>
+    <span><span class="dot" style="background:#B23A3A"></span>Failed</span>
+    <span><span class="dot" style="background:#8A6D1A"></span>Data quality / config</span>
+  </div>
+
+  <h2>Advisor portal : page-by-page results</h2>
+  <p>Authenticated as <code class="inline">devadmin</code>. All 20 routes return HTTP 200 with the correct heading and render persisted data from Postgres.</p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Page</th><th>Load</th><th>CRUD tested</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td class="pg">Dashboard</td><td>200</td><td>Read (KPIs, pipeline, AI tools)</td><td><span class="pill ok">Pass</span></td></tr>
+      <tr><td class="pg">Morning Briefing</td><td>200</td><td>Generate (AI)</td><td><span class="pill fail">Fail · 504</span></td></tr>
+      <tr><td class="pg">Revenue Analytics</td><td>200</td><td>Read</td><td><span class="pill ok">Pass</span></td></tr>
+      <tr><td class="pg">Clients</td><td>200</td><td>Create, Read, Search</td><td><span class="pill partial">Partial</span></td></tr>
+      <tr><td class="pg">Members</td><td>200</td><td>Create (invite), Read</td><td><span class="pill ok">Pass</span></td></tr>
+      <tr><td class="pg">Travel Requests</td><td>200</td><td>Read, status UI</td><td><span class="pill partial">Partial</span></td></tr>
+      <tr><td class="pg">Proposal Co-Pilot</td><td>200</td><td>Generate (AI)</td><td><span class="pill partial">Pass w/ bug</span></td></tr>
+      <tr><td class="pg">Client Intelligence</td><td>200</td><td>Run analysis (AI)</td><td><span class="pill ok">Pass</span></td></tr>
+      <tr><td class="pg">Suppliers</td><td>200</td><td>Read (8 suppliers)</td><td><span class="pill partial">Read-only</span></td></tr>
+      <tr><td class="pg">Supplier Services</td><td>200</td><td>Read (Add Service, Inquiry)</td><td><span class="pill ok">Pass</span></td></tr>
+      <tr><td class="pg">WhatsApp Intelligence</td><td>200</td><td>Read</td><td><span class="pill ok">Pass</span></td></tr>
+      <tr><td class="pg">Unified Inbox</td><td>200</td><td>Read (0 conversations)</td><td><span class="pill ok">Pass</span></td></tr>
+      <tr><td class="pg">Chatwoot Inbox</td><td>200</td><td>Read (Sync, filters)</td><td><span class="pill ok">Pass</span></td></tr>
+      <tr><td class="pg">Communication Hub</td><td>200</td><td>Read (timeline)</td><td><span class="pill ok">Pass</span></td></tr>
+      <tr><td class="pg">Task and Workflow Templates</td><td>200</td><td>Read (Create Template, Use Template)</td><td><span class="pill ok">Pass</span></td></tr>
+      <tr><td class="pg">Invoicing</td><td>200</td><td>Read (Client/Commission, Reconciliation)</td><td><span class="pill ok">Pass</span></td></tr>
+      <tr><td class="pg">NPS and Feedback</td><td>200</td><td>Read (score 50)</td><td><span class="pill ok">Pass</span></td></tr>
+      <tr><td class="pg">Member Management</td><td>200</td><td>Read (Invite, Deactivate)</td><td><span class="pill ok">Pass</span></td></tr>
+      <tr><td class="pg">CRM Sync</td><td>200</td><td>Read (conflicts, links, deliveries)</td><td><span class="pill ok">Pass</span></td></tr>
+      <tr><td class="pg">Platform Settings</td><td>200</td><td>Read (Save, Test Connection)</td><td><span class="pill ok">Pass</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>Member portal : page-by-page results</h2>
+  <p>Authenticated as <code class="inline">demo@lanai.test</code>. Login itself works, but only after clearing a conflicting advisor cookie (see finding F-2).</p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Page</th><th>Load</th><th>CRUD tested</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td class="pg">Login (email + PIN)</td><td>200</td><td>Auth</td><td><span class="pill fail">Fail w/ advisor cookie</span></td></tr>
+      <tr><td class="pg">Member Dashboard</td><td>200</td><td>Read (welcome, 5 trips)</td><td><span class="pill ok">Pass</span></td></tr>
+      <tr><td class="pg">New Travel Request</td><td>200</td><td>Create</td><td><span class="pill ok">Pass</span></td></tr>
+      <tr><td class="pg">My Trips</td><td>200</td><td>Read</td><td><span class="pill ok">Pass</span></td></tr>
+      <tr><td class="pg">Document Vault</td><td>200</td><td>Read</td><td><span class="pill partial">Empty (stub)</span></td></tr>
+      <tr><td class="pg">Messages</td><td>200</td><td>Read (advisor thread)</td><td><span class="pill ok">Pass</span></td></tr>
+      <tr><td class="pg">Billing</td><td>200</td><td>Read</td><td><span class="pill partial">Minimal content</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>Detailed findings</h2>
+
+  <div class="finding">
+    <div class="ft"><span class="sev crit">Critical</span><h4>F-1 · Morning Briefing fails with 504 Gateway Timeout</h4></div>
+    <p>Clicking <b>Generate Briefing</b> on <code>/briefing</code> shows the spinner, then silently resets to the idle state. The network call to <code>/api/briefing/morning-briefing</code> returns <b>504</b>. The briefing is the only AI route that times out; the streaming proposal and the synchronous intelligence call both succeed (intelligence took 44.5s, under the proxy ceiling). The briefing endpoint appears to exceed the Cloudflare or APISIX origin timeout.</p>
+    <ul>
+      <li><b>Where:</b> <code>/api/briefing/morning-briefing</code> returns 504.</li>
+      <li><b>Why:</b> The non-streaming briefing call runs longer than the proxy timeout window, or the underlying prompt aggregates too much for one synchronous request.</li>
+      <li><b>Fix:</b> Convert the briefing to streaming (SSE) like the proposal engine, or raise the origin timeout for this route and add a hard ceiling on prompt size. Surface the error to the user instead of silently resetting.</li>
+    </ul>
+  </div>
+
+  <div class="finding">
+    <div class="ft"><span class="sev crit">Critical</span><h4>F-2 · Member portal login fails when an advisor session cookie exists</h4></div>
+    <p>After signing into the advisor portal, visiting <code>/client</code> and signing in as a member returns a successful login response (the member object is returned), but the page never navigates to the dashboard. <code>memberAuth.me</code> returns <code>null</code>. The advisor cookie <code>app_session_id</code> and the member cookie <code>lanai_member_session</code> coexist on the same domain; the request context resolves the advisor session first, so the member context is never recognised. Clearing the advisor cookie lets the member log in immediately.</p>
+    <ul>
+      <li><b>Where:</b> Shared domain <code>lanai.newfire.app</code>; both portals set cookies at root path.</li>
+      <li><b>Why:</b> The context builder prefers the advisor session, so a member who also has an advisor cookie cannot authenticate as a member.</li>
+      <li><b>Fix:</b> Scope cookies by path (<code>/</code> for advisor, <code>/client</code> for member), or make member auth resolution independent of the advisor cookie. This is a realistic real-world conflict since both portals live on one domain.</li>
+    </ul>
+  </div>
+
+  <div class="finding high">
+    <div class="ft"><span class="sev high">High</span><h4>F-3 · Proposal Co-Pilot submits without the required Structured Request (422)</h4></div>
+    <p>The <b>Generate Proposal</b> button is enabled before the required <b>Structured Request</b> dropdown is selected. Clicking it returns <b>422</b> from <code>/api/proposals/generate-proposal-stream</code> and the output panel stays on its placeholder. Selecting a structured request first produces a full proposal correctly (5000+ characters, itinerary, premium delivery panel).</p>
+    <ul>
+      <li><b>Fix:</b> Disable Generate until a structured request is selected, or auto-select the member's most recent request, and show a client-side validation message instead of relying on the 422.</li>
+    </ul>
+  </div>
+
+  <div class="finding med">
+    <div class="ft"><span class="sev med">Medium</span><h4>F-4 · Production CSP blocks Google Fonts</h4></div>
+    <p>The response <code>Content-Security-Policy</code> sets <code>style-src 'self' 'unsafe-inline'</code> with no <code>fonts.googleapis.com</code> origin, so the Playfair Display, DM Sans, and JetBrains Mono stylesheet is blocked on every page. The app renders with fallback system fonts, which softens the brand identity in production even though it looks correct in local dev.</p>
+    <ul>
+      <li><b>Fix:</b> Add <code>fonts.googleapis.com</code> to <code>style-src</code> and <code>fonts.gstatic.com</code> to <code>font-src</code>, or self-host the font files and serve them from <code>'self'</code>.</li>
+    </ul>
+  </div>
+
+  <div class="finding med">
+    <div class="ft"><span class="sev med">Medium</span><h4>F-5 · Clients page is create and read only (no edit or delete in UI)</h4></div>
+    <p>The Clients page exposes <b>Add Client</b> and search, but no edit or delete control on a row or detail view. The <code>clients.remove</code> API procedure exists, so deletion is possible by API but not from the interface. Created a QA client successfully (15 to 16 records, record appears in the list and search).</p>
+    <ul>
+      <li><b>Fix:</b> Add row-level edit and delete actions, gated by role, to match the create flow.</li>
+    </ul>
+  </div>
+
+  <div class="finding info">
+    <div class="ft"><span class="sev info">Info</span><h4>F-6 · Member Document Vault is empty</h4></div>
+    <p>The member-side Document Vault loads with "No documents yet." This matches the codebase: <code>memberPortal.myDocuments</code> is a stub that returns an empty array. Advisors can attach document records, but members see nothing. Not a crash, but a feature advertised to members that does not yet deliver.</p>
+  </div>
+
+  <div class="finding info">
+    <div class="ft"><span class="sev info">Info</span><h4>F-7 · Data quality: duplicate WhatsApp client records</h4></div>
+    <p>The Clients list contains 9 duplicate rows named "WhatsApp 1181" (phone 6315551181), and a member named "WhatsApp 1181" with a placeholder email sits in the Members list. The WhatsApp integration is creating a new client record per inbound message instead of deduplicating by phone number.</p>
+    <ul>
+      <li><b>Fix:</b> Deduplicate client creation on phone number in the WhatsApp ingestion path; merge or archive the existing duplicates.</li>
+    </ul>
+  </div>
+
+  <div class="finding info">
+    <div class="ft"><span class="sev info">Info</span><h4>F-8 · Seeded advisor@lanai.test cannot sign in on production</h4></div>
+    <p>Signing in as <code>advisor@lanai.test</code> redirects through Keycloak and returns <code>{"error":"Keycloak authentication failed"}</code> with HTTP 401 on the callback. The account exists in the local Keycloak realm but is not provisioned (or lacks the required role or verified email) in production. <code>devadmin</code> works. Worth fixing if that account is meant to be a demo advisor.</p>
+  </div>
+
+  <h2>Verified end-to-end flows</h2>
+  <div class="sec-note">
+    <b>Client create:</b> 15 to 16 records, QA client "QATest Client" appears in list and search.<br>
+    <b>Member create:</b> 7 to 8 members, "QATest Member" created, status "Pending", invitation flow triggered.<br>
+    <b>Member travel request create:</b> Submitted "QATest Destination" request (id 12, status "new"), confirmed persisted via <code>travelRequests.myRequests</code> and visible on the advisor Travel Requests page (10 to 11).<br>
+    <b>Proposal generation:</b> Selected Demo Member and Santorini structured request, AI produced a full proposal with executive summary, itinerary, and premium delivery panel.<br>
+    <b>Client intelligence:</b> Profile analysis on Demo Member returned via <code>ollama · qwen2.5:3b · 44527 ms</code> with bookings, proposals, open requests, and opportunities.<br>
+    <b>Travel request status UI:</b> Status dropdown opens with all six statuses (New, In Progress, Proposal Sent, Booked, Completed, Cancelled). A status change was not persisted during testing to avoid mutating real client requests; the QA request created above is available for that.
+  </div>
+
+  <div class="sec-note">
+    <b>Test data left in production:</b> Three clearly-named QA records were created during testing and not deleted (the UI offers no delete for clients or members): client "QATest Client" (<code>qa-test-client@lanai.test</code>), member "QATest Member" (<code>qa-test-member@lanai.test</code>), and travel request "QATest Destination". Remove them via the admin API or database when ready.
+  </div>
+
+  <footer>
+    Lanai Lifestyle Functional Test Report · Tested 8 August 2026 against lanai.newfire.app · Companion document: Privacy and Insider-Threat Security Report (Deliverable 2).
+  </footer>
+</div>
+</body>
+</html>

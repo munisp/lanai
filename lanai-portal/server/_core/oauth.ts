@@ -65,10 +65,13 @@ export function registerOAuthRoutes(app: Express) {
         }),
         OIDC_TRANSACTION_TTL_SECONDS,
       );
+      // The state cookie must survive the cross-site redirect from the
+      // Keycloak host (auth-*.newfire.app) back to the app host, so it uses
+      // SameSite=None when secure (prod) — Lax would drop it on that
+      // cross-site navigation and break the OIDC callback state check.
       res.cookie(OIDC_STATE_COOKIE, transaction.state, {
         ...getSessionCookieOptions(req),
         maxAge: OIDC_TRANSACTION_TTL_SECONDS * 1000,
-        sameSite: "lax",
       });
       res.redirect(302, transaction.url);
     } catch (error) {

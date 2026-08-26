@@ -2,12 +2,13 @@
 # Lanai Portal — Production image
 # A Debian/glibc base is mandatory for the Temporal and Fluvio native Node clients.
 # ==============================================================================
-FROM node:22-bookworm-slim AS build
+# Build stage uses the full node:bookworm image because it already ships
+# python3/make/g++/git/ca-certificates. Installing them via apt-get here is
+# flaky under QEMU emulation (linux/amd64 on arm64 hosts) — python3-minimal's
+# post-install script can segfault — so we avoid that step entirely.
+FROM node:22-bookworm AS build
 
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 make g++ git ca-certificates \
-  && rm -rf /var/lib/apt/lists/* \
-  && npm install --global pnpm@10.4.1
+RUN npm install --global pnpm@10.4.1
 
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./

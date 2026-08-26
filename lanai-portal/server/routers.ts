@@ -19,6 +19,7 @@ import { memberPaymentsRouter } from "./stripeRouter";
 import { chatwootRouter } from "./chatwootRouter";
 import { crmSyncRouter } from "./crmSyncRouter";
 import { clientsRouter } from "./clientsRouter";
+import { supplierRecommendationsRouter } from "./supplierRecommendationRouter";
 import { syncContactForMember } from "./chatwootService";
 import { dispatchOutboxBatch, enqueueDomainEvent } from "./_core/outbox";
 import {
@@ -84,7 +85,7 @@ const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const INVITE_TTL_MS = 48 * 60 * 60 * 1000; // 48 hours
 const BCRYPT_ROUNDS = 12;
 
-// ─── CRM helper — fetch person by email to get crmPersonId ───────────────────
+// ─── CRM helper : fetch person by email to get crmPersonId ───────────────────
 
 async function lookupCrmPersonByEmail(email: string): Promise<string | null> {
   try {
@@ -120,7 +121,7 @@ async function lookupCrmPersonByEmail(email: string): Promise<string | null> {
   }
 }
 
-// ─── CRM helper — fetch opportunities for a specific person ──────────────────
+// ─── CRM helper : fetch opportunities for a specific person ──────────────────
 
 async function fetchMemberOpportunities(crmPersonId: string) {
   try {
@@ -221,7 +222,7 @@ export const appRouter = router({
   memberAuth: router({
     /**
      * Returns the currently authenticated member (from session cookie).
-     * Returns null if not logged in — used by the frontend to gate the portal.
+     * Returns null if not logged in : used by the frontend to gate the portal.
      */
     me: publicProcedure.query(({ ctx }) => ctx.member ?? null),
 
@@ -402,7 +403,7 @@ export const appRouter = router({
     myTrips: memberProcedure.query(async ({ ctx }) => {
       const { member } = ctx;
       if (!member.crmPersonId) {
-        // Member not yet linked to CRM — return empty
+        // Member not yet linked to CRM : return empty
         return { trips: [], linked: false };
       }
       const trips = await fetchMemberOpportunities(member.crmPersonId);
@@ -453,7 +454,7 @@ export const appRouter = router({
             query: mutation,
             variables: {
               data: {
-                name: `${member.name} — ${input.destination}`,
+                name: `${member.name} : ${input.destination}`,
                 stage: "NEW",
                 amount: input.budgetGBP
                   ? {
@@ -504,11 +505,11 @@ export const appRouter = router({
 
     /**
      * Platinum-only: list documents from storage for this member.
-     * (Stub for document vault — returns metadata; actual files stored in S3.)
+     * (Stub for document vault : returns metadata; actual files stored in S3.)
      */
     myDocuments: platinumMemberProcedure.query(async ({ ctx }) => {
       // In production: query a documents table filtered by memberId
-      // For now returns an empty list — documents are uploaded by advisors
+      // For now returns an empty list : documents are uploaded by advisors
       return {
         documents: [] as {
           name: string;
@@ -525,7 +526,7 @@ export const appRouter = router({
 
   // ── Advisor: member management ──────────────────────────────────────────────
   members: router({
-    /** List all members — any advisor can view. */
+    /** List all members : any advisor can view. */
     list: protectedProcedure.query(async () => {
       const all = await getAllMembers();
       return all.map((m) => ({
@@ -631,7 +632,7 @@ export const appRouter = router({
         }),
       )
       .mutation(async ({ input, ctx }) => {
-        // Auto-link CRM person if not provided (best-effort — never block the
+        // Auto-link CRM person if not provided (best-effort : never block the
         // invitation if the CRM is unreachable or unconfigured).
         let crmPersonId = input.crmPersonId ?? null;
         if (!crmPersonId) {
@@ -675,7 +676,7 @@ export const appRouter = router({
           });
           emailId = result.id;
         } catch (emailErr) {
-          // Email failure is non-fatal — log and fall through so the invite
+          // Email failure is non-fatal : log and fall through so the invite
           // record is still created and the URL is returned to the advisor.
           console.error("[Invite] Email delivery failed:", emailErr);
         }
@@ -685,7 +686,7 @@ export const appRouter = router({
           const { notifyOwner } = await import("./_core/notification");
           await notifyOwner({
             title: `Member invitation sent to ${input.email}`,
-            content: `Invite URL: ${inviteUrl}\nTier: ${input.tier}\nExpires: ${expiresAt.toISOString()}${emailId ? `\nEmail ID: ${emailId}` : " (email delivery failed — share URL manually)"}`,
+            content: `Invite URL: ${inviteUrl}\nTier: ${input.tier}\nExpires: ${expiresAt.toISOString()}${emailId ? `\nEmail ID: ${emailId}` : " (email delivery failed : share URL manually)"}`,
           });
         } catch {
           // Non-fatal
@@ -755,6 +756,7 @@ export const appRouter = router({
   proposalItems: proposalItemsRouter,
   bookings: bookingsRouter,
   suppliers: suppliersRouter,
+  supplierRecommendations: supplierRecommendationsRouter,
   supplierContacts: supplierContactsRouter,
   documents: documentsRouter,
 

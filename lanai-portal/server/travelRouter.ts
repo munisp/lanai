@@ -1,13 +1,16 @@
 import { z } from "zod";
 import { and, desc, eq } from "drizzle-orm";
 import { router, protectedProcedure, memberProcedure } from "./_core/trpc";
-import { getDb } from "./db";
+import { getDb, registerStorageUrls } from "./db";
 import {
   bookings,
   documents,
+  members,
   proposals,
   proposalItems,
   suppliers,
+  supplierRoomRates,
+  supplierAmenities,
   travelRequests,
 } from "../drizzle/schema";
 import { Permify } from "./_core/infrastructure";
@@ -74,8 +77,35 @@ export const travelRequestsRouter = router({
   list: protectedProcedure.query(async () => {
     const db = await getDb();
     return db
-      .select()
+      .select({
+        id: travelRequests.id,
+        memberId: travelRequests.memberId,
+        destination: travelRequests.destination,
+        originCity: travelRequests.originCity,
+        dates: travelRequests.dates,
+        departureDate: travelRequests.departureDate,
+        returnDate: travelRequests.returnDate,
+        pax: travelRequests.pax,
+        adults: travelRequests.adults,
+        children: travelRequests.children,
+        infants: travelRequests.infants,
+        budget: travelRequests.budget,
+        budgetCurrency: travelRequests.budgetCurrency,
+        accommodationType: travelRequests.accommodationType,
+        flightClass: travelRequests.flightClass,
+        specialRequests: travelRequests.specialRequests,
+        notes: travelRequests.notes,
+        status: travelRequests.status,
+        assignedToUserId: travelRequests.assignedToUserId,
+        priority: travelRequests.priority,
+        crmOpportunityId: travelRequests.crmOpportunityId,
+        createdAt: travelRequests.createdAt,
+        updatedAt: travelRequests.updatedAt,
+        memberName: members.name,
+        memberEmail: members.email,
+      })
       .from(travelRequests)
+      .leftJoin(members, eq(travelRequests.memberId, members.id))
       .orderBy(desc(travelRequests.createdAt));
   }),
 
@@ -223,6 +253,16 @@ export const proposalsRouter = router({
           "advisor",
           `proposal:${row.id}`,
         ),
+        registerStorageUrls(
+          [
+            input.heroImageUrl,
+            input.mapEmbedUrl,
+            ...(input.itinerary?.map((i) => i.imageUrl) ?? []),
+            ...(input.itinerary?.map((i) => i.mapUrl) ?? []),
+          ],
+          input.memberId,
+          "proposal",
+        ),
       ]);
       await recordEvent({
         aggregateType: "proposal",
@@ -283,12 +323,33 @@ export const proposalsRouter = router({
     .mutation(async ({ input }) => {
       const db = await getDb();
       const { id, ...data } = input;
+      // Fetch the owning member so any new storage-backed image URLs in this
+      // update are registered for download authorization.
+      const [owner] = await db
+        .select({ memberId: proposals.memberId })
+        .from(proposals)
+        .where(eq(proposals.id, id))
+        .limit(1);
+      if (!owner) throw new Error("Proposal was not found");
       const [row] = await db
         .update(proposals)
         .set({ ...data, updatedAt: new Date() })
         .where(eq(proposals.id, id))
         .returning({ id: proposals.id });
       if (!row) throw new Error("Proposal was not found");
+      const itinerary = input.itinerary ?? [];
+      await registerStorageUrls(
+        [
+          input.heroImageUrl ?? null,
+          input.mapEmbedUrl ?? null,
+          ...itinerary.map((i) => i.imageUrl),
+          ...itinerary.map((i) => i.mapUrl),
+        ],
+        owner.memberId,
+        "proposal",
+      ).catch(() => {
+        // A registry write failure must not break the proposal update.
+      });
       return row;
     }),
 
@@ -660,9 +721,27 @@ export const suppliersRouter = router({
       z.object({
         name: z.string().trim().min(1).max(255),
         category: z.string().trim().max(128).optional(),
+        subCategory: z.string().trim().max(128).optional(),
+        country: z.string().trim().max(128).optional(),
+        city: z.string().trim().max(128).optional(),
+        propertyType: z
+          .enum([
+            "hotel",
+            "villa",
+            "yacht",
+            "jet",
+            "transfer",
+            "experience",
+            "other",
+          ])
+          .optional(),
+        rating: z.number().int().min(1).max(5).optional(),
+        isVirtuoso: z.boolean().optional(),
+        preferredPartnerNetwork: z.string().trim().max(64).optional(),
         contactEmail: z.string().email().optional(),
         contactPhone: z.string().trim().max(64).optional(),
-        rating: z.number().int().min(1).max(5).optional(),
+        website: z.string().trim().max(512).optional(),
+        defaultCommissionRate: z.number().min(0).max(100).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -672,9 +751,17 @@ export const suppliersRouter = router({
         .values({
           name: input.name,
           category: input.category ?? null,
+          subCategory: input.subCategory ?? null,
+          country: input.country ?? null,
+          city: input.city ?? null,
+          propertyType: input.propertyType ?? null,
+          rating: input.rating ?? null,
+          isVirtuoso: input.isVirtuoso ?? false,
+          preferredPartnerNetwork: input.preferredPartnerNetwork ?? null,
           contactEmail: input.contactEmail?.toLowerCase() ?? null,
           contactPhone: input.contactPhone ?? null,
-          rating: input.rating ?? null,
+          website: input.website ?? null,
+          defaultCommissionRate: input.defaultCommissionRate?.toString() ?? null,
         })
         .returning({ id: suppliers.id });
       if (!row) throw new Error("Supplier could not be created");
@@ -693,25 +780,176 @@ export const suppliersRouter = router({
     return db.select().from(suppliers).orderBy(suppliers.name);
   }),
 
+  // Virtuoso catalog query used by the recommendation engine: suppliers by
+  // destination and property type, optionally restricted to Virtuoso.
+  listByDestination: protectedProcedure
+    .input(
+      z.object({
+        city: z.string().trim().max(128).optional(),
+        country: z.string().trim().max(128).optional(),
+        propertyType: z
+          .enum([
+            "hotel",
+            "villa",
+            "yacht",
+            "jet",
+            "transfer",
+            "experience",
+            "other",
+          ])
+          .optional(),
+        virtuosoOnly: z.boolean().optional(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const db = await getDb();
+      const conds = [eq(suppliers.isActive, true)];
+      if (input.city) conds.push(eq(suppliers.city, input.city));
+      if (input.country) conds.push(eq(suppliers.country, input.country));
+      if (input.propertyType)
+        conds.push(eq(suppliers.propertyType, input.propertyType));
+      if (input.virtuosoOnly) conds.push(eq(suppliers.isVirtuoso, true));
+      return db
+        .select()
+        .from(suppliers)
+        .where(and(...conds))
+        .orderBy(desc(suppliers.rating));
+    }),
+
+  // A full catalog entry: the supplier plus its room tiers and amenities.
+  getCatalogEntry: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      const [supplier] = await db
+        .select()
+        .from(suppliers)
+        .where(eq(suppliers.id, input.id))
+        .limit(1);
+      if (!supplier) return null;
+      const roomRates = await db
+        .select()
+        .from(supplierRoomRates)
+        .where(
+          and(
+            eq(supplierRoomRates.supplierId, input.id),
+            eq(supplierRoomRates.isActive, true),
+          ),
+        )
+        .orderBy(supplierRoomRates.startingRate);
+      const amenities = await db
+        .select()
+        .from(supplierAmenities)
+        .where(
+          and(
+            eq(supplierAmenities.supplierId, input.id),
+            eq(supplierAmenities.isActive, true),
+          ),
+        );
+      return { ...supplier, roomRates, amenities };
+    }),
+
+  addRoomRate: protectedProcedure
+    .input(
+      z.object({
+        supplierId: z.number().int().positive(),
+        roomTier: z.enum([
+          "standard",
+          "deluxe",
+          "junior_suite",
+          "suite",
+          "presidential",
+          "other",
+        ]),
+        startingRate: z.string().regex(/^\d+(\.\d{1,2})?$/),
+        currency: z.string().length(3).default("GBP"),
+        seasonNotes: z.string().trim().max(255).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      const [row] = await db
+        .insert(supplierRoomRates)
+        .values({
+          supplierId: input.supplierId,
+          roomTier: input.roomTier,
+          startingRate: input.startingRate,
+          currency: input.currency,
+          seasonNotes: input.seasonNotes ?? null,
+        })
+        .returning({ id: supplierRoomRates.id });
+      if (!row) throw new Error("Room rate could not be added");
+      return row;
+    }),
+
+  addAmenity: protectedProcedure
+    .input(
+      z.object({
+        supplierId: z.number().int().positive(),
+        name: z.string().trim().min(1).max(128),
+        benefitType: z.string().trim().max(64).optional(),
+        description: z.string().trim().max(1000).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      const [row] = await db
+        .insert(supplierAmenities)
+        .values({
+          supplierId: input.supplierId,
+          name: input.name,
+          benefitType: input.benefitType ?? null,
+          description: input.description ?? null,
+        })
+        .returning({ id: supplierAmenities.id });
+      if (!row) throw new Error("Amenity could not be added");
+      return row;
+    }),
+
   update: protectedProcedure
     .input(
       z.object({
         id: z.number().int().positive(),
         name: z.string().trim().min(1).max(255).optional(),
         category: z.string().trim().max(128).nullable().optional(),
+        subCategory: z.string().trim().max(128).nullable().optional(),
+        country: z.string().trim().max(128).nullable().optional(),
+        city: z.string().trim().max(128).nullable().optional(),
+        propertyType: z
+          .enum([
+            "hotel",
+            "villa",
+            "yacht",
+            "jet",
+            "transfer",
+            "experience",
+            "other",
+          ])
+          .nullable()
+          .optional(),
+        rating: z.number().int().min(1).max(5).nullable().optional(),
+        isVirtuoso: z.boolean().optional(),
+        preferredPartnerNetwork: z.string().trim().max(64).nullable().optional(),
         contactEmail: z.string().email().nullable().optional(),
         contactPhone: z.string().trim().max(64).nullable().optional(),
-        rating: z.number().int().min(1).max(5).nullable().optional(),
+        website: z.string().trim().max(512).nullable().optional(),
+        defaultCommissionRate: z.number().min(0).max(100).nullable().optional(),
       }),
     )
     .mutation(async ({ input }) => {
       const db = await getDb();
-      const { id, ...data } = input;
+      const { id, defaultCommissionRate, ...data } = input;
       const [row] = await db
         .update(suppliers)
         .set({
           ...data,
           contactEmail: data.contactEmail?.toLowerCase(),
+          defaultCommissionRate:
+            defaultCommissionRate === undefined
+              ? undefined
+              : defaultCommissionRate === null
+                ? null
+                : defaultCommissionRate.toString(),
           updatedAt: new Date(),
         })
         .where(eq(suppliers.id, id))
@@ -763,6 +1001,7 @@ export const documentsRouter = router({
           "advisor",
           `document:${row.id}`,
         ),
+        registerStorageUrls([input.fileUrl], input.memberId, "document"),
       ]);
       await recordEvent({
         aggregateType: "document",

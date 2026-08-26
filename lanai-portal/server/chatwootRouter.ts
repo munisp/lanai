@@ -1,5 +1,5 @@
 /**
- * Chatwoot tRPC router — procedures for managing the Chatwoot integration.
+ * Chatwoot tRPC router: procedures for managing the Chatwoot integration.
  */
 import { z } from "zod";
 import { memberProcedure, protectedProcedure, router } from "./_core/trpc";
@@ -24,7 +24,22 @@ import {
   updateChatwootConversation,
   getMemberById,
   getChatwootConversationByChatwootId,
+  getOwnedChatwootConversation,
+  buildClientMemoryContext,
 } from "./db";
+import { ENV } from "./_core/env";
+
+/** Structured WhatsApp triage returned by the AI gateway draft-reply endpoint. */
+export type WhatsAppTriage = {
+  intent?: string;
+  urgency?: string;
+  sentiment?: string;
+  summary?: string;
+  suggested_action?: string;
+  suggested_tags?: string[];
+  draft_reply?: string;
+  estimated_value?: number;
+};
 
 export const chatwootRouter = router({
   // ── Configuration ───────────────────────────────────────────────────────
@@ -254,22 +269,26 @@ export const chatwootRouter = router({
   getMessages: memberProcedure
     .input(
       z.object({
-        conversationId: z.number(),
+        conversationId: z.number().int().positive(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      // Ownership check: a member may only read their own conversation.
+      // Returns empty for a conversation they do not own so no information
+      // about other members' conversations leaks through this endpoint.
+      const conv = await getOwnedChatwootConversation(
+        input.conversationId,
+        ctx.member.id,
+      );
+      if (!conv) return [];
+
       // Sync the full thread from Chatwoot into the local mirror so AI
       // auto-replies appear in the member's view.
-      const conv = (await listChatwootConversations()).find(
-        (c) => c.id === input.conversationId,
-      );
-      if (conv) {
-        const remoteId = Number(conv.chatwootId.replace(/^conv_/, ""));
-        if (Number.isInteger(remoteId)) {
-          await syncConversationMessages(input.conversationId, remoteId).catch(
-            () => {},
-          );
-        }
+      const remoteId = Number(conv.chatwootId.replace(/^conv_/, ""));
+      if (Number.isInteger(remoteId)) {
+        await syncConversationMessages(input.conversationId, remoteId).catch(
+          () => {},
+        );
       }
       return listChatwootMessages(input.conversationId);
     }),
@@ -285,20 +304,54 @@ export const chatwootRouter = router({
       return { ...conv, messages };
     }),
 
-  /** AI-generated draft reply for a conversation (advisor). */
+  /** AI-generated structured triage and draft reply for a conversation (advisor). */
   generateDraftReply: protectedProcedure
     .input(
       z.object({
-        conversationId: z.number(),
-        lastMessage: z.string(),
+        conversationId: z.number().int().positive(),
+        lastMessage: z.string().min(1),
         memberName: z.string().optional(),
       }),
     )
     .mutation(async ({ input }) => {
-      // In production: call LLM with conversation context
-      // For now return a structured draft
-      const draft = `Thank you for reaching out, ${input.memberName ?? "valued member"}. I have reviewed your message and will ensure this is handled with the utmost care. Please allow me a moment to confirm the details and I will follow up shortly.`;
-      return { draft };
+      // Resolve the conversation to its member so the draft is grounded in
+      // that member's memory: preferences, family, important dates, recent
+      // requests. The gateway stays stateless; the portal assembles context.
+      const conv = (await listChatwootConversations()).find(
+        (c) => c.id === input.conversationId,
+      );
+      const context = conv?.memberId
+        ? await buildClientMemoryContext(conv.memberId).catch(() => "")
+        : "";
+      if (!ENV.aiGatewayUrl || !ENV.aiGatewayToken) {
+        throw new Error("AI gateway is not configured");
+      }
+      const gwResp = await fetch(
+        `${ENV.aiGatewayUrl.replace(/\/$/, "")}/whatsapp/draft-reply`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${ENV.aiGatewayToken}`,
+          },
+          body: JSON.stringify({
+            message: input.lastMessage,
+            client_name: input.memberName ?? conv?.contactName ?? undefined,
+            context,
+          }),
+        },
+      );
+      if (!gwResp.ok) {
+        throw new Error(`AI gateway error (${gwResp.status})`);
+      }
+      const data = (await gwResp.json()) as { structured?: WhatsAppTriage };
+      const triage = data.structured;
+      if (!triage) {
+        throw new Error("AI gateway did not return structured triage");
+      }
+      // Keep a top-level `draft` alias so callers that read data.draft keep
+      // working alongside the structured triage fields.
+      return { ...triage, draft: triage.draft_reply ?? "" };
     }),
 
   /** Syncs all Chatwoot conversations into the local database. */

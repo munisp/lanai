@@ -1,0 +1,297 @@
+# Chatwoot (member messaging / 24-7 concierge) + Twenty CRM (advisor data).
+#
+# Chatwoot gets its OWN postgres (pgvector/pgvector) because its schema needs
+# the `vector` (pgvector) and `pg_stat_statements` extensions, which the
+# shared postgres neither has nor can create for a non-superuser role.
+#
+# Twenty uses the shared lanai postgres `twenty` database — create it once
+# before first rollout (see the runbook / README):
+#   kubectl -n lanai exec -i deployment/postgres -- psql -U lanai -d postgres \
+#     -c "CREATE ROLE twenty LOGIN PASSWORD '<TWENTY_DB_PASSWORD>'; CREATE DATABASE twenty OWNER twenty;"
+#
+# Subdomains below use the demo domain lanai.newfire.app. If the cluster's
+# LANAI_DOMAIN is still lanai.upi.dev, adjust the FRONTEND_URL / FRONT_BASE_URL
+# and the ApisixRoute hosts accordingly.
+
+# ------------------------------------------------------ chatwoot-postgres --
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chatwoot-postgres-data
+  namespace: lanai
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatwoot-postgres
+  namespace: lanai
+  labels: { app: chatwoot-postgres }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: chatwoot-postgres } }
+  template:
+    metadata: { labels: { app: chatwoot-postgres } }
+    spec:
+      containers:
+        - name: chatwoot-postgres
+          image: pgvector/pgvector:pg16
+          ports: [{ containerPort: 5432 }]
+          env:
+            - { name: POSTGRES_USER, value: "chatwoot" }
+            - { name: POSTGRES_DB, value: "chatwoot" }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: CHATWOOT_DB_PASSWORD } }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "chatwoot", "-d", "chatwoot"] }
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            exec: { command: ["pg_isready", "-U", "chatwoot", "-d", "chatwoot"] }
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { cpu: 500m, memory: 1Gi }
+      volumes:
+        - { name: data, persistentVolumeClaim: { claimName: chatwoot-postgres-data } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: chatwoot-postgres, namespace: lanai }
+spec:
+  selector: { app: chatwoot-postgres }
+  ports: [{ port: 5432, targetPort: 5432 }]
+
+# ----------------------------------------------------------------- chatwoot --
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chatwoot-storage
+  namespace: lanai
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatwoot
+  namespace: lanai
+  labels: { app: chatwoot }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: chatwoot } }
+  template:
+    metadata: { labels: { app: chatwoot } }
+    spec:
+      # The chatwoot image's default CMD is `irb`, not the web server — we must
+      # run the Rails server explicitly. On first boot the (empty) chatwoot DB
+      # also needs its schema created, so an initContainer runs db:prepare.
+      initContainers:
+        - name: chatwoot-db-prepare
+          image: chatwoot/chatwoot:latest
+          command: ["bundle", "exec", "rails", "db:prepare"]
+          env:
+            - name: SECRET_KEY_BASE
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: CHATWOOT_SECRET_KEY_BASE } }
+            - name: CHATWOOT_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: CHATWOOT_DB_PASSWORD } }
+            - name: REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: REDIS_PASSWORD } }
+            - { name: DATABASE_URL, value: "postgres://chatwoot:$(CHATWOOT_DB_PASSWORD)@chatwoot-postgres:5432/chatwoot" }
+            - { name: REDIS_URL, value: "redis://:$(REDIS_PASSWORD)@redis-master.redis.svc.cluster.local:6379" }
+            - { name: FRONTEND_URL, value: "https://chatwoot.lanai.newfire.app" }
+            - { name: RAILS_ENV, value: "production" }
+            - { name: ACTIVE_STORAGE_SERVICE, value: "local" }
+            - { name: DEFAULT_LOCALE, value: "en" }
+            - { name: RAILS_SERVE_STATIC_FILES, value: "true" }
+            - { name: ENABLE_ACCOUNT_SIGNUP, value: "true" }
+      containers:
+        - name: chatwoot
+          image: chatwoot/chatwoot:latest
+          command: ["bundle", "exec", "rails", "s", "-p", "3000", "-b", "0.0.0.0"]
+          ports: [{ containerPort: 3000 }]
+          env:
+            - name: SECRET_KEY_BASE
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: CHATWOOT_SECRET_KEY_BASE } }
+            - name: CHATWOOT_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: CHATWOOT_DB_PASSWORD } }
+            - name: REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: REDIS_PASSWORD } }
+            - { name: DATABASE_URL, value: "postgres://chatwoot:$(CHATWOOT_DB_PASSWORD)@chatwoot-postgres:5432/chatwoot" }
+            - { name: REDIS_URL, value: "redis://:$(REDIS_PASSWORD)@redis-master.redis.svc.cluster.local:6379" }
+            - { name: FRONTEND_URL, value: "https://chatwoot.lanai.newfire.app" }
+            - { name: RAILS_ENV, value: "production" }
+            - { name: ACTIVE_STORAGE_SERVICE, value: "local" }
+            - { name: DEFAULT_LOCALE, value: "en" }
+            - { name: RAILS_SERVE_STATIC_FILES, value: "true" }
+            - { name: ENABLE_ACCOUNT_SIGNUP, value: "true" }
+          volumeMounts:
+            - { name: storage, mountPath: /app/storage }
+          readinessProbe:
+            httpGet: { path: /, port: 3000 }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet: { path: /, port: 3000 }
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 500m, memory: 1Gi }
+            limits: { cpu: "2", memory: 2Gi }
+      volumes:
+        - { name: storage, persistentVolumeClaim: { claimName: chatwoot-storage } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: chatwoot, namespace: lanai }
+spec:
+  selector: { app: chatwoot }
+  ports: [{ port: 3000, targetPort: 3000 }]
+---
+# Chatwoot worker (Sidekiq): the async layer the web process enqueues against
+# (webhook processing, WhatsApp channel delivery, message retries). Without it
+# those jobs never execute, so P0-03 stays open until this is rolled out and
+# verified. Web and worker MUST run the same image/tag; pin both to an
+# immutable version together (P1-01). No PVC here: chatwoot-storage is
+# ReadWriteOnce and already mounted by the web pod; if attachment jobs need
+# local disk, switch ACTIVE_STORAGE_SERVICE to a shared (RWX) or S3 backend.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatwoot-worker
+  namespace: lanai
+  labels: { app: chatwoot-worker }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: chatwoot-worker } }
+  template:
+    metadata: { labels: { app: chatwoot-worker } }
+    spec:
+      containers:
+        - name: chatwoot-worker
+          image: chatwoot/chatwoot:latest
+          command: ["bundle", "exec", "sidekiq"]
+          env:
+            - name: SECRET_KEY_BASE
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: CHATWOOT_SECRET_KEY_BASE } }
+            - name: CHATWOOT_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: CHATWOOT_DB_PASSWORD } }
+            - name: REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: REDIS_PASSWORD } }
+            - { name: DATABASE_URL, value: "postgres://chatwoot:$(CHATWOOT_DB_PASSWORD)@chatwoot-postgres:5432/chatwoot" }
+            - { name: REDIS_URL, value: "redis://:$(REDIS_PASSWORD)@redis-master.redis.svc.cluster.local:6379" }
+            - { name: FRONTEND_URL, value: "https://chatwoot.lanai.newfire.app" }
+            - { name: RAILS_ENV, value: "production" }
+            - { name: ACTIVE_STORAGE_SERVICE, value: "local" }
+            - { name: DEFAULT_LOCALE, value: "en" }
+          # Sidekiq has no HTTP health endpoint. This exec probe confirms the
+          # worker process (PID 1) is alive using only the shell builtin kill,
+          # so it works on slim images without procps (pgrep). A dead process is
+          # also caught by container exit + restartPolicy: Always. To also catch
+          # a hung worker, add a sidekiq health check once the runtime exposes one.
+          readinessProbe:
+            exec: { command: ["sh", "-c", "kill -0 1"] }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            exec: { command: ["sh", "-c", "kill -0 1"] }
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 500m, memory: 1Gi }
+            limits: { cpu: "2", memory: 2Gi }
+
+# ------------------------------------------------------------------- twenty --
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: twenty-storage
+  namespace: lanai
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: twenty
+  namespace: lanai
+  labels: { app: twenty }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: twenty } }
+  template:
+    metadata: { labels: { app: twenty } }
+    spec:
+      containers:
+        - name: twenty
+          image: twentycrm/twenty:latest
+          ports: [{ containerPort: 3000 }]
+          env:
+            - name: TWENTY_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: TWENTY_DB_PASSWORD } }
+            - name: REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: REDIS_PASSWORD } }
+            - { name: DATABASE_URL, value: "postgres://twenty:$(TWENTY_DB_PASSWORD)@postgres:5432/twenty" }
+            - { name: PG_DATABASE_URL, value: "postgres://twenty:$(TWENTY_DB_PASSWORD)@postgres:5432/twenty" }
+            - { name: REDIS_URL, value: "redis://:$(REDIS_PASSWORD)@redis-master.redis.svc.cluster.local:6379" }
+            - name: APP_SECRET
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: TWENTY_APP_SECRET } }
+            - name: ACCESS_TOKEN_SECRET
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: TWENTY_ACCESS_TOKEN_SECRET } }
+            - name: LOGIN_TOKEN_SECRET
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: TWENTY_LOGIN_TOKEN_SECRET } }
+            - name: REFRESH_TOKEN_SECRET
+              valueFrom: { secretKeyRef: { name: lanai-secrets, key: TWENTY_REFRESH_TOKEN_SECRET } }
+            - { name: FRONT_BASE_URL, value: "https://crm.lanai.newfire.app" }
+            - { name: SERVER_URL, value: "https://crm.lanai.newfire.app" }
+            - { name: NODE_ENV, value: "production" }
+            - { name: MESSAGE_QUEUE_TYPE, value: "sync" }
+          volumeMounts:
+            - { name: storage, mountPath: /app/.local-storage }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 3000 }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet: { path: /healthz, port: 3000 }
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 500m, memory: 1Gi }
+            limits: { cpu: "2", memory: 2Gi }
+      volumes:
+        - { name: storage, persistentVolumeClaim: { claimName: twenty-storage } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: twenty, namespace: lanai }
+spec:
+  selector: { app: twenty }
+  ports: [{ port: 3000, targetPort: 3000 }]

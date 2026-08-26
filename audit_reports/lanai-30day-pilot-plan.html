@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lanai Lifestyle: 30 Day Pilot Plan</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#FAFAF7;color:#1A1F1B;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.6;font-size:16px}
+  .wrap{max-width:1000px;margin:0 auto;padding:48px 28px 96px}
+  header.doc{border-bottom:2px solid #1A1F1B;padding-bottom:24px;margin-bottom:30px}
+  .eyebrow{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#C8A24A;margin-bottom:14px}
+  h1{font-family:Georgia,"Iowan Old Style","Times New Roman",serif;font-weight:700;font-size:40px;line-height:1.08;margin:0 0 10px;text-wrap:balance}
+  .meta{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12.5px;color:#5E6B62;display:flex;flex-wrap:wrap;gap:6px 22px;margin-top:14px}
+  .meta b{color:#1A1F1B;font-weight:600}
+  h2{font-family:Georgia,"Iowan Old Style","Times New Roman",serif;font-size:24px;font-weight:700;margin:40px 0 6px;line-height:1.2}
+  .phase-goal{color:#5E6B62;font-size:15px;margin:0 0 18px;max-width:70ch}
+  p{margin:0 0 14px}
+  .lead{font-size:18px;color:#5E6B62;max-width:64ch}
+  .day{background:#FFFFFF;border:1px solid #E2E0D8;border-radius:10px;padding:16px 20px;margin:12px 0;display:grid;grid-template-columns:90px 1fr;gap:18px}
+  .day .dnum{font-family:Georgia,"Iowan Old Style","Times New Roman",serif;font-size:30px;font-weight:700;color:#2C5E45;line-height:1}
+  .day .dnum .dl{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#5E6B62;margin-top:4px;font-weight:400}
+  .day h3{margin:0 0 6px;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px;font-weight:700;color:#1A1F1B}
+  .day ul{margin:6px 0 0;padding-left:18px}
+  .day li{margin-bottom:5px;font-size:14px}
+  .done{font-size:13px;color:#2C5E45;background:#F3F2EC;border-radius:6px;padding:7px 12px;margin-top:8px}
+  .done b{color:#2C5E45}
+  code.inline{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12.5px;background:#F3F2EC;padding:1px 5px;border-radius:4px;color:#2C5E45}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:11px;color:#5E6B62;margin:10px 0 4px}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .dot{width:9px;height:9px;border-radius:50%}
+  .phase{border-left:3px solid #C8A24A;padding-left:18px;margin:30px 0 10px}
+  .phase.p1{border-color:#2C5E45} .phase.p2{border-color:#C8A24A} .phase.p3{border-color:#B23A3A} .phase.p4{border-color:#C8702A} .phase.p5{border-color:#2C5E45}
+  footer{margin-top:60px;padding-top:18px;border-top:1px solid #E2E0D8;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:11px;color:#5E6B62}
+  @media (prefers-color-scheme: dark){
+    body:not([data-theme="light"]){background:#15191A;color:#ECEAE2}
+    body:not([data-theme="light"]) header.doc{border-color:#ECEAE2}
+    body:not([data-theme="light"]) .meta b,body:not([data-theme="light"]) .day h3{color:#ECEAE2}
+    body:not([data-theme="light"]) .lead,body:not([data-theme="light"]) .meta,body:not([data-theme="light"]) .phase-goal,body:not([data-theme="light"]) .day .dl,body:not([data-theme="light"]) .legend,body:not([data-theme="light"]) footer{color:#9AA69E}
+    body:not([data-theme="light"]) .day{background:#1E2422;border-color:#2F3835}
+    body:not([data-theme="light"]) .done{background:#262D2A;color:#7FB495}
+    body:not([data-theme="light"]) .day .dnum{color:#7FB495}
+    body:not([data-theme="light"]) .eyebrow{color:#D9B968}
+    body:not([data-theme="light"]) code.inline{background:#262D2A;color:#7FB495}
+    body:not([data-theme="light"]) .done b{color:#7FB495}
+  }
+  body[data-theme="dark"]{background:#15191A;color:#ECEAE2}
+  body[data-theme="dark"] header.doc{border-color:#ECEAE2}
+  body[data-theme="dark"] .meta b,body[data-theme="dark"] .day h3{color:#ECEAE2}
+  body[data-theme="dark"] .lead,body[data-theme="dark"] .meta,body[data-theme="dark"] .phase-goal,body[data-theme="dark"] .day .dl,body[data-theme="dark"] .legend,body[data-theme="dark"] footer{color:#9AA69E}
+  body[data-theme="dark"] .day{background:#1E2422;border-color:#2F3835}
+  body[data-theme="dark"] .done{background:#262D2A;color:#7FB495}
+  body[data-theme="dark"] .day .dnum{color:#7FB495}
+  body[data-theme="dark"] .eyebrow{color:#D9B968}
+  body[data-theme="dark"] code.inline{background:#262D2A;color:#7FB495}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="doc">
+    <div class="eyebrow">Demo to Pilot: 30 Day Plan with Daily Tasks</div>
+    <h1>Lanai Lifestyle: 30 Day Plan to a Fully Functional Pilot</h1>
+    <p class="lead">From the working bionic demo on the Minisforum to a pilot Bolanle can run real clients through, with everything connected and pilot-grade security.</p>
+    <div class="meta">
+      <span><b>Start:</b> 26 August 2026</span>
+      <span><b>Pilot launch:</b> 24 September 2026</span>
+      <span><b>Owner:</b> You, with Claude</span>
+      <span><b>Baseline:</b> bionic A/B/C working on lanai.newfire.app</span>
+    </div>
+  </header>
+
+  <div class="legend">
+    <span><span class="dot" style="background:#2C5E45"></span>Phase 1: Stabilize</span>
+    <span><span class="dot" style="background:#C8A24A"></span>Phase 2: Connect everything</span>
+    <span><span class="dot" style="background:#B23A3A"></span>Phase 3: Pilot-grade security</span>
+    <span><span class="dot" style="background:#C8702A"></span>Phase 4: Pilot readiness</span>
+    <span><span class="dot" style="background:#2C5E45"></span>Phase 5: Launch</span>
+  </div>
+
+  <div class="phase p1">
+    <h2>Phase 1 (Days 1 to 7): Stabilize the demo foundation</h2>
+    <p class="phase-goal">Commit the bionic work, fix the demo's sharp edges, and make the seeded demo reproducible. End state: a clean, merged main and a demo with no loose ends.</p>
+
+    <div class="day"><div class="dnum">01<span class="dl">Mon</span></div><div>
+      <h3>Fix the seed and checkpoint-commit the six chunks</h3>
+      <ul>
+        <li>Write the corrected <code class="inline">seed_virtuoso_demo.sql</code> into the repo: quote every camelCase column (<code class="inline">"onboardingComplete"</code>, <code class="inline">"memberId"</code>, <code class="inline">"propertyType"</code>) and add Aisha's <code class="inline">pinHash</code> (bcrypt for 123456). Today's seed fails on the first INSERT and gives Aisha no PIN.</li>
+        <li>Stage and commit the six chunks (IDORs, bridge, AI rewire, worker, Virtuoso/email/portal) on <code class="inline">bionic/deployment-fixes</code>.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> the seed runs clean on a fresh DB (psql exits 0, Aisha + 4 hotels + 2 trips present) and the six chunks are in one checkpoint commit.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">02<span class="dl">Tue</span></div><div>
+      <h3>Rebase onto main and merge</h3>
+      <ul>
+        <li>Rebase <code class="inline">bionic/deployment-fixes</code> onto the latest <code class="inline">origin/main</code>; resolve conflicts.</li>
+        <li>Open a PR; get CI green; merge to main.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> main contains the bionic work and is deployable.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">03<span class="dl">Wed</span></div><div>
+      <h3>Small UI fixes: Approve toast, Google tab, proposal 422</h3>
+      <ul>
+        <li>Flow A: add a success toast after "Approve top 3" instead of silently resetting to the empty form.</li>
+        <li>Flow A: remove or repurpose the hotel card link that opens a Google search in a new tab.</li>
+        <li>Proposal Co-Pilot: disable "Generate Proposal" until a Structured Request is selected, so it never returns the 422.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> Approve shows a toast; no stray Google tab; no 422 on generate.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">04<span class="dl">Thu</span></div><div>
+      <h3>Fix the member and advisor session conflict</h3>
+      <ul>
+        <li>Scope the advisor cookie to path <code class="inline">/</code> and the member cookie to path <code class="inline">/client</code>, or make member auth resolution ignore the advisor cookie entirely.</li>
+        <li>Test: sign into the advisor portal, then the member portal, in the same browser.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> a user with both cookies can authenticate as a member without clearing the advisor cookie.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">05<span class="dl">Fri</span></div><div>
+      <h3>Fix the Morning Briefing 504</h3>
+      <ul>
+        <li>Convert <code class="inline">/api/briefing/morning-briefing</code> to streaming SSE (like the proposal engine), or raise the origin timeout and cap the prompt size.</li>
+        <li>Show a visible error state instead of a silent reset when it fails.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> Generate Briefing produces output on lanai.newfire.app within the proxy timeout.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">06<span class="dl">Sat</span></div><div>
+      <h3>CSP and fonts, advisor provisioning</h3>
+      <ul>
+        <li>Add <code class="inline">fonts.googleapis.com</code> to <code class="inline">style-src</code> and <code class="inline">fonts.gstatic.com</code> to <code class="inline">font-src</code>, or self-host the fonts so the brand renders in production.</li>
+        <li>Provision <code class="inline">advisor@lanai.test</code> on the prod Keycloak (role and verified email) or document <code class="inline">devadmin</code> as the demo advisor and rotate its password.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> Playfair and DM Sans load on lanai.newfire.app; the intended advisor account signs in.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">07<span class="dl">Sun</span></div><div>
+      <h3>WhatsApp dedup and weekly smoke test</h3>
+      <ul>
+        <li>Fix WhatsApp ingestion to dedup client and member creation by phone number; archive the 9 duplicate "WhatsApp 1181" records.</li>
+        <li>Redeploy portal and gateway together; smoke test A, B, C, and the fallback.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> no new duplicate clients from WhatsApp; all four demo flows pass.</div>
+    </div></div>
+  </div>
+
+  <div class="phase p2">
+    <h2>Phase 2 (Days 8 to 14): Connect everything</h2>
+    <p class="phase-goal">Build the follow-up features that make the app fully connected: live data in, live data out, the real advisor lifecycle. End state: one clean run from request to commission.</p>
+
+    <div class="day"><div class="dnum">08<span class="dl">Mon</span></div><div>
+      <h3>Live inbound email for the Re-brander (Flow B)</h3>
+      <ul>
+        <li>Replace paste and import with a real inbound email webhook (Resend Inbound or Mailgun) that lands supplier confirmations in a rebrander queue.</li>
+        <li>The rebrander auto-loads the latest inbound email for the selected member.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> a real Four Seasons confirmation email arrives and auto-populates the rebrander.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">09<span class="dl">Tue</span></div><div>
+      <h3>Auto-derive the trip timeline and fix memberPortal.myTrips</h3>
+      <ul>
+        <li>Derive the member trip timeline from bookings (proposal to booking to execution to completed, with dates, supplier, and spend), not just travel_requests.</li>
+        <li>Fix <code class="inline">memberPortal.myTrips</code> so members see booking-derived trips.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> Flow C shows real trips derived from bookings, not seeded requests.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">10<span class="dl">Wed</span></div><div>
+      <h3>Supplier curation UI on the Suppliers page</h3>
+      <ul>
+        <li>Add the curation form on <code class="inline">/suppliers</code> so advisors manage the Virtuoso catalog (add, edit, deactivate hotels, room rates, amenities) beyond the seeded four.</li>
+        <li>Gate it by senior advisor or admin.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> an advisor can add a 5th Paris hotel with rates and amenities through the UI.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">11<span class="dl">Thu</span></div><div>
+      <h3>Live Virtuoso or Little Emperors rate API</h3>
+      <ul>
+        <li>Integrate a live rate source for the catalog so rates refresh instead of seeded baselines.</li>
+        <li>Fall back to the stored baseline if the rate API is down.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> the shortlist shows live or recently-synced rates with a sync timestamp.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">12<span class="dl">Fri</span></div><div>
+      <h3>Real document vault</h3>
+      <ul>
+        <li>Make the member vault functional: advisor uploads (passport, visa, insurance) to S3; the member sees their documents in the client portal.</li>
+        <li>Apply the storage proxy IDOR fix: resolve key to document to Permify ownership check before presigning; log every download.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> an advisor uploads a passport PDF, the member can view it, and another member cannot.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">13<span class="dl">Sat</span></div><div>
+      <h3>Connect the advisor lifecycle end to end</h3>
+      <ul>
+        <li>Wire the full flow in the UI: travel request, AI proposal, client approval in the portal, booking, supplier confirmation, commission recorded, trip appears in the member timeline.</li>
+        <li>Each stage transitions cleanly with no manual database steps.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> a request moves from new to booked to completed entirely through the UI, with commission recorded.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">14<span class="dl">Sun</span></div><div>
+      <h3>End to end walkthrough and fix breakages</h3>
+      <ul>
+        <li>Run the full connected flow as Bolanle would: recommend, approve, rebrand, send, member sees the trip, booking, commission.</li>
+        <li>Fix whatever breaks.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> one clean run of the full lifecycle with no errors.</div>
+    </div></div>
+  </div>
+
+  <div class="phase p3">
+    <h2>Phase 3 (Days 15 to 21): Pilot-grade security</h2>
+    <p class="phase-goal">Close the critical and high findings from the security audit so it is safe to put real client data in. End state: the criticals are closed and verified.</p>
+
+    <div class="day"><div class="dnum">15<span class="dl">Mon</span></div><div>
+      <h3>Audit logging (the biggest gap)</h3>
+      <ul>
+        <li>Wire <code class="inline">writeAudit</code> into a tRPC mutation middleware so every create, update, and delete is logged; populate <code class="inline">ipAddress</code> and <code class="inline">userAgent</code>.</li>
+        <li>Log login, logout, role changes, document access, and AI insight reads.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> a test mutation creates an audit_logs row with IP and UA.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">16<span class="dl">Tue</span></div><div>
+      <h3>Tamper-evident audit and session revocation</h3>
+      <ul>
+        <li>Make <code class="inline">audit_logs</code> append-only (revoke update and delete from the app role), add a hash chain, stream a copy to WORM or the lakehouse.</li>
+        <li>Fix logout to destroy the Redis session; add an admin "revoke session" procedure.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> an admin cannot delete audit rows; logout invalidates the server session.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">17<span class="dl">Wed</span></div><div>
+      <h3>Per-member role-based access control</h3>
+      <ul>
+        <li>Add Permify member-level tuples (<code class="inline">user:X advises member:Y</code>) on member and client create.</li>
+        <li>Scope members.list, clients.list, communication reads, AI intelligence, and AI insights to assigned members; senior advisors and admins see all with an audit entry.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> a junior advisor only sees their assigned members and cannot read others' PII.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">18<span class="dl">Thu</span></div><div>
+      <h3>Two-factor authentication</h3>
+      <ul>
+        <li>Enforce TOTP (<code class="inline">CONFIGURE_TOTP</code>) as a required Keycloak action for advisors.</li>
+        <li>Add OTP step-up for members on document download and PIN change, with a recovery path.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> an advisor must set up TOTP on next login; a member enters an OTP before downloading a passport.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">19<span class="dl">Fri</span></div><div>
+      <h3>PII encryption at rest</h3>
+      <ul>
+        <li>Enable pgcrypto; encrypt passport, emergency contact, family-office, dietary, visa, and NDA columns with a KMS-held key (AES-256-GCM or pgp_sym_encrypt).</li>
+        <li>Migrate existing rows (re-encrypt).</li>
+      </ul>
+      <div class="done"><b>Done when:</b> a raw DB read shows ciphertext for passport numbers; the app decrypts transparently.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">20<span class="dl">Sat</span></div><div>
+      <h3>Member auth hardening and CSRF</h3>
+      <ul>
+        <li>Add per-account PIN lockout (<code class="inline">failed_login_attempts</code>, <code class="inline">locked_until</code>) and a common-PIN blocklist.</li>
+        <li>Set <code class="inline">SameSite=Lax</code> on session cookies (keep None only for the short-lived OIDC state cookie); add Origin checks; never allow <code class="inline">ALLOWED_ORIGINS=*</code> in prod.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> 5 wrong PINs lock the account; cross-site credentialed requests are rejected.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">21<span class="dl">Sun</span></div><div>
+      <h3>Backups, secrets, and weekly security scan</h3>
+      <ul>
+        <li>Set up WAL-G to an encrypted S3 target; test a restore.</li>
+        <li>Rotate the plaintext .env secrets (JWT, Keycloak client secret, Twenty CRM token, Chatwoot token) into SOPS.</li>
+        <li>Re-run the security audit checklist; confirm the criticals are closed.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> a tested restore works; no plaintext secrets on disk; critical findings resolved.</div>
+    </div></div>
+  </div>
+
+  <div class="phase p4">
+    <h2>Phase 4 (Days 22 to 28): Pilot readiness</h2>
+    <p class="phase-goal">Real data, real users, a deploy pipeline, and UAT with Bolanle. End state: the pilot is ready to launch.</p>
+
+    <div class="day"><div class="dnum">22<span class="dl">Mon</span></div><div>
+      <h3>Deploy pipeline (no more manual kind-load)</h3>
+      <ul>
+        <li>CI builds and pushes both <code class="inline">lanai-portal</code> and <code class="inline">lanai-ai-gateway</code> images together on merge to main; applies migrations as a job; rolls out to the cluster.</li>
+        <li>Same pipeline for staging and prod (lanai.newfire.app).</li>
+      </ul>
+      <div class="done"><b>Done when:</b> a merge to main deploys portal, gateway, and migrations automatically.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">23<span class="dl">Tue</span></div><div>
+      <h3>Monitoring and alerting</h3>
+      <ul>
+        <li>Dashboard for: briefing and proposal generation time, AI gateway latency, 504 and 422 and error rates, DB connections, Ollama uptime.</li>
+        <li>Alert on: AI gateway down, briefing timeout, error spike.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> the dashboard shows live metrics and an Ollama-down event fires an alert.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">24<span class="dl">Wed</span></div><div>
+      <h3>Onboard real data</h3>
+      <ul>
+        <li>Onboard Bolanle's first 3 to 5 real members (tiers, preferences, passports, emergency contacts) through the advisor UI.</li>
+        <li>Build the real Virtuoso supplier catalog (beyond the seeded four) with real rates and amenities.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> 3 to 5 real members with complete profiles; the supplier catalog is real.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">25<span class="dl">Thu</span></div><div>
+      <h3>UAT with Bolanle</h3>
+      <ul>
+        <li>Bolanle runs the full flow: recommend for a real member, approve top 3, rebrand a real confirmation, the member logs in and sees their trip.</li>
+        <li>Capture every point of friction.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> Bolanle completes one full client journey and the friction list is captured.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">26<span class="dl">Fri</span></div><div>
+      <h3>Fix UAT findings</h3>
+      <ul>
+        <li>Address the top friction points from UAT: polish, copy, edge cases.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> the friction list is worked through and the journey is smooth.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">27<span class="dl">Sat</span></div><div>
+      <h3>Member onboarding test</h3>
+      <ul>
+        <li>Run the full member onboarding: advisor invites, member gets the email, sets a PIN, first login, sees trips and documents.</li>
+        <li>Test with a real (non-demo) member email.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> a real member can self-onboard and use the portal.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">28<span class="dl">Sun</span></div><div>
+      <h3>Cutover and rollback plan</h3>
+      <ul>
+        <li>Write the pilot cutover checklist and rollback plan (image tags, DB backup, feature flags).</li>
+        <li>Final security and functional smoke test.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> the cutover plan is documented and rehearsed.</div>
+    </div></div>
+  </div>
+
+  <div class="phase p5">
+    <h2>Phase 5 (Days 29 to 30): Pilot launch</h2>
+    <p class="phase-goal">Go live with the hardened, connected app and patch day-one issues. End state: Bolanle services a real client through the platform.</p>
+
+    <div class="day"><div class="dnum">29<span class="dl">Mon</span></div><div>
+      <h3>Pilot launch</h3>
+      <ul>
+        <li>Cut over to the hardened, connected app. Bolanle and the first members use it live.</li>
+        <li>Monitor for the first hours.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> the pilot is live and Bolanle services a real client through the platform.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">30<span class="dl">Tue</span></div><div>
+      <h3>Day-one patching and retro</h3>
+      <ul>
+        <li>Patch any day-one issues.</li>
+        <li>Retrospective: what landed, what is next (scale to more members, live GDS, deeper intelligence).</li>
+      </ul>
+      <div class="done"><b>Done when:</b> the pilot is stable and the next 30 day plan is drafted.</div>
+    </div></div>
+  </div>
+
+  <h2>How to use this plan</h2>
+  <p>Each day has one to three concrete tasks and a clear "done when" so you know when to stop. The phases are ordered: stabilize what you have, connect the missing pieces, harden for real data, then prove it with real users. If a day runs over, push the next day rather than skipping the security phase, because the pilot holds real client PII by Day 24. I can pair with you on any day; the ones that most benefit from a second pass are Day 1 (the seed), Day 13 (the lifecycle wiring), and the whole security phase (15 to 21), which maps directly to the security report's findings.</p>
+
+  <footer>
+    Lanai Lifestyle: 30 Day Demo to Pilot Plan · 26 August 2026 · Grounded in the bionic demo state and the functional and security audit reports.
+  </footer>
+</div>
+</body>
+</html>

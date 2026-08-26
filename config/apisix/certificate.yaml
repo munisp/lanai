@@ -24,4 +24,8 @@ spec:
     - admin.lanai.newfire.app
     - inbox.lanai.newfire.app
     - member.lanai.newfire.app
+    - chatwoot.lanai.upi.dev
+    - chatwoot.lanai.newfire.app
+    - crm.lanai.upi.dev
+    - crm.lanai.newfire.app
 

@@ -24,6 +24,7 @@ type Conversation = {
   status: string;
   updatedAt: Date | string;
   advisorResponded?: boolean;
+  memberId?: number | null;
 };
 type ThreadMessage = {
   id: number;
@@ -32,10 +33,22 @@ type ThreadMessage = {
   createdAt: Date | string;
 };
 
+type WhatsAppTriage = {
+  intent?: string;
+  urgency?: string;
+  sentiment?: string;
+  summary?: string;
+  suggested_action?: string;
+  suggested_tags?: string[];
+  draft_reply?: string;
+  estimated_value?: number;
+};
+
 export default function WhatsAppPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [replyText, setReplyText] = useState("");
   const [drafting, setDrafting] = useState(false);
+  const [triage, setTriage] = useState<WhatsAppTriage | null>(null);
   const { data: envConfig } = trpc.system.env.useQuery();
   const {
     data: conversations = [],
@@ -82,7 +95,7 @@ export default function WhatsAppPage() {
           dateStyle: "medium",
           timeStyle: "short",
         }).format(new Date(value))
-      : "—";
+      : "";
 
   const regenerateDraft = async () => {
     if (!selected || !latestInbound?.content) {
@@ -92,6 +105,7 @@ export default function WhatsAppPage() {
       return;
     }
     setDrafting(true);
+    setTriage(null);
     try {
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 120_000);
@@ -101,16 +115,20 @@ export default function WhatsAppPage() {
         body: JSON.stringify({
           message: latestInbound.content,
           client_name: selected.contactName,
-          context: selected.lastMessage ?? "",
+          // The server grounds the draft in this member's memory
+          // (preferences, family, dates, recent requests) when member_id is set.
+          member_id: selected.memberId ?? undefined,
         }),
         signal: controller.signal,
       });
       window.clearTimeout(timeout);
       if (!response.ok) throw new Error(await response.text());
-      const result = (await response.json()) as { output?: string };
-      if (!result.output)
-        throw new Error("The AI service returned an empty draft.");
-      setReplyText(result.output);
+      const result = (await response.json()) as { structured?: WhatsAppTriage };
+      const triageResult = result.structured;
+      if (!triageResult?.draft_reply)
+        throw new Error("The AI service did not return a draft.");
+      setTriage(triageResult);
+      setReplyText(triageResult.draft_reply);
       toast.success("AI draft generated from the persisted conversation.");
     } catch (draftError) {
       toast.error(
@@ -285,6 +303,48 @@ export default function WhatsAppPage() {
                     Regenerate
                   </Button>
                 </div>
+                {triage && (
+                  <div className="rounded-md border border-border/60 bg-muted/30 p-3 space-y-1.5 text-xs">
+                    <div className="flex flex-wrap gap-1.5">
+                      {triage.intent && (
+                        <span className="rounded bg-primary/10 px-1.5 py-0.5 font-medium">
+                          {triage.intent}
+                        </span>
+                      )}
+                      {triage.urgency && (
+                        <span className="rounded bg-primary/10 px-1.5 py-0.5 font-medium">
+                          {triage.urgency}
+                        </span>
+                      )}
+                      {triage.sentiment && (
+                        <span className="rounded bg-primary/10 px-1.5 py-0.5 font-medium">
+                          {triage.sentiment}
+                        </span>
+                      )}
+                      {(triage.suggested_tags ?? []).map((t) => (
+                        <span
+                          key={t}
+                          className="rounded border px-1.5 py-0.5 inline-flex items-center gap-1"
+                        >
+                          <Tag className="w-3 h-3" />
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                    {triage.summary && (
+                      <p>
+                        <span className="font-semibold">Summary:</span>{" "}
+                        {triage.summary}
+                      </p>
+                    )}
+                    {triage.suggested_action && (
+                      <p>
+                        <span className="font-semibold">Suggested action:</span>{" "}
+                        {triage.suggested_action}
+                      </p>
+                    )}
+                  </div>
+                )}
                 <Textarea
                   rows={6}
                   value={replyText}

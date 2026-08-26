@@ -1,7 +1,7 @@
-# Mirrors config/caddy/Caddyfile's host/path routing (Caddy's edge role — TLS,
-# routing across lanai.upi.dev and its subdomains — is replaced in-cluster by
-# this cluster-wide APISIX Ingress Controller + cert-manager). There's no
-# in-namespace WAF/routing hop here (unlike the original design) — this
+# Mirrors config/caddy/Caddyfile's host/path routing. Caddy's edge role (TLS
+# and routing across lanai.upi.dev and its subdomains) is replaced in-cluster
+# by this cluster-wide APISIX Ingress Controller + cert-manager. There's no
+# in-namespace WAF/routing hop here (unlike the original design). This
 # cluster's ingress (appsec-apisix-prod) already has openappsec attached, so
 # routes go directly to lanai-portal/lanai-ai-gateway/keycloak.
 #
@@ -10,12 +10,12 @@
 # The legacy lanai.upi.dev hosts are kept for backward compatibility.
 #
 # NOTE: no plugins are applied on any rule below. An earlier version used
-# the request-id plugin on most rules, which broke ALL of them — this
+# the request-id plugin on most rules, which broke ALL of them. This
 # shared cluster APISIX instance doesn't have that plugin in its allowlist,
 # and ApisixRoute sync fails for the entire object (all rules together) if
 # any single rule references an unsupported plugin ("unknown plugin
 # [request-id]" in the ingress controller logs). Confirm a plugin is
-# actually available on this instance before adding one back — the
+# actually available on this instance before adding one back. The
 # per-route rate-limiting that used to live in
 # config/apisix/routes/lanai-routes.yaml (30/15min on oauth, 100/min on the
 # Stripe webhook, 1000/hr on the public api host, etc.) was never ported
@@ -78,18 +78,6 @@ spec:
           config:
             regex_uri: ["^/internal/ai/(.*)", "/$1"]
 
-    - name: api-host-whatsapp-webhook
-      priority: 10
-      match:
-        hosts:
-          - api.lanai.upi.dev
-          - api.lanai.newfire.app
-        paths:
-          - /webhook/whatsapp
-      backends:
-        - serviceName: lanai-whatsapp-bridge
-          servicePort: 5555
-
     - name: api-host-default
       priority: 0
       match:
@@ -101,3 +89,27 @@ spec:
       backends:
         - serviceName: lanai-portal
           servicePort: 3001
+
+    - name: chatwoot-host
+      priority: 0
+      match:
+        hosts:
+          - chatwoot.lanai.upi.dev
+          - chatwoot.lanai.newfire.app
+        paths:
+          - /*
+      backends:
+        - serviceName: chatwoot
+          servicePort: 3000
+
+    - name: twenty-host
+      priority: 0
+      match:
+        hosts:
+          - crm.lanai.upi.dev
+          - crm.lanai.newfire.app
+        paths:
+          - /*
+      backends:
+        - serviceName: twenty
+          servicePort: 3000

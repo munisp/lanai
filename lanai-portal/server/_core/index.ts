@@ -43,6 +43,11 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 
 async function startServer() {
   const app = express();
+  // The app runs behind a reverse proxy (APISIX + Cloudflare) that sets
+  // X-Forwarded-* headers. Trust exactly one hop (the immediate APISIX proxy)
+  // so rate-limiting sees the real client IP without letting arbitrary
+  // clients spoof X-Forwarded-For (which `trust proxy: true` would allow).
+  app.set("trust proxy", 1);
   const server = createServer(app);
 
   // ── Security headers (helmet) ─────────────────────────────────────────────

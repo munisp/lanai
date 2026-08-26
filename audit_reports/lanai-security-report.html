@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lanai Lifestyle: Privacy and Insider-Threat Security Report</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#FAFAF7;color:#1A1F1B;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.6;font-size:16px}
+  .wrap{max-width:1000px;margin:0 auto;padding:48px 28px 96px}
+  header.doc{border-bottom:2px solid #1A1F1B;padding-bottom:24px;margin-bottom:36px}
+  .eyebrow{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#C8A24A;margin-bottom:14px}
+  h1{font-family:Georgia,"Iowan Old Style","Times New Roman",serif;font-weight:700;font-size:40px;line-height:1.08;margin:0 0 10px;text-wrap:balance}
+  .meta{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12.5px;color:#5E6B62;display:flex;flex-wrap:wrap;gap:6px 22px;margin-top:14px}
+  .meta b{color:#1A1F1B;font-weight:600}
+  h2{font-family:Georgia,"Iowan Old Style","Times New Roman",serif;font-size:26px;font-weight:700;margin:44px 0 14px;line-height:1.2}
+  h3{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#2C5E45;margin:26px 0 10px}
+  p{margin:0 0 14px}
+  .lead{font-size:18px;color:#5E6B62;max-width:64ch}
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:22px 0}
+  .stat{background:#FFFFFF;border:1px solid #E2E0D8;border-radius:10px;padding:16px 14px}
+  .stat .n{font-family:Georgia,"Iowan Old Style","Times New Roman",serif;font-size:32px;font-weight:700;line-height:1}
+  .stat .l{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#5E6B62;margin-top:8px}
+  .stat.crit .n{color:#B23A3A} .stat.high .n{color:#C8702A} .stat.med .n{color:#8A6D1A} .stat.tot .n{color:#1A1F1B}
+  .finding{background:#FFFFFF;border:1px solid #E2E0D8;border-left:4px solid #B23A3A;border-radius:8px;padding:16px 18px;margin:12px 0}
+  .finding.high{border-left-color:#C8702A} .finding.med{border-left-color:#8A6D1A} .finding.info{border-left-color:#5E6B62}
+  .finding .ft{display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap}
+  .finding h4{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;font-weight:700}
+  .finding .sev{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:999px;color:#FFFFFF}
+  .sev.crit{background:#B23A3A} .sev.high{background:#C8702A} .sev.med{background:#8A6D1A} .sev.info{background:#5E6B62}
+  .finding p{font-size:14px;margin:4px 0 6px}
+  .finding code{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12px;background:#F3F2EC;padding:1px 5px;border-radius:4px;color:#2C5E45}
+  .finding .fix{font-size:13.5px;color:#3A4640;background:#F3F2EC;border-radius:6px;padding:8px 12px;margin-top:6px}
+  .finding .fix b{color:#2C5E45}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr} .cards{grid-template-columns:1fr 1fr}}
+  .rec{background:#FFFFFF;border:1px solid #E2E0D8;border-radius:10px;padding:18px 20px;margin:12px 0}
+  .rec h4{margin:0 0 6px;font-family:Georgia,"Iowan Old Style","Times New Roman",serif;font-size:18px;font-weight:700;color:#1A1F1B}
+  .rec .tag{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#C8A24A;margin-bottom:8px}
+  .rec ul{margin:6px 0 0;padding-left:18px}
+  .rec li{font-size:14px;margin-bottom:5px}
+  code.inline{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12.5px;background:#F3F2EC;padding:1px 5px;border-radius:4px;color:#2C5E45}
+  .sec-note{background:#F3F2EC;border-radius:8px;padding:14px 18px;font-size:13.5px;color:#5E6B62;margin:14px 0}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:11px;color:#5E6B62;margin:8px 0 4px}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .dot{width:9px;height:9px;border-radius:50%}
+  footer{margin-top:60px;padding-top:18px;border-top:1px solid #E2E0D8;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:11px;color:#5E6B62}
+  @media (prefers-color-scheme: dark){
+    body:not([data-theme="light"]){background:#15191A;color:#ECEAE2}
+    body:not([data-theme="light"]) header.doc{border-color:#ECEAE2}
+    body:not([data-theme="light"]) .meta b,body:not([data-theme="light"]) .stat.tot .n,body:not([data-theme="light"]) .rec h4{color:#ECEAE2}
+    body:not([data-theme="light"]) .lead,body:not([data-theme="light"]) .meta,body:not([data-theme="light"]) .stat .l,body:not([data-theme="light"]) .legend,body:not([data-theme="light"]) footer,body:not([data-theme="light"]) .sec-note,body:not([data-theme="light"]) .finding .fix{color:#9AA69E}
+    body:not([data-theme="light"]) .stat,body:not([data-theme="light"]) .finding,body:not([data-theme="light"]) .rec{background:#1E2422;border-color:#2F3835}
+    body:not([data-theme="light"]) .finding .fix{background:#262D2A}
+    body:not([data-theme="light"]) .sec-note{background:#262D2A}
+    body:not([data-theme="light"]) .eyebrow{color:#D9B968}
+    body:not([data-theme="light"]) h3{color:#7FB495}
+    body:not([data-theme="light"]) .rec .tag{color:#D9B968}
+    body:not([data-theme="light"]) .stat.crit .n{color:#E07A7A} body:not([data-theme="light"]) .stat.high .n{color:#E0995A} body:not([data-theme="light"]) .stat.med .n{color:#C9B05E}
+    body:not([data-theme="light"]) .sev.crit{background:#E07A7A;color:#15191A} body:not([data-theme="light"]) .sev.high{background:#E0995A;color:#15191A} body:not([data-theme="light"]) .sev.med{background:#C9B05E;color:#15191A} body:not([data-theme="light"]) .sev.info{background:#9AA69E;color:#15191A}
+    body:not([data-theme="light"]) .finding code,body:not([data-theme="light"]) code.inline{background:#262D2A;color:#7FB495}
+    body:not([data-theme="light"]) .finding .fix b{color:#7FB495}
+  }
+  body[data-theme="dark"]{background:#15191A;color:#ECEAE2}
+  body[data-theme="dark"] header.doc{border-color:#ECEAE2}
+  body[data-theme="dark"] .meta b,body[data-theme="dark"] .stat.tot .n,body[data-theme="dark"] .rec h4{color:#ECEAE2}
+  body[data-theme="dark"] .lead,body[data-theme="dark"] .meta,body[data-theme="dark"] .stat .l,body[data-theme="dark"] .legend,body[data-theme="dark"] footer,body[data-theme="dark"] .sec-note,body[data-theme="dark"] .finding .fix{color:#9AA69E}
+  body[data-theme="dark"] .stat,body[data-theme="dark"] .finding,body[data-theme="dark"] .rec{background:#1E2422;border-color:#2F3835}
+  body[data-theme="dark"] .finding .fix{background:#262D2A}
+  body[data-theme="dark"] .sec-note{background:#262D2A}
+  body[data-theme="dark"] .eyebrow{color:#D9B968}
+  body[data-theme="dark"] h3{color:#7FB495}
+  body[data-theme="dark"] .rec .tag{color:#D9B968}
+  body[data-theme="dark"] .stat.crit .n{color:#E07A7A} body[data-theme="dark"] .stat.high .n{color:#E0995A} body[data-theme="dark"] .stat.med .n{color:#C9B05E}
+  body[data-theme="dark"] .sev.crit{background:#E07A7A;color:#15191A} body[data-theme="dark"] .sev.high{background:#E0995A;color:#15191A} body[data-theme="dark"] .sev.med{background:#C9B05E;color:#15191A} body[data-theme="dark"] .sev.info{background:#9AA69E;color:#15191A}
+  body[data-theme="dark"] .finding code,body[data-theme="dark"] code.inline{background:#262D2A;color:#7FB495}
+  body[data-theme="dark"] .finding .fix b{color:#7FB495}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="doc">
+    <div class="eyebrow">Deliverable 2 of 2: Privacy and Insider-Threat Security Report</div>
+    <h1>Lanai Lifestyle: Privacy, Insider-Threat, and Security Review</h1>
+    <p class="lead">A code-level audit of how client data is protected at rest, in transit, and from the people who already have legitimate access, with concrete mitigations and a build plan for encryption, two-factor auth, OTP step-up, and role-based access control.</p>
+    <div class="meta">
+      <span><b>Scope:</b> lanai-portal + lanai_ai codebase, production config</span>
+      <span><b>Date:</b> 8 August 2026</span>
+      <span><b>Method:</b> Static code audit + config review</span>
+      <span><b>Vectors analysed:</b> 13 insider threats</span>
+    </div>
+  </header>
+
+  <h2>Executive summary</h2>
+  <p>The platform has solid foundations: SOPS-encrypted production secrets, Caddy HSTS with APISIX TLS at the edge, bcrypt-hashed member PINs, a local Ollama model for AI so client data does not leave the perimeter, and no PII in logs. However, the insider-threat surface is wide. A single junior-advisor credential can enumerate the entire member base, read every member's private messages, download any member's passport and visa documents, and pull churn and lifetime-value intelligence on every client, all with no audit trail written. There is no two-factor authentication, no encryption of PII at rest, and the document vault has a broken object-level authorization check that lets any logged-in user fetch any file.</p>
+  <div class="cards">
+    <div class="stat crit"><div class="n">6</div><div class="l">Critical</div></div>
+    <div class="stat high"><div class="n">9</div><div class="l">High</div></div>
+    <div class="stat med"><div class="n">7</div><div class="l">Medium</div></div>
+    <div class="stat tot"><div class="n">22</div><div class="l">Total findings</div></div>
+  </div>
+  <div class="legend">
+    <span><span class="dot" style="background:#B23A3A"></span>Critical</span>
+    <span><span class="dot" style="background:#C8702A"></span>High</span>
+    <span><span class="dot" style="background:#8A6D1A"></span>Medium</span>
+    <span><span class="dot" style="background:#5E6B62"></span>Info</span>
+  </div>
+
+  <h2>Insider-threat vectors (13)</h2>
+  <p>Each vector is a realistic path for a malicious or negligent insider who already holds a legitimate account. The root cause is shared: authorization is a single coarse check ("any advisor may manage the platform"), with no per-member relationship tuples, and the audit log is effectively empty.</p>
+
+  <div class="finding">
+    <div class="ft"><span class="sev crit">Critical</span><h4>IT-1 · Audit logging is effectively absent</h4></div>
+    <p>A <code>writeAudit()</code> helper exists but is called from exactly one place in the entire server (member-preferences update). Login, logout, role promotion, member and client creation, document upload, conversation reads, AI insight access, commission changes, and every hard-delete write no audit record. After-the-fact incident response is impossible because the trail does not exist.</p>
+    <div class="fix"><b>Fix:</b> Wire <code>writeAudit</code> into a tRPC mutation middleware so it cannot be skipped. Populate the <code>ipAddress</code> and <code>userAgent</code> columns the schema already defines.</div>
+  </div>
+
+  <div class="finding high">
+    <div class="ft"><span class="sev high">High</span><h4>IT-2 · Audit logs are not tamper-evident</h4></div>
+    <p>The <code>audit_logs</code> table is a plain insertable table with no hash chain, no signed rows, and no trigger preventing update or delete. An admin with a SQL console can <code>DELETE FROM audit_logs</code> and leave no trace. The role that reads logs is the same role most able to suppress them.</p>
+    <div class="fix"><b>Fix:</b> Make the table append-only (revoke update and delete from the app role), hash-chain each row to the previous, and stream a copy to WORM storage or the lakehouse.</div>
+  </div>
+
+  <div class="finding">
+    <div class="ft"><span class="sev crit">Critical</span><h4>IT-3 · Any advisor can enumerate and read PII for every member</h4></div>
+    <p><code>members.list</code> is a protected procedure that returns email, name, phone, and nationality for all members with no <code>assignedAdvisorId</code> filter. The code comment even says "any advisor can view." A junior advisor calls it once and walks away with the full client roster. The same gap exists on <code>advisors.list</code>, <code>clients.list</code>, and <code>pendingInvites</code>.</p>
+    <div class="fix"><b>Fix:</b> Filter by <code>assignedAdvisorId = ctx.user.id</code> for the advisor role; allow senior advisors and admins to see all only with an audit entry.</div>
+  </div>
+
+  <div class="finding">
+    <div class="ft"><span class="sev crit">Critical</span><h4>IT-4 · CRM proxy exposes the full Twenty CRM API to any advisor</h4></div>
+    <p>The <code>/crm/*</code> proxy forwards any request to Twenty CRM with the server's global API token. Unlike the Chatwoot proxy, there is no allowlist. An advisor can page through <code>/crm/rest/20/people</code> and download the entire CRM dataset, not just Lanai members, using Lanai's credential. Nothing is logged.</p>
+    <div class="fix"><b>Fix:</b> Port the Chatwoot allowlist pattern to the CRM proxy. Restrict to read-only, allowlisted paths, scoped to the advisor's records, and log every proxied call.</div>
+  </div>
+
+  <div class="finding">
+    <div class="ft"><span class="sev crit">Critical</span><h4>IT-5 · Document vault serves any file to any authenticated user</h4></div>
+    <p><code>/manus-storage/*</code> is guarded only by "any authenticated user." It presigns a download URL for any key with no ownership check. Permify ownership tuples are written at upload but never consulted at download. An advisor (or a member) can enumerate document keys and download other members' passports, visas, and IDs. The key suffix is only 8 hex characters, so enumeration is feasible.</p>
+    <div class="fix"><b>Fix:</b> Before presigning, resolve the key to a document row and call <code>Permify.check(subject, "view", "document:id")</code>. Log every download.</div>
+  </div>
+
+  <div class="finding high">
+    <div class="ft"><span class="sev high">High</span><h4>IT-6 · AI intelligence leaks a full dossier on any member</h4></div>
+    <p>The intelligence endpoints accept any <code>memberId</code> and ship the member's full profile, preferences, requests, bookings, and proposals to the LLM with no assignment check. A junior advisor passes any member ID and receives churn risk, upsell opportunities, and the preference dossier for members they do not own.</p>
+    <div class="fix"><b>Fix:</b> Add a member-resource Permify relation and check it before <code>memberFacts</code>. Restrict to assigned advisors and log each call.</div>
+  </div>
+
+  <div class="finding high">
+    <div class="ft"><span class="sev high">High</span><h4>IT-7 · AI insights are globally readable</h4></div>
+    <p><code>aiInsights.list</code> accepts <code>memberId</code> and <code>insightType</code> inputs but never uses them in the WHERE clause, returning the 100 most recent churn-risk and upsell signals across the whole member base to any advisor.</p>
+    <div class="fix"><b>Fix:</b> Apply <code>WHERE memberId IN (assigned members)</code> for the advisor role and honour the input filter.</div>
+  </div>
+
+  <div class="finding">
+    <div class="ft"><span class="sev crit">Critical</span><h4>IT-8 · Communication hub exposes every member's messages</h4></div>
+    <p>The communication hub returns the full timeline (email, WhatsApp, call transcriptions, portal messages, internal notes) for any member ID. <code>messaging.getMessages</code> takes any conversation ID and returns its messages with no ownership check. The Chatwoot proxy lets any advisor call contacts, conversations, and reports across the whole account. Private communications and transcriptions are fully exposed.</p>
+    <div class="fix"><b>Fix:</b> Scope all communication reads by assigned advisor. Gate <code>getMessages</code> with a Permify check on the conversation's member. Restrict the Chatwoot proxy to the advisor's inboxes and log access.</div>
+  </div>
+
+  <div class="finding high">
+    <div class="ft"><span class="sev high">High</span><h4>IT-9 · Member sessions are unbound and PIN brute-force is weakly throttled</h4></div>
+    <p>Member session tokens store no IP or user agent, so a stolen cookie is reusable from anywhere. Throttling is IP-based (20 per 15 minutes), trivially bypassed by rotating IPs, with no per-account lockout on a 6-digit PIN (one million combinations). Tier changes do not invalidate sessions.</p>
+    <div class="fix"><b>Fix:</b> Store IP and user agent on sessions and bind validation to a hash of them. Add per-account lockout after N failed attempts. Rotate the token on tier change.</div>
+  </div>
+
+  <div class="finding high">
+    <div class="ft"><span class="sev high">High</span><h4>IT-10 · Hard-delete with no soft-delete and no audit</h4></div>
+    <p>Several procedures issue hard <code>DELETE</code> with no recoverable tombstone and no audit entry: <code>clients.remove</code>, <code>proposalItems.remove</code>, celebration and family-member deletes, member-tag deletes. A disgruntled advisor can permanently destroy high-value records before quarter-end with no trail.</p>
+    <div class="fix"><b>Fix:</b> Replace hard deletes with a <code>deletedAt</code> soft-delete column enforced by Drizzle middleware. Gate hard-delete behind senior advisor plus audit, and record <code>deletedByUserId</code>.</div>
+  </div>
+
+  <div class="finding high">
+    <div class="ft"><span class="sev high">High</span><h4>IT-11 · Admin powers lack separation of duties</h4></div>
+    <p>An admin can promote another account to admin with no second approver, no cooldown, and no step-up authentication. Admins exclusively read audit logs, so a compromised admin can act and then suppress evidence. There is no two-person rule and no break-glass alerting.</p>
+    <div class="fix"><b>Fix:</b> Require two-admin approval for role elevation. Add step-up re-authentication for admin procedures. Split "audit reader" from "admin" so admins cannot read their own logs without a separate role. Alert on every admin action.</div>
+  </div>
+
+  <div class="finding">
+    <div class="ft"><span class="sev med">Medium</span><h4>IT-12 · Invitation token and member email shipped to the lakehouse</h4></div>
+    <p><code>acceptInvite</code> emits a domain event whose payload includes the one-time <code>invitationToken</code>, and member create emits the member email. The outbox delivers these to the lakehouse, widening the circle of people who could redeem an invitation and creating a parallel PII store outside the app's access controls.</p>
+    <div class="fix"><b>Fix:</b> Never include secrets in event payloads; emit <code>invitationAccepted: true</code> only. Apply a PII-redaction layer in the outbox before lakehouse insert.</div>
+  </div>
+
+  <div class="finding">
+    <div class="ft"><span class="sev med">Medium</span><h4>IT-13 · Sensitive data in AI inference metadata and logs</h4></div>
+    <p>The AI routes store the full LLM output (client profile, churn risk, preferences) in <code>ai_inference_runs.outputMetadata</code>, and the communication hub passes full message bodies and transcriptions into the AI prompt. An insider with read access to that table or the container logs can reconstruct member dossiers and private messages, bypassing application controls entirely.</p>
+    <div class="fix"><b>Fix:</b> Store only digests of LLM input and output, not raw objects. Route logs through a sanitiser that strips email, phone, and PIN patterns before stdout or the lakehouse.</div>
+  </div>
+
+  <h2>Encryption and data protection</h2>
+
+  <div class="finding">
+    <div class="ft"><span class="sev crit">Critical</span><h4>E-1 · No encryption at rest for PII</h4></div>
+    <p>There is no pgcrypto, no column-level encryption, and no application cipher anywhere. Passport numbers, passport expiry, date of birth, dietary and accessibility needs, emergency contacts, family-office contacts, visa expiry, and NDA status are all stored as plaintext. A database dump or direct read exposes every piece of sensitive PII in cleartext.</p>
+    <div class="fix"><b>Fix:</b> Enable pgcrypto and store sensitive columns via <code>pgp_sym_encrypt</code> / <code>pgp_sym_decrypt</code>, or use app-level AES-256-GCM with a key held in a KMS. Restrict with column GRANTs.</div>
+  </div>
+
+  <div class="finding high">
+    <div class="ft"><span class="sev high">High</span><h4>E-2 · Document contents are not encrypted</h4></div>
+    <p>Documents are PUT to S3 as raw bytes; confidentiality depends entirely on unverified bucket SSE settings on the Forge backend. Combined with IT-5, this means passports and visas are both unencrypted at rest and downloadable by anyone logged in.</p>
+    <div class="fix"><b>Fix:</b> Encrypt with AES-GCM before upload (envelope key from KMS), or enforce and verify SSE-KMS on the bucket and document it.</div>
+  </div>
+
+  <div class="finding high">
+    <div class="ft"><span class="sev high">High</span><h4>E-3 · No database backup mechanism</h4></div>
+    <p>No pg_dump, WAL-G, Barman, or Velero configuration exists anywhere. MinIO is deployed but only as app object storage. There is no backup, encrypted or otherwise, and no tested restore path.</p>
+    <div class="fix"><b>Fix:</b> Add WAL-G or Barman with a KMS-encrypted S3 target and test a restore on a regular schedule.</div>
+  </div>
+
+  <div class="finding high">
+    <div class="ft"><span class="sev high">High</span><h4>E-4 · Latent external LLM egress to forge.manus.im</h4></div>
+    <p>The active AI features use local Ollama, which is good. However <code>llm.ts</code> has a hardcoded fallback to <code>https://forge.manus.im/v1/chat/completions</code> when <code>BUILT_IN_FORGE_API_URL</code> is unset. If that env var is ever empty, member prompts and data egress to a third party.</p>
+    <div class="fix"><b>Fix:</b> Remove the external fallback and fail fast if the in-perimeter endpoint is unset. Add an egress network policy allowlist.</div>
+  </div>
+
+  <div class="finding">
+    <div class="ft"><span class="sev med">Medium</span><h4>E-5 · No TLS on internal traffic and sslmode disabled</h4></div>
+    <p>The edge has TLS (Caddy HSTS, APISIX TLS), but the internal hops Caddy to APISIX to portal to Postgres are plaintext, and the Postgres connection has no <code>sslmode</code> (Permify explicitly sets <code>sslmode=disable</code>).</p>
+    <div class="fix"><b>Fix:</b> Use mTLS or HTTPS upstreams inside the cluster and require <code>sslmode=verify-full</code> for any cross-host DB connection. Acceptable only on a fully isolated docker network.</div>
+  </div>
+
+  <div class="finding high">
+    <div class="ft"><span class="sev high">High</span><h4>E-6 · Real plaintext secrets in the local .env</h4></div>
+    <p>Production secrets are correctly SOPS-encrypted, but <code>lanai-portal/.env</code> on disk holds real-looking plaintext values: <code>JWT_SECRET</code>, <code>KEYCLOAK_CLIENT_SECRET</code>, a decade-long <code>TWENTY_CRM_API_TOKEN</code>, and the <code>CHATWOOT_ACCESS_TOKEN</code>. If the disk is imaged or the file is accidentally committed, all secrets leak.</p>
+    <div class="fix"><b>Fix:</b> Rotate all of these, move dev secrets into SOPS like prod, and use short-lived refreshable tokens for the CRM.</div>
+  </div>
+
+  <h2>Authentication and access control</h2>
+
+  <div class="finding high">
+    <div class="ft"><span class="sev high">High</span><h4>A-1 · No two-factor authentication anywhere</h4></div>
+    <p>There is no 2FA, OTP, TOTP, passkey, or WebAuthn for advisors or members. Keycloak has <code>otpPolicyType: totp</code> configured but no <code>CONFIGURE_TOTP</code> required action, so OTP is available but not enforced. Member auth is email plus PIN only.</p>
+    <div class="fix"><b>Fix:</b> Enforce TOTP as a required action in Keycloak for all advisor accounts. Add an OTP step for members (see recommendations).</div>
+  </div>
+
+  <div class="finding high">
+    <div class="ft"><span class="sev high">High</span><h4>A-2 · No account lockout on member PIN login</h4></div>
+    <p>There is no failed-attempt counter, no lockout, and no per-account throttling. Only IP-based rate limiting protects a 6-digit PIN. A targeted account can be brute-forced from rotating IPs.</p>
+    <div class="fix"><b>Fix:</b> Add <code>failed_login_attempts</code> and <code>locked_until</code> columns to members; lock after N attempts and reset on success.</div>
+  </div>
+
+  <div class="finding high">
+    <div class="ft"><span class="sev high">High</span><h4>A-3 · Member IDOR: any member can read any conversation</h4></div>
+    <p><code>chatwoot.getMessages</code> is a member procedure that returns all messages for a conversation ID with no check that the conversation belongs to the authenticated member. A member can enumerate IDs and read other members' private messages.</p>
+    <div class="fix"><b>Fix:</b> After looking up the conversation, verify <code>conv.memberId === ctx.member.id</code> and return 403 otherwise.</div>
+  </div>
+
+  <div class="finding high">
+    <div class="ft"><span class="sev high">High</span><h4>A-4 · No CSRF protection with SameSite=None cookies</h4></div>
+    <p>Production cookies use <code>SameSite=None</code> so they are sent on cross-site requests, yet there is no CSRF token, double-submit cookie, or Origin check anywhere. The code itself warns that <code>ALLOWED_ORIGINS=*</code> lets any site make credentialed requests.</p>
+    <div class="fix"><b>Fix:</b> Use <code>SameSite=Lax</code> for session cookies (only the short-lived OIDC state cookie needs None), add an Origin header check, and never allow <code>ALLOWED_ORIGINS=*</code> in production.</div>
+  </div>
+
+  <div class="finding">
+    <div class="ft"><span class="sev med">Medium</span><h4>A-5 · Missing resource-level authorization on advisor mutations</h4></div>
+    <p>Many protected procedures accept an ID and modify the record with no check that the calling advisor has any relationship to it: proposal update, send, and detail; booking status and commission; supplier update; commission markReceived and markDisputed; messaging sendMessage; task status. Any advisor can modify any of these records.</p>
+    <div class="fix"><b>Fix:</b> Add Permify resource checks before each mutation, or filter by <code>createdByUserId</code> / <code>assignedToUserId</code>.</div>
+  </div>
+
+  <div class="finding">
+    <div class="ft"><span class="sev med">Medium</span><h4>A-6 · Advisor logout does not destroy the server session</h4></div>
+    <p>Logout only clears the browser cookie; it never calls <code>destroyAdvisorSession</code>, so the Redis session stays valid for its full 8-hour TTL. A stolen cookie remains usable after logout, and there is no admin session-revocation endpoint.</p>
+    <div class="fix"><b>Fix:</b> Call <code>destroyAdvisorSession</code> on logout and add an admin procedure to list and revoke sessions by user.</div>
+  </div>
+
+  <h2>Recommendations: what to build</h2>
+  <p>Four workstreams close the gaps above. They are ordered by leverage: fix authorization scoping and audit first, because they shrink the insider blast radius for every other feature.</p>
+
+  <div class="grid2">
+    <div class="rec">
+      <div class="tag">Workstream 1 · Authorization and audit</div>
+      <h4>Per-member RBAC with Permify tuples</h4>
+      <ul>
+        <li>Write <code>user:X advises member:Y</code> tuples on member and client create.</li>
+        <li>Scope <code>members.list</code>, <code>clients.list</code>, communication reads, AI intelligence, and AI insights to assigned members; senior advisors and admins see all with an audit entry.</li>
+        <li>Add resource-level Permify checks to every proposal, booking, supplier, commission, task, and messaging mutation.</li>
+        <li>Make <code>writeAudit</code> a tRPC middleware so it cannot be skipped; capture IP and user agent.</li>
+        <li>Make <code>audit_logs</code> append-only with a hash chain and a WORM copy.</li>
+      </ul>
+    </div>
+    <div class="rec">
+      <div class="tag">Workstream 2 · Encryption</div>
+      <h4>PII at rest and document confidentiality</h4>
+      <ul>
+        <li>Enable pgcrypto and encrypt passport, emergency contact, family-office, dietary, visa, and NDA columns with a KMS-held key.</li>
+        <li>Encrypt document bytes with AES-256-GCM before S3 upload, or verify SSE-KMS on the bucket.</li>
+        <li>Fix the storage proxy IDOR: resolve key to document, check Permify, log every download.</li>
+        <li>Add WAL-G backups to encrypted S3 and test restore.</li>
+        <li>Enforce <code>sslmode=verify-full</code> for cross-host DB connections and mTLS on internal hops.</li>
+      </ul>
+    </div>
+    <div class="rec">
+      <div class="tag">Workstream 3 · Authentication hardening</div>
+      <h4>2FA, OTP step-up, and session security</h4>
+      <ul>
+        <li>Enforce TOTP as a required Keycloak action for all advisors; add WebAuthn for admins.</li>
+        <li>Add per-account lockout and a common-PIN blocklist for member PIN login.</li>
+        <li>OTP step-up for members on sensitive actions: document download, proposal approval, PIN change, billing changes.</li>
+        <li>Bind member sessions to IP and user agent; cap concurrent sessions; rotate on tier change.</li>
+        <li>Set <code>SameSite=Lax</code> on session cookies, add Origin checks, scope advisor and member cookies by path.</li>
+        <li>Destroy the Redis session on logout and add admin session revocation.</li>
+      </ul>
+    </div>
+    <div class="rec">
+      <div class="tag">Workstream 4 · Data egress and hygiene</div>
+      <h4>Keep data inside the perimeter</h4>
+      <ul>
+        <li>Remove the <code>forge.manus.im</code> fallback and fail fast if the in-perimeter LLM endpoint is unset.</li>
+        <li>Add an egress network policy allowlist for the cluster.</li>
+        <li>Strip secrets and PII from outbox events before lakehouse insert; never ship invitation tokens.</li>
+        <li>Store only digests of AI input and output, not raw dossiers; sanitise logs of email, phone, and PIN patterns.</li>
+        <li>Allowlist the CRM proxy to read-only, scoped paths and log every call.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sec-note">
+    <b>Strongest existing controls to keep:</b> SOPS and age encryption for production secrets, Caddy HSTS with APISIX TLS at the edge, local Ollama for active AI features (no data leaves the perimeter today), bcrypt-hashed member PINs, no PII in application logs, and OIDC Authorization Code flow with PKCE for advisors.
+  </div>
+
+  <footer>
+    Lanai Lifestyle Privacy and Insider-Threat Security Report · 8 August 2026 · Companion document: Functional and CRUD Test Report (Deliverable 1).
+  </footer>
+</div>
+</body>
+</html>

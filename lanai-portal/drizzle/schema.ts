@@ -1,5 +1,5 @@
 /**
- * Lanai Lifestyle — Complete PostgreSQL Schema
+ * Lanai Lifestyle: Complete PostgreSQL Schema
  *
  * Stakeholders:
  *   - Advisor (advisor | senior_advisor | admin): staff portal users
@@ -452,6 +452,16 @@ export type InsertBooking = typeof bookings.$inferInsert;
 
 // ─── Suppliers ────────────────────────────────────────────────────────────────
 
+export const supplierPropertyTypeEnum = pgEnum("supplier_property_type", [
+  "hotel",
+  "villa",
+  "yacht",
+  "jet",
+  "transfer",
+  "experience",
+  "other",
+]);
+
 export const suppliers = pgTable(
   "suppliers",
   {
@@ -461,8 +471,14 @@ export const suppliers = pgTable(
     subCategory: varchar("subCategory", { length: 128 }),
     country: varchar("country", { length: 128 }),
     city: varchar("city", { length: 128 }),
+    // Typed property type for the curated Virtuoso catalog (nullable so
+    // legacy free-text `category` rows are not broken). The recommendation
+    // engine filters on propertyType + isVirtuoso.
+    propertyType: supplierPropertyTypeEnum("propertyType"),
     rating: integer("rating"),
     preferredStatus: boolean("preferredStatus").default(false).notNull(),
+    isVirtuoso: boolean("isVirtuoso").default(false).notNull(),
+    preferredPartnerNetwork: varchar("preferredPartnerNetwork", { length: 64 }),
     contactEmail: varchar("contactEmail", { length: 320 }),
     contactPhone: varchar("contactPhone", { length: 64 }),
     website: varchar("website", { length: 512 }),
@@ -480,6 +496,7 @@ export const suppliers = pgTable(
     index("suppliers_name_idx").on(t.name),
     index("suppliers_category_idx").on(t.category),
     index("suppliers_country_idx").on(t.country),
+    index("suppliers_isVirtuoso_city_idx").on(t.isVirtuoso, t.city),
   ],
 );
 export type Supplier = typeof suppliers.$inferSelect;
@@ -504,6 +521,111 @@ export const supplierContacts = pgTable(
 );
 export type SupplierContact = typeof supplierContacts.$inferSelect;
 export type InsertSupplierContact = typeof supplierContacts.$inferInsert;
+
+// ─── Supplier room rates (Virtuoso tiered pricing) ───────────────────────────
+
+export const roomTierEnum = pgEnum("room_tier", [
+  "standard",
+  "deluxe",
+  "junior_suite",
+  "suite",
+  "presidential",
+  "other",
+]);
+
+export const supplierRoomRates = pgTable(
+  "supplier_room_rates",
+  {
+    id: serial("id").primaryKey(),
+    supplierId: integer("supplierId")
+      .notNull()
+      .references(() => suppliers.id, { onDelete: "cascade" }),
+    roomTier: roomTierEnum("roomTier").notNull(),
+    startingRate: numeric("startingRate", { precision: 12, scale: 2 }).notNull(),
+    currency: varchar("currency", { length: 8 }).default("GBP"),
+    seasonNotes: varchar("seasonNotes", { length: 255 }),
+    isActive: boolean("isActive").default(true).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  },
+  (t) => [index("supplier_room_rates_supplierId_idx").on(t.supplierId)],
+);
+export type SupplierRoomRate = typeof supplierRoomRates.$inferSelect;
+export type InsertSupplierRoomRate = typeof supplierRoomRates.$inferInsert;
+
+// ─── Supplier amenities / Virtuoso benefits ─────────────────────────────────
+
+export const supplierAmenities = pgTable(
+  "supplier_amenities",
+  {
+    id: serial("id").primaryKey(),
+    supplierId: integer("supplierId")
+      .notNull()
+      .references(() => suppliers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 128 }).notNull(),
+    benefitType: varchar("benefitType", { length: 64 }),
+    description: text("description"),
+    isActive: boolean("isActive").default(true).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [index("supplier_amenities_supplierId_idx").on(t.supplierId)],
+);
+export type SupplierAmenity = typeof supplierAmenities.$inferSelect;
+export type InsertSupplierAmenity = typeof supplierAmenities.$inferInsert;
+
+// ─── Supplier recommendation shortlists (A: AI curation + manager approval) ──
+
+export const supplierRecommendationStatusEnum = pgEnum(
+  "supplier_recommendation_status",
+  ["draft", "presented", "approved", "archived"],
+);
+
+export const supplierRecommendationShortlists = pgTable(
+  "supplier_recommendation_shortlists",
+  {
+    id: serial("id").primaryKey(),
+    memberId: integer("memberId").notNull(),
+    destination: varchar("destination", { length: 255 }).notNull(),
+    travelRequestId: integer("travelRequestId"),
+    status: supplierRecommendationStatusEnum("status")
+      .default("draft")
+      .notNull(),
+    generatedByUserId: integer("generatedByUserId"),
+    context: text("context"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  },
+  (t) => [index("supplier_rec_shortlists_memberId_idx").on(t.memberId)],
+);
+export type SupplierRecommendationShortlist =
+  typeof supplierRecommendationShortlists.$inferSelect;
+export type InsertSupplierRecommendationShortlist =
+  typeof supplierRecommendationShortlists.$inferInsert;
+
+export const supplierRecommendationItems = pgTable(
+  "supplier_recommendation_items",
+  {
+    id: serial("id").primaryKey(),
+    shortlistId: integer("shortlistId")
+      .notNull()
+      .references(() => supplierRecommendationShortlists.id, {
+        onDelete: "cascade",
+      }),
+    supplierId: integer("supplierId").notNull(),
+    rank: integer("rank").notNull(),
+    roomTier: varchar("roomTier", { length: 64 }),
+    startingRate: numeric("startingRate", { precision: 12, scale: 2 }),
+    currency: varchar("currency", { length: 8 }).default("GBP"),
+    rationale: text("rationale"),
+    selected: boolean("selected").default(false).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [index("supplier_rec_items_shortlistId_idx").on(t.shortlistId)],
+);
+export type SupplierRecommendationItem =
+  typeof supplierRecommendationItems.$inferSelect;
+export type InsertSupplierRecommendationItem =
+  typeof supplierRecommendationItems.$inferInsert;
 
 // ─── Documents (Digital Vault) ────────────────────────────────────────────────
 
@@ -531,6 +653,25 @@ export const documents = pgTable(
 );
 export type Document = typeof documents.$inferSelect;
 export type InsertDocument = typeof documents.$inferInsert;
+
+// ─── Storage ownership registry (download authorization) ──────────────────────
+
+// Single source of truth mapping a storage key to its owning member, so the
+// download proxy can enforce cross-member isolation uniformly regardless of
+// which table (documents, proposals, proposal items) references the key. Rows
+// are written at upload time and backfilled from existing data.
+export const storageObjects = pgTable(
+  "storage_objects",
+  {
+    storageKey: varchar("storageKey", { length: 1024 }).primaryKey(),
+    memberId: integer("memberId").notNull(),
+    source: varchar("source", { length: 48 }).notNull(), // document | proposal | generated
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [index("storage_objects_memberId_idx").on(t.memberId)],
+);
+export type StorageObject = typeof storageObjects.$inferSelect;
+export type InsertStorageObject = typeof storageObjects.$inferInsert;
 
 // ─── Messaging: Conversations ─────────────────────────────────────────────────
 
@@ -1052,7 +1193,7 @@ export const tagsRelations = relations(tags, ({ many }) => ({
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PHASE 2 EXTENSIONS — Human Tester Feedback Implementation
+// PHASE 2 EXTENSIONS: Human Tester Feedback Implementation
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── New Enums ────────────────────────────────────────────────────────────────
@@ -1318,7 +1459,7 @@ export const invoices = pgTable(
     invoiceType: invoiceTypeEnum("invoiceType").notNull(),
     status: invoiceStatusEnum("status").default("draft").notNull(),
 
-    // Recipient — either a member (client invoice) or supplier (commission invoice)
+    // Recipient: either a member (client invoice) or supplier (commission invoice)
     memberId: integer("memberId"),
     supplierId: integer("supplierId"),
 
@@ -1830,7 +1971,7 @@ export const chatwootMessages = pgTable(
   },
   (t) => [
     index("chatwoot_msg_conversationId_idx").on(t.conversationId),
-    // A Chatwoot message id is globally unique — enforce it so concurrent
+    // A Chatwoot message id is globally unique; enforce it so concurrent
     // syncs can never insert duplicate mirror rows.
     uniqueIndex("chatwoot_msg_chatwootId_unique").on(t.chatwootId),
   ],
@@ -1885,6 +2026,11 @@ export const outboxEvents = pgTable(
     nextAttemptAt: timestamp("nextAttemptAt").defaultNow().notNull(),
     lastError: text("lastError"),
     publishedAt: timestamp("publishedAt"),
+    // Lease columns used by the durable WhatsApp event consumer for
+    // claim-based, skip-locked processing so concurrent workers never double
+    // process the same outbox row.
+    claimToken: varchar("claimToken", { length: 64 }),
+    claimExpiresAt: timestamp("claimExpiresAt"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
   },
@@ -1899,10 +2045,63 @@ export const outboxEvents = pgTable(
       t.createdAt,
     ),
     index("outbox_events_event_type_created_idx").on(t.eventType, t.createdAt),
+    index("outbox_events_publishing_claim_idx").on(t.status, t.claimExpiresAt),
   ],
 );
 export type OutboxEvent = typeof outboxEvents.$inferSelect;
 export type InsertOutboxEvent = typeof outboxEvents.$inferInsert;
+
+// ─── WhatsApp webhook events (durable, idempotent inbound capture) ───────────
+
+// Mirror of the origin/main hardened bridge's table. The standalone Python
+// bridge persists every Meta webhook here before ack, dedupes by
+// (provider, provider_event_id), and the consumer leases rows for triage.
+// Status is a varchar (not an enum) so the bridge's raw-SQL string literals
+// match origin/main exactly; the unique indexes are load-bearing for
+// ON CONFLICT DO NOTHING idempotency.
+export const whatsappWebhookEvents = pgTable(
+  "whatsapp_webhook_events",
+  {
+    id: serial("id").primaryKey(),
+    provider: varchar("provider", { length: 32 }).notNull(),
+    providerEventId: varchar("provider_event_id", { length: 256 }).notNull(),
+    payloadSha256: varchar("payload_sha256", { length: 64 }).notNull(),
+    payload: jsonb("payload").notNull(),
+    status: varchar("status", { length: 16 }).default("received").notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    nextAttemptAt: timestamp("next_attempt_at").defaultNow().notNull(),
+    lastError: text("last_error"),
+    outboxEventId: integer("outbox_event_id")
+      .notNull()
+      .references(() => outboxEvents.id, { onDelete: "restrict" }),
+    processedAt: timestamp("processed_at"),
+    claimToken: varchar("claim_token", { length: 64 }),
+    claimExpiresAt: timestamp("claim_expires_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("whatsapp_webhook_events_provider_event_unique").on(
+      t.provider,
+      t.providerEventId,
+    ),
+    uniqueIndex("whatsapp_webhook_events_outbox_event_unique").on(
+      t.outboxEventId,
+    ),
+    index("whatsapp_webhook_events_status_next_attempt_idx").on(
+      t.status,
+      t.nextAttemptAt,
+    ),
+    index("whatsapp_webhook_events_created_at_idx").on(t.createdAt),
+    index("whatsapp_webhook_events_processing_claim_idx").on(
+      t.status,
+      t.claimExpiresAt,
+    ),
+  ],
+);
+export type WhatsappWebhookEvent = typeof whatsappWebhookEvents.$inferSelect;
+export type InsertWhatsappWebhookEvent =
+  typeof whatsappWebhookEvents.$inferInsert;
 
 export const eventDeliveries = pgTable(
   "event_deliveries",

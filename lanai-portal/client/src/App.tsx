@@ -19,6 +19,10 @@ const ProposalEnginePage = lazy(() => import("./pages/ProposalEnginePage"));
 const IntelligencePage = lazy(() => import("./pages/IntelligencePage"));
 const MorningBriefingPage = lazy(() => import("./pages/MorningBriefingPage"));
 const SuppliersPage = lazy(() => import("./pages/SuppliersPage"));
+const RecommendationsPage = lazy(() => import("./pages/RecommendationsPage"));
+const ConfirmationRebranderPage = lazy(
+  () => import("./pages/ConfirmationRebranderPage"),
+);
 const SupplierServicesPage = lazy(() => import("./pages/SupplierServicesPage"));
 const WhatsAppPage = lazy(() => import("./pages/WhatsAppPage"));
 const ChatwootInboxPage = lazy(() => import("./pages/ChatwootInboxPage"));
@@ -120,7 +124,7 @@ function MemberPortalGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (!member) {
-    // Not authenticated — redirect to member login
+    // Not authenticated : redirect to member login
     navigate("/client");
     return null;
   }
@@ -144,6 +148,8 @@ function AdvisorRouter() {
           <Route path="/intelligence" component={IntelligencePage} />
           <Route path="/briefing" component={MorningBriefingPage} />
           <Route path="/suppliers" component={SuppliersPage} />
+          <Route path="/recommendations" component={RecommendationsPage} />
+          <Route path="/rebrander" component={ConfirmationRebranderPage} />
           <Route path="/supplier-services" component={SupplierServicesPage} />
           <Route path="/whatsapp" component={WhatsAppPage} />
           <Route path="/inbox" component={ChatwootInboxPage} />
@@ -221,7 +227,7 @@ function App() {
           >
             <Toaster richColors position="top-right" />
             <Switch>
-              {/* Client-facing portal — public login, onboarding, and guarded dashboard */}
+              {/* Client-facing portal : public login, onboarding, and guarded dashboard */}
               <Route path="/client" component={ClientPortalLogin} />
               <Route path="/client/onboard" component={ClientPortalOnboard} />
               <Route path="/client/dashboard">
@@ -244,10 +250,10 @@ function App() {
                   <MemberPortalEnhancedPage />
                 </MemberPortalGuard>
               </Route>
-              {/* Advisor portal — full sidebar layout, gated by Keycloak OAuth */}
+              {/* Advisor portal : full sidebar layout, gated by Keycloak OAuth */}
               <Route component={AdvisorRouter} />
             </Switch>
-            {/* Floating Chatwoot widget — available on all pages */}
+            {/* Floating Chatwoot widget : available on all pages */}
             <ChatwootWidget />
           </Suspense>
         </TooltipProvider>

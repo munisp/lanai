@@ -16,7 +16,11 @@ import {
   proposals,
   travelRequests,
 } from "../../drizzle/schema";
-import { getDb } from "../db";
+import { getDb, buildClientMemoryContext } from "../db";
+import {
+  sendClientConfirmationEmail,
+  type ClientConfirmationExtraction,
+} from "../email";
 import { ENV } from "./env";
 import { Permify } from "./infrastructure";
 import { sdk, type AuthenticatedUser } from "./sdk";
@@ -421,6 +425,15 @@ export function registerAiRoutes(app: Express): void {
         const input = asRecord(req.body);
         if (!input.message || typeof input.message !== "string")
           throw new Error("message is required");
+        // Ground the draft in the member's memory when a member_id is
+        // supplied, overriding the shallow context the client may have sent.
+        const memberId = input.member_id;
+        if (typeof memberId === "number" && Number.isFinite(memberId)) {
+          const memory = await buildClientMemoryContext(memberId).catch(
+            () => "",
+          );
+          if (memory) input.context = memory;
+        }
         run = await createRun("whatsapp", req.advisor!, input);
         const upstream = await callGateway("/whatsapp/draft-reply", input);
         if (!upstream.ok) return await genericFailure(res, upstream);
@@ -430,6 +443,62 @@ export function registerAiRoutes(app: Express): void {
       } catch (error) {
         if (run) await failRun(run.id, error, started);
         res.status(503).json({ error: "AI reply drafting unavailable" });
+      }
+    },
+  );
+
+  app.post(
+    "/api/supplier/extract-offer",
+    requireAdvisor,
+    async (req: AuthenticatedRequest, res) => {
+      const started = performance.now();
+      let run: { id: number; requestId: string } | undefined;
+      try {
+        const input = asRecord(req.body);
+        if (!input.raw_email || typeof input.raw_email !== "string")
+          throw new Error("raw_email is required");
+        run = await createRun("intelligence", req.advisor!, input);
+        const upstream = await callGateway("/supplier/extract-offer", input);
+        if (!upstream.ok) return await genericFailure(res, upstream);
+        const output = await upstream.json();
+        await completeRun(run.id, output, started);
+        res.json({ ...output, request_id: run.requestId });
+      } catch (error) {
+        if (run) await failRun(run.id, error, started);
+        res.status(503).json({ error: "Supplier extraction unavailable" });
+      }
+    },
+  );
+
+  app.post(
+    "/api/supplier/send-confirmation",
+    requireAdvisor,
+    async (req: AuthenticatedRequest, res) => {
+      try {
+        const input = asRecord(req.body);
+        const toEmail = input.toEmail;
+        const toName = input.toName;
+        const extraction = input.extraction;
+        if (
+          typeof toEmail !== "string" ||
+          typeof toName !== "string" ||
+          !extraction ||
+          typeof extraction !== "object"
+        )
+          throw new Error("toEmail, toName, and extraction are required");
+        const { id } = await sendClientConfirmationEmail({
+          toEmail,
+          toName,
+          extraction: extraction as ClientConfirmationExtraction,
+        });
+        res.json({ id });
+      } catch (error) {
+        res.status(503).json({
+          error:
+            error instanceof Error
+              ? error.message
+              : "Confirmation send unavailable",
+        });
       }
     },
   );

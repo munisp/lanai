@@ -1,4 +1,4 @@
-import { and, eq, gt, lt } from "drizzle-orm";
+import { and, desc, eq, gt, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import {
@@ -20,6 +20,13 @@ import {
   ChatwootConfig,
   ChatwootConversation,
   ChatwootMessage,
+  storageObjects,
+  InsertStorageObject,
+  StorageObject,
+  memberPreferences,
+  memberFamilyMembers,
+  celebrations,
+  travelRequests,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -381,6 +388,31 @@ export async function listChatwootConversations(
   return results;
 }
 
+/**
+ * Fetch a single local Chatwoot conversation only if it belongs to the given
+ * member. Used for member-facing ownership checks so a member cannot read
+ * another member's conversation by changing the ID. A null memberId column
+ * (advisor-only conversations) never matches, so those are treated as not-owned
+ * by any member.
+ */
+export async function getOwnedChatwootConversation(
+  conversationId: number,
+  memberId: number,
+): Promise<ChatwootConversation | null> {
+  const db = await getDb();
+  const results = await db
+    .select()
+    .from(chatwootConversations)
+    .where(
+      and(
+        eq(chatwootConversations.id, conversationId),
+        eq(chatwootConversations.memberId, memberId),
+      ),
+    )
+    .limit(1);
+  return results[0] ?? null;
+}
+
 // ─── Chatwoot Messages ──────────────────────────────────────────────────────
 
 export async function createChatwootMessage(
@@ -419,4 +451,177 @@ export async function listChatwootMessages(
     .where(eq(chatwootMessages.conversationId, conversationId))
     .orderBy(chatwootMessages.createdAt);
   return results;
+}
+
+// ─── Storage ownership registry ──────────────────────────────────────────────
+
+const STORAGE_URL_PREFIX = "/manus-storage/";
+
+/**
+ * Extract the storage key from a `/manus-storage/<key>` URL. Returns null for
+ * URLs that are not storage-backed so callers can pass mixed URL lists safely.
+ */
+export function storageKeyFromUrl(
+  url: string | null | undefined,
+): string | null {
+  if (!url || !url.startsWith(STORAGE_URL_PREFIX)) return null;
+  return url.slice(STORAGE_URL_PREFIX.length);
+}
+
+/**
+ * Register a storage object's owning member so the download proxy can authorize
+ * it. Idempotent: re-registering a key (e.g. on a proposal update) is a no-op.
+ */
+export async function registerStorageObject(
+  key: string,
+  memberId: number,
+  source: string,
+): Promise<void> {
+  const db = await getDb();
+  await db
+    .insert(storageObjects)
+    .values({ storageKey: key, memberId, source })
+    .onConflictDoNothing({ target: storageObjects.storageKey });
+}
+
+/**
+ * Register every storage-backed URL in the list for the given member. Used at
+ * document upload and proposal write points so new objects are authorizable for
+ * download immediately. Non-storage URLs are ignored.
+ */
+export async function registerStorageUrls(
+  urls: (string | null | undefined)[],
+  memberId: number,
+  source: string,
+): Promise<void> {
+  const keys = new Set<string>();
+  for (const url of urls) {
+    const key = storageKeyFromUrl(url);
+    if (key) keys.add(key);
+  }
+  if (keys.size === 0) return;
+  await Promise.all(
+    [...keys].map((key) => registerStorageObject(key, memberId, source)),
+  );
+}
+
+/**
+ * Resolve the owning memberId for a storage key. Used by the download proxy to
+ * enforce cross-member isolation. Returns null for unregistered keys, which the
+ * proxy treats as forbidden for member requesters (fail-closed).
+ */
+export async function getStorageObjectOwner(
+  key: string,
+): Promise<number | null> {
+  const db = await getDb();
+  const results = await db
+    .select({ memberId: storageObjects.memberId })
+    .from(storageObjects)
+    .where(eq(storageObjects.storageKey, key))
+    .limit(1);
+  return results[0]?.memberId ?? null;
+}
+
+// ─── Client memory context (AI grounding) ───────────────────────────────────
+
+/**
+ * Assemble a concise, human-readable context string for an advisor-facing AI
+ * draft reply: the member's profile, travel preferences, family, upcoming
+ * important dates, and recent requests. Used to ground WhatsApp triage so the
+ * draft references real client memory rather than the inbound message alone.
+ */
+export async function buildClientMemoryContext(
+  memberId: number,
+): Promise<string> {
+  const db = await getDb();
+  const member = await getMemberById(memberId);
+  if (!member) return "";
+  const lines: string[] = [];
+  lines.push(`Member: ${member.name}. Tier: ${member.tier ?? "unspecified"}.`);
+
+  const prefs = await db
+    .select()
+    .from(memberPreferences)
+    .where(eq(memberPreferences.memberId, memberId))
+    .limit(1);
+  const p = prefs[0];
+  if (p) {
+    const bits: string[] = [];
+    if (p.travelStyle) bits.push(`travel style ${p.travelStyle}`);
+    if (p.preferredCabinClass) bits.push(`cabin ${p.preferredCabinClass}`);
+    if (p.preferredRoomType) bits.push(`room ${p.preferredRoomType}`);
+    if (p.seatPreference) bits.push(`seat ${p.seatPreference}`);
+    if (p.mealPreference) bits.push(`meal ${p.mealPreference}`);
+    const dests = joinJsonb(p.favouriteDestinations);
+    if (dests) bits.push(`favourite destinations: ${dests}`);
+    const airlines = joinJsonb(p.preferredAirlines);
+    if (airlines) bits.push(`preferred airlines: ${airlines}`);
+    if (bits.length) lines.push(`Preferences: ${bits.join("; ")}.`);
+  }
+
+  const family = await db
+    .select()
+    .from(memberFamilyMembers)
+    .where(eq(memberFamilyMembers.memberId, memberId))
+    .limit(10);
+  if (family.length) {
+    lines.push(
+      `Family: ${family
+        .map(
+          (f) =>
+            `${f.name} (${f.relationship}${f.nationality ? `, ${f.nationality}` : ""}${f.dietaryRequirements ? `, dietary: ${f.dietaryRequirements}` : ""})`,
+        )
+        .join("; ")}.`,
+    );
+  }
+
+  const celebs = await db
+    .select()
+    .from(celebrations)
+    .where(eq(celebrations.memberId, memberId))
+    .limit(20);
+  const now = Date.now();
+  const upcoming = celebs
+    .filter((c) => c.celebrationDate && new Date(c.celebrationDate).getTime() >= now)
+    .sort(
+      (a, b) =>
+        new Date(a.celebrationDate!).getTime() -
+        new Date(b.celebrationDate!).getTime(),
+    )
+    .slice(0, 5);
+  if (upcoming.length) {
+    lines.push(
+      `Upcoming important dates: ${upcoming
+        .map(
+          (c) =>
+            `${c.title} (${c.celebrationType}, ${new Date(c.celebrationDate!).toDateString()})`,
+        )
+        .join("; ")}.`,
+    );
+  }
+
+  const requests = await db
+    .select()
+    .from(travelRequests)
+    .where(eq(travelRequests.memberId, memberId))
+    .orderBy(desc(travelRequests.createdAt))
+    .limit(3);
+  if (requests.length) {
+    lines.push(
+      `Recent requests: ${requests
+        .map((r) => `${r.destination} (${r.dates}, status: ${r.status})`)
+        .join("; ")}.`,
+    );
+  }
+
+  return lines.join("\n");
+}
+
+/** Join a jsonb array of strings (or scalar values) into a comma-separated string. */
+function joinJsonb(value: unknown): string {
+  if (!Array.isArray(value)) return "";
+  return value
+    .map((v) => (typeof v === "string" ? v : String(v)))
+    .filter(Boolean)
+    .join(", ");
 }

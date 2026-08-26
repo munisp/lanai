@@ -1,11 +1,11 @@
 /**
- * Lanai — Client Portal Dashboard
+ * Lanai : Client Portal Dashboard
  * Route: /client/dashboard  (protected by MemberPortalGuard in App.tsx)
  *
- * - Session: from trpc.memberAuth.me — no localStorage, no hardcoded accounts
- * - Trips: from trpc.members.myTrips — filtered to THIS member's CRM person ID
+ * - Session: from trpc.memberAuth.me : no localStorage, no hardcoded accounts
+ * - Trips: from trpc.members.myTrips : filtered to THIS member's CRM person ID
  * - Travel request: via trpc.members.submitTravelRequest
- * - Documents: via trpc.members.myDocuments — tier-gated (Platinum only)
+ * - Documents: via trpc.members.myDocuments : tier-gated (Platinum only)
  * - Logout: via trpc.memberAuth.logout
  */
 import { useState, useEffect, useRef } from "react";
@@ -163,12 +163,14 @@ export default function ClientPortalDashboard() {
 
   if (!member) return null; // MemberPortalGuard handles redirect
 
+  // Read-only client view: trips + documents only. The request, messages, and
+  // billing self-service surfaces are removed so clients view their trips and
+  // confirmations independently without transacting; Bolanle still owns all
+  // requests and communication (per the client's "digitize the back office, not
+  // the relationship" vision).
   const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: "trips", label: "My Trips", icon: Plane },
-    { id: "request", label: "New Request", icon: Plus },
     { id: "documents", label: "Documents", icon: FileText },
-    { id: "messages", label: "Messages", icon: MessageCircle },
-    { id: "billing", label: "Billing", icon: CreditCard },
   ];
 
   const tierColor =

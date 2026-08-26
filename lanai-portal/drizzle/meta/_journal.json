@@ -36,6 +36,34 @@
       "when": 1786047266473,
       "tag": "0004_add_clients",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787234454453,
+      "tag": "0005_storage_objects_registry",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787286538886,
+      "tag": "0006_whatsapp_outbox_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787664870618,
+      "tag": "0007_virtuoso_supplier_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787668907083,
+      "tag": "0008_supplier_recommendation_shortlists",
+      "breakpoints": true
     }
   ]
 }

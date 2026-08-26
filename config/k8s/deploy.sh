@@ -118,8 +118,10 @@ check_prerequisites() {
 
 build_images() {
   log_info "Building images (current scope: lanai-portal + lanai-ai-gateway — caddy/lakehouse-ingest still out of scope, see config/k8s/README.md)..."
-  docker build -t "$REGISTRY/lanai-portal:$TAG" "$REPO_ROOT/lanai-portal"
-  docker build -t "$REGISTRY/lanai-ai-gateway:$TAG" "$REPO_ROOT/lanai_ai/gateway"
+  # --platform linux/amd64 so images always match the cluster's architecture
+  # regardless of the build host (e.g. an arm64 Mac).
+  docker build --platform linux/amd64 -t "$REGISTRY/lanai-portal:$TAG" "$REPO_ROOT/lanai-portal"
+  docker build --platform linux/amd64 -t "$REGISTRY/lanai-ai-gateway:$TAG" "$REPO_ROOT/lanai_ai/gateway"
   log_success "Images built with tag $TAG"
 }
 
@@ -232,7 +234,7 @@ rollout_status() {
 }
 
 upgrade() {
-  # Routine code-only push: build, push, point the existing Deployment at
+  # Routine code-only push: build, push, point the existing Deployments at
   # the new tag, roll out. No kustomize apply (so ConfigMap/Secret/manifest
   # edits in git are NOT picked up — use 'apply' or 'deploy' for those), no
   # setup-job wait (nothing schema/bootstrap related runs here).
@@ -242,6 +244,11 @@ upgrade() {
   log_info "Setting lanai-portal image to $REGISTRY/lanai-portal:$TAG..."
   kubectl -n "$NAMESPACE" set image deployment/lanai-portal \
     lanai-portal="$REGISTRY/lanai-portal:$TAG"
+  if kubectl -n "$NAMESPACE" get deployment/lanai-ai-gateway >/dev/null 2>&1; then
+    log_info "Setting lanai-ai-gateway image to $REGISTRY/lanai-ai-gateway:$TAG..."
+    kubectl -n "$NAMESPACE" set image deployment/lanai-ai-gateway \
+      lanai-ai-gateway="$REGISTRY/lanai-ai-gateway:$TAG"
+  fi
   rollout_status
   reencrypt_secrets
   log_success "lanai-portal upgraded to tag $TAG"

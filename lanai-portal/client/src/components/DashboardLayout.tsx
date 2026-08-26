@@ -22,6 +22,8 @@ import {
   MessageSquare,
   RefreshCw,
   Palmtree,
+  Sparkles,
+  Wand2,
   LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -76,6 +78,18 @@ const NAV_ITEMS = [
     href: "/intelligence",
     icon: Brain,
     label: "Client Intelligence",
+    group: "ai",
+  },
+  {
+    href: "/recommendations",
+    icon: Sparkles,
+    label: "Virtuoso Recommendations",
+    group: "ai",
+  },
+  {
+    href: "/rebrander",
+    icon: Wand2,
+    label: "Confirmation Re-brander",
     group: "ai",
   },
 

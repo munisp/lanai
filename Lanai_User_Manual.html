@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Lanai Lifestyle Intelligence Platform — Comprehensive User Manual</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  @page {
+    size: A4 portrait;
+    margin: 20mm 15mm 20mm 15mm;
+  }
+
+  * {
+    box-sizing: border-box;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #1E293B;
+    background-color: #FFFFFF;
+    font-size: 10pt;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Typography */
+  h1, h2, h3, h4, .serif {
+    font-family: 'Playfair Display', Georgia, serif;
+    color: #0F2E23;
+    font-weight: 700;
+    margin-top: 0;
+  }
+
+  h1 {
+    font-size: 26pt;
+    line-height: 1.25;
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+  }
+
+  h2 {
+    font-size: 16pt;
+    line-height: 1.3;
+    border-bottom: 2px solid #D4AF37;
+    padding-bottom: 6px;
+    margin-top: 24pt;
+    margin-bottom: 12pt;
+    page-break-after: avoid;
+  }
+
+  h3 {
+    font-size: 12pt;
+    line-height: 1.4;
+    color: #133E30;
+    margin-top: 16pt;
+    margin-bottom: 6pt;
+    page-break-after: avoid;
+  }
+
+  h4 {
+    font-size: 10.5pt;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    color: #334155;
+    margin-top: 12pt;
+    margin-bottom: 4pt;
+    page-break-after: avoid;
+  }
+
+  p {
+    margin-top: 0;
+    margin-bottom: 10px;
+    color: #334155;
+  }
+
+  a {
+    color: #0F2E23;
+    text-decoration: none;
+    font-weight: 500;
+  }
+
+  strong {
+    color: #0F2E23;
+    font-weight: 600;
+  }
+
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8.5pt;
+    background-color: #F1F5F9;
+    color: #0F2E23;
+    padding: 2px 5px;
+    border-radius: 4px;
+    border: 1px solid #E2E8F0;
+  }
+
+  pre {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8pt;
+    background-color: #0F2E23;
+    color: #F8FAFC;
+    padding: 12px 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    line-height: 1.45;
+    margin-bottom: 12px;
+    page-break-inside: avoid;
+  }
+
+  /* Cover Page */
+  .cover-page {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 40px 20px 20px 20px;
+    background: linear-gradient(135deg, #0F2E23 0%, #133E30 60%, #1A4D3B 100%);
+    color: #FFFFFF;
+    page-break-after: always;
+    border-radius: 8px;
+    position: relative;
+    box-sizing: border-box;
+  }
+
+  .cover-header {
+    border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+    padding-bottom: 20px;
+  }
+
+  .brand-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(212, 175, 55, 0.15);
+    border: 1px solid #D4AF37;
+    color: #E6CA65;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 8.5pt;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+
+  .cover-title-group {
+    margin-top: auto;
+    margin-bottom: auto;
+    padding: 40px 0;
+  }
+
+  .cover-title {
+    font-size: 34pt;
+    color: #FFFFFF;
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    line-height: 1.15;
+    margin-bottom: 16px;
+  }
+
+  .cover-subtitle {
+    font-size: 13pt;
+    color: #CBD5E1;
+    font-weight: 300;
+    line-height: 1.5;
+    max-width: 90%;
+    margin-bottom: 24px;
+  }
+
+  .cover-divider {
+    width: 80px;
+    height: 3px;
+    background-color: #D4AF37;
+    margin-bottom: 24px;
+  }
+
+  .cover-meta {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 20px;
+    border-radius: 6px;
+    border-left: 3px solid #D4AF37;
+  }
+
+  .meta-item {
+    font-size: 8.5pt;
+  }
+
+  .meta-label {
+    color: #94A3B8;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .meta-value {
+    color: #F8FAFC;
+    font-weight: 500;
+  }
+
+  .cover-footer {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 16px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 8pt;
+    color: #94A3B8;
+  }
+
+  /* Page Layout & Breaks */
+  .page-break {
+    page-break-before: always;
+  }
+
+  .section-header {
+    background-color: #F8FAFC;
+    border-left: 4px solid #0F2E23;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    border-radius: 0 6px 6px 0;
+  }
+
+  .section-header h2 {
+    margin: 0;
+    padding: 0;
+    border: none;
+    font-size: 15pt;
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    margin-bottom: 16px;
+    font-size: 8.5pt;
+    page-break-inside: avoid;
+  }
+
+  th, td {
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid #E2E8F0;
+  }
+
+  th {
+    background-color: #0F2E23;
+    color: #FFFFFF;
+    font-weight: 600;
+    font-size: 8.5pt;
+    letter-spacing: 0.3px;
+  }
+
+  tr:nth-child(even) td {
+    background-color: #F8FAFC;
+  }
+
+  tr:hover td {
+    background-color: #F1F5F9;
+  }
+
+  /* Callout Boxes */
+  .callout {
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-top: 12px;
+    margin-bottom: 14px;
+    font-size: 9pt;
+    page-break-inside: avoid;
+    border-left: 4px solid;
+  }
+
+  .callout-title {
+    font-weight: 700;
+    font-size: 9.5pt;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .callout-note {
+    background-color: #F0F9FF;
+    border-color: #0284C7;
+    color: #0C4A6E;
+  }
+  .callout-note .callout-title { color: #0369A1; }
+
+  .callout-tip {
+    background-color: #F0FDF4;
+    border-color: #16A34A;
+    color: #14532D;
+  }
+  .callout-tip .callout-title { color: #15803D; }
+
+  .callout-important {
+    background-color: #FFFBEB;
+    border-color: #D97706;
+    color: #78350F;
+  }
+  .callout-important .callout-title { color: #B45309; }
+
+  .callout-warning {
+    background-color: #FEF2F2;
+    border-color: #DC2626;
+    color: #7F1D1D;
+  }
+  .callout-warning .callout-title { color: #B91C1C; }
+
+  /* Feature Grid / Cards */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 14px;
+    page-break-inside: avoid;
+  }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 14px;
+    page-break-inside: avoid;
+  }
+
+  .card {
+    border: 1px solid #E2E8F0;
+    border-radius: 6px;
+    padding: 12px;
+    background-color: #FFFFFF;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  }
+
+  .card-header {
+    font-weight: 700;
+    font-size: 9.5pt;
+    color: #0F2E23;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .card-body {
+    font-size: 8.5pt;
+    color: #475569;
+  }
+
+  /* Workflow Steps */
+  .workflow-box {
+    background: #FAF8F5;
+    border: 1px solid #E6DFD5;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    page-break-inside: avoid;
+  }
+
+  .workflow-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 12pt;
+    color: #0F2E23;
+    font-weight: 700;
+    margin-bottom: 12px;
+    border-bottom: 1px solid #D4AF37;
+    padding-bottom: 4px;
+  }
+
+  .step-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .step-item {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 10px;
+    align-items: flex-start;
+  }
+
+  .step-number {
+    background-color: #0F2E23;
+    color: #D4AF37;
+    font-weight: 700;
+    font-size: 8.5pt;
+    min-width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .step-content {
+    font-size: 8.5pt;
+    color: #334155;
+  }
+
+  .step-content strong {
+    color: #0F2E23;
+  }
+
+  /* Badges */
+  .badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 12px;
+    font-size: 7.5pt;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .badge-emerald { background: #DCFCE7; color: #166534; }
+  .badge-gold { background: #FEF3C7; color: #92400E; }
+  .badge-blue { background: #E0F2FE; color: #075985; }
+  .badge-purple { background: #F3E8FF; color: #6B21A8; }
+  .badge-gray { background: #F1F5F9; color: #475569; }
+
+  /* TOC */
+  .toc-container {
+    background-color: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 0;
+  }
+
+  .toc-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 13pt;
+    color: #0F2E23;
+    margin-bottom: 8px;
+    border-bottom: 2px solid #D4AF37;
+    padding-bottom: 4px;
+  }
+
+  .toc-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .toc-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 1.2px 0;
+    font-size: 8pt;
+    border-bottom: 1px dashed #E2E8F0;
+  }
+
+  .toc-item a {
+    color: #334155;
+    text-decoration: none;
+  }
+
+  .toc-item a:hover {
+    color: #0F2E23;
+    font-weight: 600;
+  }
+
+  .toc-dots {
+    flex: 1;
+    border-bottom: 1px dotted #CBD5E1;
+    margin: 0 8px 3px 8px;
+  }
+
+  /* Diagram styles */
+  .arch-box {
+    background: #0F2E23;
+    color: #FFFFFF;
+    padding: 14px;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 8.5pt;
+    margin-bottom: 14px;
+    border: 1px solid #D4AF37;
+    page-break-inside: avoid;
+  }
+
+  .arch-flow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin: 10px 0;
+  }
+
+  .arch-node {
+    background: #133E30;
+    border: 1px solid rgba(212, 175, 55, 0.4);
+    border-radius: 6px;
+    padding: 8px 10px;
+    flex: 1;
+    text-align: center;
+    font-size: 8pt;
+    color: #F8FAFC;
+  }
+
+  .arch-arrow {
+    color: #D4AF37;
+    font-weight: bold;
+    font-size: 10pt;
+  }
+
+  .footer-note {
+    text-align: center;
+    font-size: 8pt;
+    color: #94A3B8;
+    margin-top: 30px;
+    padding-top: 10px;
+    border-top: 1px solid #E2E8F0;
+  }
+</style>
+</head>
+<body>
+
+<!-- COVER PAGE -->
+<div class="cover-page">
+  <div class="cover-header">
+    <div class="brand-badge">🌴 Lanai Lifestyle Intelligence</div>
+  </div>
+  
+  <div class="cover-title-group">
+    <div class="cover-title">Platform User Manual</div>
+    <div class="cover-subtitle">A Complete End-to-End Operational Guide, Navigation System, Feature Architecture & Workflow Reference for Product Owners, Concierge Advisors & Platform Administrators</div>
+    <div class="cover-divider"></div>
+  </div>
+
+  <div class="cover-meta">
+    <div class="meta-item">
+      <div class="meta-label">Platform Version</div>
+      <div class="meta-value">Lanai v2.0 Enterprise Intelligence</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Document Purpose</div>
+      <div class="meta-value">Complete Operational Operating Manual</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Target Audience</div>
+      <div class="meta-value">Product Owners, Concierge Team & Clients</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Core Integration</div>
+      <div class="meta-value">Twenty CRM · Chatwoot · Ollama AI · Keycloak</div>
+    </div>
+  </div>
+
+  <div class="cover-footer">
+    <div>Confidential & Proprietary — Lanai Lifestyle Concierge</div>
+    <div>2026 Edition</div>
+  </div>
+</div>
+
+<!-- TABLE OF CONTENTS -->
+<div class="page-break"></div>
+<div class="toc-container">
+  <div class="toc-title">Table of Contents</div>
+  <ul class="toc-list">
+    <li class="toc-item"><span><strong>1. Executive Summary & Platform Architecture</strong></span></li>
+    <li class="toc-item"><span style="padding-left:15px;">1.1 Product Vision & Core Mission</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">1.2 Dual-Portal Concept: Advisor Command Center vs. Member Private Suite</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">1.3 System Component Architecture & Multi-Tier Infrastructure</span></li>
+    
+    <li class="toc-item" style="margin-top:6px;"><span><strong>2. Getting Started & Authentication</strong></span></li>
+    <li class="toc-item"><span style="padding-left:15px;">2.1 Access URLs & Domain Architecture</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">2.2 Advisor Login & Role Security (Keycloak SSO)</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">2.3 Member Onboarding & PIN Access Security</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">2.4 User Interface Layout & Workspace Navigation</span></li>
+
+    <li class="toc-item" style="margin-top:6px;"><span><strong>3. Advisor Portal: Module & Feature Guide</strong></span></li>
+    <li class="toc-item"><span style="padding-left:15px;">3.1 Executive Dashboard & KPIs (`/`)</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">3.2 AI Morning Briefing (`/briefing`)</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">3.3 Client CRM Directory (`/clients`)</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">3.4 Member Base & Tier Management (`/members`, `/member-management`)</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">3.5 Travel Request Pipeline (`/travel-requests`)</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">3.6 Generative AI Proposal Engine (`/proposals`)</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">3.7 Client Intelligence & Risk Engine (`/intelligence`)</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">3.8 Vetted Supplier & Experience Catalog (`/suppliers`, `/supplier-services`)</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">3.9 Multi-Channel Operations & 24/7 AI Concierge (`/whatsapp`, `/inbox`, `/chatwoot`)</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">3.10 Invoicing & Supplier Commissions (`/invoicing`)</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">3.11 Member Celebrations & NPS Feedback (`/member/:id/celebrations`, `/nps`)</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">3.12 Financial Analytics & Automation Templates (`/analytics`, `/task-templates`)</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">3.13 System Configuration & CRM Synchronization (`/settings`, `/crm-sync`)</span></li>
+
+    <li class="toc-item" style="margin-top:6px;"><span><strong>4. Member Portal (Client Private Suite) Guide</strong></span></li>
+    <li class="toc-item"><span style="padding-left:15px;">4.1 Member Authentication & Trip Dashboard (`/client/dashboard`)</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">4.2 Proposal Review & Interactive Itineraries (`/client/proposals/:id`)</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">4.3 Travel Document Vault & Financial Billing (`/client/billing`)</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">4.4 Bespoke Preference Management (`/client/profile`)</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">4.5 Instant 24/7 AI Concierge Messaging</span></li>
+
+    <li class="toc-item" style="margin-top:6px;"><span><strong>5. End-to-End Operational Workflows</strong></span></li>
+    <li class="toc-item"><span style="padding-left:15px;">5.1 Lead Intake to Qualification Workflow</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">5.2 AI Proposal Generation & Approval Lifecycle</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">5.3 Inbound Messaging Triage & 24/7 Auto-Reply Workflow</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">5.4 Supplier Procurement & Financial Settlement</span></li>
+    <li class="toc-item"><span style="padding-left:15px;">5.5 VIP Execution, Celebrations & Post-Trip Feedback</span></li>
+
+    <li class="toc-item" style="margin-top:6px;"><span><strong>6. AI Governance, Security & Best Practices</strong></span></li>
+    <li class="toc-item" style="margin-top:6px;"><span><strong>7. Frequently Asked Questions & Troubleshooting</strong></span></li>
+  </ul>
+</div>
+
+<!-- SECTION 1 -->
+<div class="page-break"></div>
+<h2>1. Executive Summary & Platform Architecture</h2>
+
+<p>Welcome to the official operational manual for the <strong>Lanai Lifestyle Intelligence Platform</strong>. Lanai is a state-of-the-art, full-service luxury travel and lifestyle concierge workspace designed to synthesize high-touch human relationship management with cutting-edge artificial intelligence.</p>
+
+<p>Whether you are a product owner operating Lanai as your flagship software product, a concierge advisor managing high-net-worth members, or a platform administrator, this document provides complete, transparent clarity on every feature, workflow, backend component, and user experience built into the platform.</p>
+
+<h3>1.1 Product Vision & Core Mission</h3>
+<p>Luxury concierge management relies on speed, hyper-personalization, zero error tolerance, and discreet communication. Lanai replaces fragmented tools (spreadsheets, messaging apps, manual document creators) with a unified ecosystem that handles client management, travel itineraries, multi-channel communications, supplier partnerships, billing, and AI co-pilots in a single workspace.</p>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-header">🛡️ High-Touch Human Centricity</div>
+    <div class="card-body">AI acts strictly as an intelligence co-pilot. Every proposal, message draft, and financial invoice remains under total advisor control before final client delivery.</div>
+  </div>
+  <div class="card">
+    <div class="card-header">⚡ 24/7 Instant Client Responsiveness</div>
+    <div class="card-body">An automated 24/7 AI Concierge ensures member inquiries receive warm, immediate responses at any hour without leaving clients waiting.</div>
+  </div>
+</div>
+
+<h3>1.2 Dual-Portal Architecture</h3>
+<p>The platform maintains strict separation between operational management and the client experience through two distinct interfaces:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Portal Component</th>
+      <th>Primary Audience</th>
+      <th>Primary Capabilities & Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Advisor Portal</strong></td>
+      <td>Concierge Advisors, Management, Finance, Operations</td>
+      <td>Full CRM oversight, travel request pipeline, AI proposal co-pilot, morning briefings, supplier catalog, WhatsApp triage, invoicing, revenue analytics, and system administration.</td>
+    </tr>
+    <tr>
+      <td><strong>Member Portal (Client Suite)</strong></td>
+      <td>High-Net-Worth Members & VIP Clients</td>
+      <td>Private trip dashboard, interactive proposal review & approval, document vault, billing history, bespoke preference management, and 24/7 direct messaging.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>1.3 Component Architecture & Multi-Tier Infrastructure</h3>
+<p>The platform runs on a robust microservices architecture engineered for privacy, security, and low latency:</p>
+
+<div class="arch-box">
+  <div style="font-weight: bold; margin-bottom: 6px; color: #D4AF37; font-size: 9.5pt;">LANAI SYSTEM TOPOLOGY</div>
+  <div class="arch-flow">
+    <div class="arch-node">Client Browser / Mobile</div>
+    <div class="arch-arrow">➔</div>
+    <div class="arch-node">Caddy Edge Gateway (Tier 1)</div>
+    <div class="arch-arrow">➔</div>
+    <div class="arch-node">APISIX WAF & Gateway (Tier 2)</div>
+    <div class="arch-arrow">➔</div>
+    <div class="arch-node">Lanai Portal (Express / React)</div>
+  </div>
+  <div class="arch-flow" style="margin-top: 8px;">
+    <div class="arch-node">Twenty CRM</div>
+    <div class="arch-arrow">⬍</div>
+    <div class="arch-node">Postgres / Drizzle ORM</div>
+    <div class="arch-arrow">⬍</div>
+    <div class="arch-node">AI Gateway (Ollama LLM)</div>
+    <div class="arch-arrow">⬍</div>
+    <div class="arch-node">Chatwoot Inbox</div>
+  </div>
+</div>
+
+<ul>
+  <li><strong>Application Layer (`lanai-portal`)</strong>: Built with React 18, Vite, TypeScript, Tailwind CSS, and Express backend with tRPC type-safe API communication.</li>
+  <li><strong>Intelligence Layer (`lanai_ai`)</strong>: Python microservices powering AI proposals, client intelligence scoring, morning briefing digests, and WhatsApp message triage.</li>
+  <li><strong>Database & CRM Sync</strong>: Central PostgreSQL instance running Drizzle ORM, connected via bi-directional engine to <strong>Twenty CRM</strong> (open-source luxury CRM).</li>
+  <li><strong>Security Gateway</strong>: Two-tier ingress topology featuring <strong>Caddy Edge Gateway</strong> (auto TLS, HTTP/3) and <strong>APISIX API Gateway</strong> with <strong>OpenAppSec ML WAF</strong>.</li>
+</ul>
+
+<!-- SECTION 2 -->
+<div class="page-break"></div>
+<h2>2. Getting Started & Authentication</h2>
+
+<p>Access to the Lanai platform is segregated by role and protected by enterprise-grade single sign-on and pin security.</p>
+
+<h3>2.1 Access URLs & Domain Architecture</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Environment Endpoint</th>
+      <th>Target Service / UI</th>
+      <th>Authentication Method</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>https://lanai.example.com/</code></td>
+      <td>Advisor Command Center</td>
+      <td>Keycloak SSO (OAuth2 / OIDC)</td>
+    </tr>
+    <tr>
+      <td><code>https://lanai.example.com/client</code></td>
+      <td>Member Client Portal</td>
+      <td>Email + 4–12 Digit Secure PIN</td>
+    </tr>
+    <tr>
+      <td><code>https://inbox.lanai.example.com/</code></td>
+      <td>Chatwoot Unified Inbox</td>
+      <td>Chatwoot Advisor Credentials</td>
+    </tr>
+    <tr>
+      <td><code>https://admin.lanai.example.com/</code></td>
+      <td>Platform Infrastructure Admin</td>
+      <td>Keycloak Admin SSO Guard</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>2.2 Advisor Authentication Workflow</h3>
+<ol>
+  <li>Navigate to the Advisor Portal root URL. If unauthenticated, you will see the Lanai Sign-In screen featuring the brand gold crown mark.</li>
+  <li>Click <strong>Sign In</strong> to initiate the Keycloak OIDC authentication flow.</li>
+  <li>Enter your assigned corporate email address and password.</li>
+  <li>Upon successful authentication, Keycloak issues a secure session token and redirects you to the <strong>Advisor Dashboard (`/`)</strong>.</li>
+</ol>
+
+<div class="callout callout-important">
+  <div class="callout-title">🔒 Password Policy & Session Expiry</div>
+  Advisor sessions are protected by server-side Keycloak policies. Passwords must be at least 12 characters. Inactive sessions automatically expire after 8 hours of inactivity.
+</div>
+
+<h3>2.3 Member Onboarding & PIN Access Security</h3>
+<p>Clients access their private portal without cumbersome passwords, utilizing an ultra-secure, friction-free PIN system:</p>
+
+<div class="workflow-box">
+  <div class="workflow-title">Member Onboarding Sequence</div>
+  <ul class="step-list">
+    <li class="step-item">
+      <div class="step-number">1</div>
+      <div class="step-content"><strong>Advisor Invitation:</strong> Concierge advisor creates the member profile in the Advisor Portal and clicks <em>"Send Portal Invite"</em>.</div>
+    </li>
+    <li class="step-item">
+      <div class="step-number">2</div>
+      <div class="step-content"><strong>Email Link:</strong> The member receives a personalized invitation email with a secure link to <code>/client/onboard</code>.</div>
+    </li>
+    <li class="step-item">
+      <div class="step-number">3</div>
+      <div class="step-content"><strong>PIN Setup:</strong> The member chooses a confidential 4 to 12-digit personal PIN and confirms their profile details.</div>
+    </li>
+    <li class="step-item">
+      <div class="step-number">4</div>
+      <div class="step-content"><strong>Instant Login:</strong> Moving forward, members simply visit <code>/client</code>, enter their email and PIN, and instantly enter their Trip Dashboard.</div>
+    </li>
+  </ul>
+</div>
+
+<h3>2.4 User Interface Layout & Workspace Navigation</h3>
+<p>The Advisor Portal utilizes an ergonomic left-hand sidebar navigation partitioned into six distinct functional groups:</p>
+
+<div class="grid-3">
+  <div class="card">
+    <div class="card-header">📊 1. Overview</div>
+    <div class="card-body">
+      • Dashboard (`/`)<br>
+      • Morning Briefing (`/briefing`)<br>
+      • Revenue Analytics (`/analytics`)
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">👑 2. Client Management</div>
+    <div class="card-body">
+      • Clients CRM (`/clients`)<br>
+      • Members Base (`/members`)<br>
+      • Travel Requests (`/travel-requests`)
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">🤖 3. AI Intelligence</div>
+    <div class="card-body">
+      • Proposal Engine (`/proposals`)<br>
+      • Client Intelligence (`/intelligence`)
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">🏨 4. Operations</div>
+    <div class="card-body">
+      • Suppliers Catalog (`/suppliers`)<br>
+      • Supplier Services (`/supplier-services`)<br>
+      • WhatsApp AI (`/whatsapp`)<br>
+      • Unified Inbox (`/inbox`)<br>
+      • Task Templates (`/task-templates`)
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">💳 5. Finance & Feedback</div>
+    <div class="card-body">
+      • Invoicing (`/invoicing`)<br>
+      • NPS & Feedback (`/nps`)<br>
+      • Celebrations Tracker
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">⚙️ 6. System</div>
+    <div class="card-body">
+      • Member Portal Admin (`/member-management`)<br>
+      • CRM Sync (`/crm-sync`)<br>
+      • Settings (`/settings`)
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 3 -->
+<div class="page-break"></div>
+<h2>3. Advisor Portal: Module & Feature Guide</h2>
+
+<p>This section details every page and tool available in the Advisor Portal, outlining how advisors and management should utilize them in daily operations.</p>
+
+<h3>3.1 Executive Dashboard (`/`)</h3>
+<p>The primary control panel providing real-time operational metrics fetched live from Twenty CRM and the postgres database:</p>
+<ul>
+  <li><strong>Total CRM Clients</strong>: Overall contact directory count.</li>
+  <li><strong>Active Travel Requests</strong>: The live pipeline of ongoing client trip inquiries.</li>
+  <li><strong>Active Tiered Members</strong>: Count of active Platinum, Gold, and Silver members.</li>
+  <li><strong>Pipeline Value ($)</strong>: Calculated total gross value of active trip opportunities.</li>
+  <li><strong>Quick Actions Bar</strong>: One-click buttons to create new clients, log travel inquiries, generate AI proposals, or inspect urgent messaging alerts.</li>
+</ul>
+
+<h3>3.2 AI Morning Briefing (`/briefing`)</h3>
+<p>Designed to be an advisor's first stop every workday morning. The AI service scans the advisor's client portfolio and generates a structured daily digest:</p>
+<ul>
+  <li><strong>Priority Follow-Ups</strong>: Highlighted client inquiries requiring immediate attention.</li>
+  <li><strong>Upcoming Travel & Departures</strong>: Clients travelling within the next 48 to 72 hours requiring pre-departure verification.</li>
+  <li><strong>Special Dates & Celebrations</strong>: Upcoming member birthdays or anniversaries for gift dispatch.</li>
+  <li><strong>AI Recommendation Summary</strong>: Suggested daily outreach tasks to drive client retention.</li>
+</ul>
+
+<h3>3.3 Client CRM Directory (`/clients`)</h3>
+<p>The centralized database of all relationship records. Lanai utilizes a <strong>5-Layer Profile System</strong> for every client:</p>
+<ol>
+  <li><strong>Basic Contact Information</strong> (Name, email, phone, corporate affiliation, social handles).</li>
+  <li><strong>Travel & Lifestyle Preferences</strong> (Cabin class, preferred hotel brands, seating, dietary restrictions).</li>
+  <li><strong>Family & Network Graph</strong> (Spouse, children, executive assistants, companion profiles).</li>
+  <li><strong>Financial & Tier Status</strong> (Lifetime spend, credit status, membership tier).</li>
+  <li><strong>Interaction History</strong> (Complete log of past trips, requests, messages, notes, and feedback scores).</li>
+</ol>
+
+<h3>3.4 Member Directory & Tier Management (`/members`, `/member-management`)</h3>
+<p>Dedicated tracking for active membership subscription tiers:</p>
+<table>
+  <thead>
+    <tr>
+      <th>Membership Tier</th>
+      <th>Service Level Agreement (SLA)</th>
+      <th>Dedicated Benefits</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><span class="badge badge-purple">Bespoke / Private</span></td>
+      <td>15-Minute Instant Response</td>
+      <td>24/7 Dedicated Senior Concierge, Private Jet Priority, Bespoke Itineraries</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-gold">Platinum / Elite</span></td>
+      <td>1-Hour Guaranteed Response</td>
+      <td>VIP Hotel Upgrades, Complimentary Airport Transfers, Special Amenities</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-emerald">Gold / Club</span></td>
+      <td>4-Hour Guaranteed Response</td>
+      <td>Curated Proposal Engine Access, Preferred Partner Rates, Priority Booking</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>3.5 Travel Request Pipeline (`/travel-requests`)</h3>
+<p>The visual Kanban & table pipeline tracking client journeys across 5 operational stages:</p>
+<div class="arch-flow" style="margin: 14px 0;">
+  <div class="arch-node" style="background:#0F2E23;">1. New Inquiry</div>
+  <div class="arch-arrow">➔</div>
+  <div class="arch-node" style="background:#133E30;">2. In Progress</div>
+  <div class="arch-arrow">➔</div>
+  <div class="arch-node" style="background:#1A4D3B;">3. Proposal Sent</div>
+  <div class="arch-arrow">➔</div>
+  <div class="arch-node" style="background:#23644E;">4. Booked</div>
+  <div class="arch-arrow">➔</div>
+  <div class="arch-node" style="background:#2C7A60;">5. Completed</div>
+</div>
+<p>Advisors can click into any request to view parameters: destination, travel dates, passenger counts, budget allocations, cabin/accommodation preferences, and special occasion notes.</p>
+
+<div class="page-break"></div>
+<h3>3.6 Generative AI Proposal Engine (`/proposals`)</h3>
+<p>The flagship co-pilot tool that turns complex client briefs into luxury itineraries in under 2 minutes:</p>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-header">📝 Input Parameters</div>
+    <div class="card-body">
+      Select Client & Request → Set Destination & Dates → Define Budget & Vibe (e.g. "Secluded Romance", "Ultra-Luxe Adventure") → Include Specific Supplier Preferences.
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"> ✨ AI Generated Outputs</div>
+    <div class="card-body">
+      • Executive Summary & Narrative<br>
+      • Day-by-Day Morning/Afternoon/Evening Itinerary<br>
+      • Handpicked Accommodations & Villas<br>
+      • Estimated Total Investment Breakdown<br>
+      • Explicitly Labeled Assumptions & Next Steps
+    </div>
+  </div>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">💡 Proposal Publishing & Client Delivery</div>
+  Once satisfied with the AI draft, advisors click <strong>"Publish to Client Portal"</strong>. The proposal immediately appears in the member's private portal with interactive accept/request revision controls.
+</div>
+
+<h3>3.7 Client Intelligence Hub (`/intelligence`)</h3>
+<p>An automated diagnostic engine that analyzes member records to surface actionable business intelligence:</p>
+<ul>
+  <li><strong>Opportunity Surfacing</strong>: Detects travel patterns (e.g. <em>"Client booked Mediterranean yacht charter every July for past 3 years — propose 2027 options now"</em>).</li>
+  <li><strong>Risk & Gap Alerts</strong>: Identifies missing preferences or expired passports (e.g. <em>"Missing passport expiration date for spouse"</em>).</li>
+  <li><strong>Sentiment Analysis</strong>: Aggregates client feedback from past trips to ensure continuous improvement.</li>
+</ul>
+
+<h3>3.8 Vetted Supplier & Experience Catalog (`/suppliers`, `/supplier-services`)</h3>
+<p>A global directory of verified luxury partners across 6 core categories:</p>
+<ul>
+  <li><strong>Hotels & Resorts</strong> (Belmond, Rosewood, Aman, Four Seasons, Claridge's).</li>
+  <li><strong>Private Aviation</strong> (NetJets, VistaJet, GlobeAir).</li>
+  <li><strong>Yacht Charters</strong> (Superyachts, Catamarans, Sailing Vessels).</li>
+  <li><strong>Villas & Private Estates</strong> (Amalfi, St. Barts, Aspen, Tuscany).</li>
+  <li><strong>Chauffeur & Transfers</strong> (Luxury SUVs, Helicopter Transfers).</li>
+  <li><strong>VIP Experiences</strong> (Private Museum Tours, Michelin Chef Dining, Event Access).</li>
+</ul>
+<p>Each supplier entry tracks commission percentages, key contact managers, preferred rates, and advisor ratings.</p>
+
+<h3>3.9 Multi-Channel Operations & 24/7 AI Concierge (`/whatsapp`, `/inbox`, `/chatwoot`)</h3>
+<p>Unified communication management across WhatsApp, email, and member portal chat:</p>
+
+<div class="workflow-box">
+  <div class="workflow-title">WhatsApp & Portal Message Processing</div>
+  <ul class="step-list">
+    <li class="step-item">
+      <div class="step-number">1</div>
+      <div class="step-content"><strong>Inbound Message Ingestion:</strong> Client sends a WhatsApp or portal message.</div>
+    </li>
+    <li class="step-item">
+      <div class="step-number">2</div>
+      <div class="step-content"><strong>AI Triage & Sentiment Analysis:</strong> The AI microservice categorizes intent (Booking Inquiry, Change Request, General Question), assigns urgency (Low, Normal, VIP Urgent), and gauges sentiment.</div>
+    </li>
+    <li class="step-item">
+      <div class="step-number">3</div>
+      <div class="step-content"><strong>24/7 Automated Concierge Reply:</strong> For member portal messages, the system automatically sends a personalized AI reply within seconds to reassure the client, while flagging the thread for advisor review.</div>
+    </li>
+    <li class="step-item">
+      <div class="step-number">4</div>
+      <div class="step-content"><strong>Advisor One-Click Draft Approval:</strong> In the Unified Inbox (`/inbox`), advisors view suggested AI responses, edit if necessary, and dispatch with a single click.</div>
+    </li>
+  </ul>
+</div>
+
+<div class="page-break"></div>
+<h3>3.10 Invoicing & Supplier Commissions (`/invoicing`)</h3>
+<p>Full financial lifecycle management for client trips and B2B supplier commissions:</p>
+<ul>
+  <li><strong>Client Invoices</strong>: Itemized trip invoices showing accommodation, experiences, concierge fees, tax, and total due. Integrated with <strong>Stripe Payment Gateway</strong> for online credit card and wire settlement.</li>
+  <li><strong>Supplier Commission Invoices</strong>: Automated tracking of commission receivables owed to Lanai by hotels, yacht brokers, and jet operators upon trip completion.</li>
+  <li><strong>Status Tracking</strong>: Visual indicators for <code>Draft</code>, <code>Sent</code>, <code>Paid</code>, and <code>Overdue</code> invoices.</li>
+</ul>
+
+<h3>3.11 Member Celebrations & NPS Tracking (`/member/:id/celebrations`, `/nps`)</h3>
+<ul>
+  <li><strong>Celebrations Engine</strong>: Tracks member birthdays, wedding anniversaries, milestone achievements, and family dates. Provides automatic reminder alerts 14 days prior, along with curated gift recommendations (e.g. Vintage Champagne, Floral Displays, Personalized Leather Goods).</li>
+  <li><strong>NPS & Feedback Hub</strong>: Post-trip automated Net Promoter Score (NPS) surveys (1–10 rating + qualitative comments). Allows management to track advisor performance and resolve client concerns instantly.</li>
+</ul>
+
+<h3>3.12 Financial Analytics & Automation Templates (`/analytics`, `/task-templates`)</h3>
+<ul>
+  <li><strong>Revenue Analytics (`/analytics`)</strong>: Visual breakdown of gross revenue, net commission margins, revenue by business unit (Travel, Events, Lifestyle), and top client spenders.</li>
+  <li><strong>Task Templates (`/task-templates`)</strong>: Standardized concierge operational checklists (e.g. <em>"Pre-Departure 72h VIP Checklist"</em>, <em>"Private Jet Departure Protocol"</em>) ensuring uniform service excellence across all advisors.</li>
+  <li><strong>Interactive Trip Timeline (`/trip-timeline`)</strong>: Visual gantt chart of client itineraries for real-time tracking during travel execution.</li>
+</ul>
+
+<h3>3.13 System Configuration & CRM Synchronization (`/settings`, `/crm-sync`)</h3>
+<ul>
+  <li><strong>CRM Sync Engine (`/crm-sync`)</strong>: Displays real-time synchronization health between the Lanai Portal database and Twenty CRM. Features manual force-sync buttons, error log inspection, and field mapping controls.</li>
+  <li><strong>System Settings (`/settings`)</strong>: Advisor profile management, AI prompt configuration, notification preferences, and API key management.</li>
+</ul>
+
+<!-- SECTION 4 -->
+<div class="page-break"></div>
+<h2>4. Member Portal (Client Private Suite) Guide</h2>
+
+<p>The Member Portal is a bespoke, luxury-branded web application accessible via mobile or desktop browsers, giving VIP clients complete visibility and control over their travel portfolios.</p>
+
+<h3>4.1 Member Authentication & Trip Dashboard (`/client/dashboard`)</h3>
+<p>Upon entering their email and PIN at <code>/client</code>, members land on their personalized dashboard showing:</p>
+<ul>
+  <li><strong>Active & Upcoming Trips</strong>: Countdown cards featuring destination imagery, travel dates, and current status (e.g. <em>"Confirmed — Departure in 12 Days"</em>).</li>
+  <li><strong>Quick Action Vault</strong>: Immediate access to travel documents, flight vouchers, and digital itineraries.</li>
+  <li><strong>Dedicated Advisor Contact Card</strong>: Photo, phone, email, and direct chat button for their assigned concierge advisor.</li>
+</ul>
+
+<h3>4.2 Proposal Review & Interactive Itineraries (`/client/proposals/:id`)</h3>
+<p>When an advisor publishes an AI-crafted proposal, the member receives a notification link to view an elegant presentation:</p>
+<ul>
+  <li><strong>Hero Destination Overview</strong>: Curated narrative of the bespoke journey.</li>
+  <li><strong>Interactive Day-by-Day Breakdown</strong>: Highlighting recommended accommodations, private transfers, dining reservations, and curated experiences.</li>
+  <li><strong>Investment Summary</strong>: Transparent breakdown of costs and included amenities (e.g. complimentary breakfast, resort credits, room upgrades).</li>
+  <li><strong>One-Click Action Buttons</strong>:
+    <ul>
+      <li><span class="badge badge-emerald">Approve & Book Journey</span> — Confirms proposal and prompts invoice generation.</li>
+      <li><span class="badge badge-gold">Request Adjustments</span> — Opens a direct chat window with pre-filled feedback.</li>
+    </ul>
+  </li>
+</ul>
+
+<h3>4.3 Travel Document Vault & Financial Billing (`/client/billing`)</h3>
+<ul>
+  <li><strong>Document Vault</strong>: Secure repository containing PDF itineraries, airline e-tickets, hotel confirmation vouchers, passport copies, and travel insurance policies.</li>
+  <li><strong>Billing History (`/client/billing`)</strong>: Members can view open invoices, past payment receipts, payment methods, and settle balances securely via integrated card processing.</li>
+</ul>
+
+<h3>4.4 Bespoke Preference Management (`/client/profile`)</h3>
+<p>Members can update their personal preferences anytime to ensure every trip is tailored to their exact standards:</p>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-header">✈️ Aviation & Room Preferences</div>
+    <div class="card-body">
+      • Preferred Airlines & Cabin Class (First / Jet Charter)<br>
+      • Seating Preferences (Window / Aisle / Suite)<br>
+      • Hotel Room Category (Penthouse / Villa / Suite)<br>
+      • Bedding & Pillow Menu Selections
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">🍷 Dining & Lifestyle Preferences</div>
+    <div class="card-body">
+      • Dietary Restrictions & Allergies<br>
+      • Favorite Wine, Champagne & Spirits<br>
+      • Favorite Luxury Hotel Brands & Destinations<br>
+      • Emergency Contact & Passport Details
+    </div>
+  </div>
+</div>
+
+<h3>4.5 Instant 24/7 AI Concierge Messaging</h3>
+<p>Members can message their advisor directly through the portal chat interface. Powered by the 24/7 AI Concierge engine:</p>
+<ul>
+  <li>Members receive a warm, helpful, personalized AI response within seconds — ensuring no message goes unanswered late at night or across time zones.</li>
+  <li>The message is simultaneously flagged in the advisor's Unified Inbox for human review and personal follow-up.</li>
+</ul>
+
+<!-- SECTION 5 -->
+<div class="page-break"></div>
+<h2>5. End-to-End Operational Workflows</h2>
+
+<p>This section outlines step-by-step operational workflows covering complete end-to-end scenarios within the platform.</p>
+
+<h3>5.1 Lead Intake to Qualification & Member Setup</h3>
+<div class="workflow-box">
+  <div class="workflow-title">Workflow 1: New Inquiry Intake & Onboarding</div>
+  <ul class="step-list">
+    <li class="step-item">
+      <div class="step-number">1</div>
+      <div class="step-content"><strong>Inquiry Ingestion:</strong> A new lead arrives via website form, email, or WhatsApp message.</div>
+    </li>
+    <li class="step-item">
+      <div class="step-number">2</div>
+      <div class="step-content"><strong>CRM Auto-Creation:</strong> The backend automatically logs the contact in Twenty CRM and displays it in the <strong>Clients Directory (`/clients`)</strong>.</div>
+    </li>
+    <li class="step-item">
+      <div class="step-number">3</div>
+      <div class="step-content"><strong>Advisor Assignment & Tiering:</strong> Management assigns an advisor and designates the membership tier (e.g. Platinum).</div>
+    </li>
+    <li class="step-item">
+      <div class="step-number">4</div>
+      <div class="step-content"><strong>Portal Onboarding:</strong> Advisor clicks <em>"Send Portal Invite"</em>. The client sets their secure PIN and accesses the Member Portal.</div>
+    </li>
+  </ul>
+</div>
+
+<h3>5.2 AI Proposal Generation & Booking Lifecycle</h3>
+<div class="workflow-box">
+  <div class="workflow-title">Workflow 2: End-to-End Travel Request & Proposal Delivery</div>
+  <ul class="step-list">
+    <li class="step-item">
+      <div class="step-number">1</div>
+      <div class="step-content"><strong>Log Travel Request:</strong> Advisor logs a request in <code>/travel-requests</code> (e.g. <em>"10-Day Amalfi Coast Superyacht Charter & Villa Stay for 6 Guests, $120k Budget"</em>).</div>
+    </li>
+    <li class="step-item">
+      <div class="step-number">2</div>
+      <div class="step-content"><strong>Run AI Proposal Co-Pilot:</strong> Advisor opens <code>/proposals</code>, selects the request, and clicks <strong>"Generate Proposal"</strong>. The AI generates a full day-by-day itinerary and investment breakdown in ~90 seconds.</div>
+    </li>
+    <li class="step-item">
+      <div class="step-number">3</div>
+      <div class="step-content"><strong>Advisor Customization:</strong> Advisor reviews the draft, adjusts specific villa choices, and attaches supplier commission rates.</div>
+    </li>
+    <li class="step-item">
+      <div class="step-number">4</div>
+      <div class="step-content"><strong>Client Portal Publishing:</strong> Advisor clicks <em>"Publish to Client Portal"</em>. The member receives an automated notification link.</div>
+    </li>
+    <li class="step-item">
+      <div class="step-number">5</div>
+      <div class="step-content"><strong>Member Approval & Invoicing:</strong> Member approves the proposal in <code>/client/proposals/:id</code>. The status in <code>/travel-requests</code> updates to <span class="badge badge-emerald">Booked</span> and a draft invoice is generated.</div>
+    </li>
+  </ul>
+</div>
+
+<h3>5.3 Multi-Channel Messaging & 24/7 AI Auto-Reply</h3>
+<div class="workflow-box">
+  <div class="workflow-title">Workflow 3: Inbound Messaging & AI Triage Execution</div>
+  <ul class="step-list">
+    <li class="step-item">
+      <div class="step-number">1</div>
+      <div class="step-content"><strong>Inbound Message:</strong> Member sends a WhatsApp message: <em>"Can we change our flight departure from 10am to 2pm tomorrow?"</em></div>
+    </li>
+    <li class="step-item">
+      <div class="step-number">2</div>
+      <div class="step-content"><strong>AI Triage Engine:</strong> Categorizes intent as <code>Flight Modification</code>, urgency as <code>High / Urgent</code>, and flags the advisor in the Unified Inbox (`/inbox`).</div>
+    </li>
+    <li class="step-item">
+      <div class="step-number">3</div>
+      <div class="step-content"><strong>Draft Reply Generation:</strong> The AI drafts a professional response checking airline fare rules and availability.</div>
+    </li>
+    <li class="step-item">
+      <div class="step-number">4</div>
+      <div class="step-content"><strong>Advisor Dispatch:</strong> Advisor reviews the suggested draft, confirms availability with the aviation desk, clicks send, and updates the trip timeline.</div>
+    </li>
+  </ul>
+</div>
+
+<!-- SECTION 6 & 7 -->
+<div class="page-break"></div>
+<h2>6. AI Governance, Security & Best Practices</h2>
+
+<p>The Lanai platform enforces strict AI governance rules to protect luxury brand reputation and client data privacy:</p>
+
+<div class="callout callout-important">
+  <div class="callout-title">🛡️ Core AI Principles & Safeguards</div>
+  <ol>
+    <li><strong>Human-in-the-Loop Supremacy</strong>: Artificial intelligence NEVER sends external client proposals, emails, or booking confirmations without explicit human advisor approval.</li>
+    <li><strong>No Factual Fabrication (Anti-Hallucination)</strong>: The AI is strictly instructed to label unverified details as <em>"Assumptions — Pending Supplier Confirmation"</em>. It will never fabricate confirmed flight numbers or live hotel rates.</li>
+    <li><strong>Server-Side Data Privacy</strong>: Client financial data and preferences are stored securely server-side in PostgreSQL. Raw database access is never exposed to browser sessions.</li>
+    <li><strong>Edge WAF Protection</strong>: The OpenAppSec ML WAF automatically detects and neutralizes SQL injections, XSS attacks, and automated bot scraping attempts.</li>
+  </ol>
+</div>
+
+<h2>7. Troubleshooting, FAQs & Support Escalation</h2>
+
+<h3>7.1 Frequently Asked Questions (FAQ)</h3>
+
+<p><strong>Q: I received a "Too Many Requests" error when generating proposals. What should I do?</strong><br>
+A: This is an automated rate-limiting safeguard built into the APISIX API Gateway to protect server capacity. Wait 2 minutes and retry. Rate limits in production are adjusted for high-volume advisor usage.</p>
+
+<p><strong>Q: How long does AI proposal generation take?</strong><br>
+A: Complex multi-destination itineraries typically take 60 to 120 seconds as the AI microservice cross-references client preferences, supplier catalogs, and itinerary logic.</p>
+
+<p><strong>Q: Can members see internal advisor notes or commission rates?</strong><br>
+A: Absolutely not. The Member Portal is completely isolated. Clients only see published proposals, official invoices, uploaded documents, and direct chat messages.</p>
+
+<p><strong>Q: A client forgot their Member Portal PIN. How do I reset it?</strong><br>
+A: Navigate to <strong>Member Portal Admin (`/member-management`)</strong>, find the client's row, and click <em>"Resend PIN Reset Invitation"</em>. The client will receive an email link to set a new PIN.</p>
+
+<p><strong>Q: Where do WhatsApp client messages land?</strong><br>
+A: All WhatsApp interactions appear simultaneously in the <strong>WhatsApp Hub (`/whatsapp`)</strong> and the <strong>Unified Inbox (`/inbox`)</strong> with pre-triaged AI draft replies ready for review.</p>
+
+<h3>7.2 System Diagnostic Commands (For Technical Administrators)</h3>
+<pre>
+# Check application status & Docker container health
+docker-compose ps
+
+# Inspect portal backend logs
+docker-compose logs -f lanai-portal
+
+# Inspect AI Gateway & Ollama LLM service logs
+docker-compose logs -f lanai-ai
+
+# Force-trigger Twenty CRM synchronization health check
+curl -X POST http://localhost:3001/api/crm-sync/trigger
+</pre>
+
+<h3>7.3 Technical Support & Escalation Contacts</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Support Level</th>
+      <th>Contact / Channel</th>
+      <th>Coverage Hours</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Advisor Operational Support</strong></td>
+      <td><code>support@lanai.example.com</code></td>
+      <td>24/7 Concierge Support Desk</td>
+    </tr>
+    <tr>
+      <td><strong>Platform Technical Lead</strong></td>
+      <td><code>admin@lanai.example.com</code></td>
+      <td>Mon–Fri 08:00 – 20:00 EST</td>
+    </tr>
+    <tr>
+      <td><strong>Emergency Infrastructure Escalation</strong></td>
+      <td>Internal Ops Pager System</td>
+      <td>24/7/365 Critical Escalation</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="footer-note">
+  Lanai Lifestyle Intelligence Platform — Luxury Travel, Intelligently Delivered.<br>
+  © 2026 Lanai Lifestyle Inc. All rights reserved.
+</div>
+
+</body>
+</html>

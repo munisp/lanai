@@ -33,6 +33,7 @@ resources:
   - k8s/platform-tier.yaml
   - k8s/ai-tier.yaml
   - k8s/app-tier.yaml
+  - k8s/integrations-tier.yaml
 
 # Generated straight from the docker-compose config files so they stay in
 # sync with compose instead of being hand-duplicated. configMapGenerator
@@ -74,10 +75,10 @@ secretGenerator:
 images:
   - name: lanai-portal
     newName: registry.digitalocean.com/talentgraph-auth/lanai-portal
-    newTag: 0.0.1
+    newTag: 0.0.4
   - name: lanai-ai-gateway
     newName: registry.digitalocean.com/talentgraph-auth/lanai-ai-gateway
-    newTag: kasi-20260724-0755
+    newTag: 0.0.2
 
 # DOCR is a private registry — every pod needs this pull secret. Applies to
 # all Deployments/Jobs; harmless no-op on the ones pulling public images.

@@ -1,5 +1,5 @@
 /**
- * Lanai — Chatwoot Unified Inbox (AI-Powered)
+ * Lanai: Chatwoot Unified Inbox (AI-Powered)
  * Rewritten to match actual tRPC router shapes.
  */
 import { useState, useEffect, useRef } from "react";
@@ -27,10 +27,17 @@ type LocalMsg = {
   isTemplate: boolean; attachmentUrl: string | null; createdAt: Date;
 };
 
+type WhatsAppTriage = {
+  intent?: string; urgency?: string; sentiment?: string;
+  summary?: string; suggested_action?: string; suggested_tags?: string[];
+  draft_reply?: string; estimated_value?: number; draft?: string;
+};
+
 export default function ChatwootPage() {
   const [selectedConvId, setSelectedConvId] = useState<number | null>(null);
   const [selectedChatwootId, setSelectedChatwootId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
+  const [triage, setTriage] = useState<WhatsAppTriage | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("open");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -62,7 +69,12 @@ export default function ChatwootPage() {
   });
 
   const draftMutation = trpc.chatwoot.generateDraftReply.useMutation({
-    onSuccess: (d) => { const data = d as { draft: string }; setReplyText(data.draft); toast.success("AI draft ready"); },
+    onSuccess: (d) => {
+      const data = d as WhatsAppTriage & { draft: string };
+      setTriage(data);
+      setReplyText(data.draft_reply ?? data.draft ?? "");
+      toast.success("AI draft ready");
+    },
     onError: (e) => toast.error(`AI error: ${e.message}`),
   });
 
@@ -85,6 +97,7 @@ export default function ChatwootPage() {
   function handleDraft() {
     if (!selectedConvId) return;
     const conv = conversations.find((c) => c.id === selectedConvId);
+    setTriage(null);
     draftMutation.mutate({ conversationId: selectedConvId, lastMessage: conv?.lastMessage ?? "", memberName: conv?.contactName });
   }
 
@@ -197,6 +210,20 @@ export default function ChatwootPage() {
                 <div ref={messagesEndRef} />
               </div>
               <div className="border-t bg-card p-4 space-y-3">
+                {triage && (
+                  <div className="rounded-md border border-border/60 bg-muted/30 p-3 space-y-1.5 text-xs">
+                    <div className="flex flex-wrap gap-1.5">
+                      {triage.intent && <Badge variant="secondary" className="font-normal">{triage.intent}</Badge>}
+                      {triage.urgency && <Badge variant="secondary" className="font-normal">{triage.urgency}</Badge>}
+                      {triage.sentiment && <Badge variant="secondary" className="font-normal">{triage.sentiment}</Badge>}
+                      {(triage.suggested_tags ?? []).map((t) => (
+                        <Badge key={t} variant="outline" className="font-normal">{t}</Badge>
+                      ))}
+                    </div>
+                    {triage.summary && <p><span className="font-semibold">Summary:</span> {triage.summary}</p>}
+                    {triage.suggested_action && <p><span className="font-semibold">Suggested action:</span> {triage.suggested_action}</p>}
+                  </div>
+                )}
                 <Textarea placeholder="Type a reply... (⌘↵ to send)" value={replyText} onChange={(e) => setReplyText(e.target.value)} className="min-h-[80px] resize-none text-sm" onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSend(); }} />
                 <div className="flex items-center justify-between">
                   <Button variant="outline" size="sm" onClick={handleDraft} disabled={draftMutation.isPending}>

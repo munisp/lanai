@@ -57,6 +57,11 @@ class WhatsAppDraftRequest(BaseModel):
     context: str | None = Field(default=None, max_length=10_000)
 
 
+class SupplierExtractRequest(BaseModel):
+    raw_email: str = Field(min_length=1, max_length=20_000)
+    client_name: str | None = Field(default=None, max_length=255)
+
+
 def require_service_token(authorization: str | None = Header(default=None)) -> None:
     if not AI_GATEWAY_TOKEN:
         raise HTTPException(status_code=503, detail="AI gateway token is not configured")
@@ -248,7 +253,9 @@ def morning_briefing(payload: dict[str, Any]) -> dict[str, Any]:
         ),
         prompt=f"Operational facts: {json.dumps(payload, sort_keys=True)}",
         temperature=0.1,
-        max_tokens=1_200,
+        # Keep the briefing concise so inference completes well under the
+        # proxy/Cloudflare 100s timeout on CPU-hosted models.
+        max_tokens=400,
     )
     result = infer(prompt)
     try:
@@ -260,11 +267,87 @@ def morning_briefing(payload: dict[str, Any]) -> dict[str, Any]:
 
 @app.post("/whatsapp/draft-reply", dependencies=[Depends(require_service_token)])
 def draft_reply(request: WhatsAppDraftRequest) -> dict[str, Any]:
+    """Structured triage of an inbound WhatsApp message plus a draft reply.
+
+    Grounded only in the client context the caller supplies (the portal
+    assembles member profile, preferences, family, important dates, and recent
+    requests into ``context``). Returns the eight-field triage the concierge
+    copilot needs. The draft is for advisor review only and must never claim
+    confirmed availability, prices, or bookings.
+    """
     prompt = InferenceRequest(
         capability="whatsapp",
-        system="Draft a warm, concise, professional client reply. Do not make promises or invent booking facts. Return text only.",
-        prompt=f"Client: {request.client_name or 'not supplied'}\nContext: {request.context or 'not supplied'}\nInbound message: {request.message}",
-        temperature=0.3,
-        max_tokens=400,
+        response_format="json",
+        system=(
+            "You are the Lanai concierge copilot. Triage the inbound WhatsApp "
+            "message and draft a reply for an advisor to review before sending. "
+            "Ground the triage and draft ONLY in the supplied client context. "
+            "Do not invent confirmed availability, prices, bookings, or supplier "
+            "commitments. Label any assumption. "
+            'Return valid JSON with keys: "intent" (one of TRAVEL_REQUEST, '
+            'EVENT_REQUEST, LIFESTYLE_REQUEST, MEMBERSHIP_ENQUIRY, '
+            'GENERAL_ENQUIRY, COMPLAINT, URGENT, FOLLOW_UP), "urgency" '
+            '(HIGH, MEDIUM, LOW), "sentiment" (POSITIVE, NEUTRAL, NEGATIVE, '
+            'FRUSTRATED), "summary" (one sentence of what the client wants), '
+            '"suggested_action" (one sentence for the advisor), '
+            '"suggested_tags" (list of short strings), "draft_reply" (a warm, '
+            'professional 2-3 sentence reply the advisor can edit and send), '
+            'and "estimated_value" (integer GBP, 0 if unknown). '
+            "Return ONLY valid JSON."
+        ),
+        prompt=(
+            f"Client: {request.client_name or 'not supplied'}\n"
+            f"Client context: {request.context or 'not supplied'}\n"
+            f"Inbound message: {request.message}"
+        ),
+        temperature=0.2,
+        max_tokens=600,
     )
-    return infer(prompt)
+    result = infer(prompt)
+    try:
+        result["structured"] = json.loads(result["output"])
+    except ValueError as error:
+        raise HTTPException(status_code=502, detail="Local model did not return valid structured WhatsApp triage") from error
+    return result
+
+
+@app.post("/supplier/extract-offer", dependencies=[Depends(require_service_token)])
+def extract_offer(request: SupplierExtractRequest) -> dict[str, Any]:
+    """Extract a structured supplier confirmation from a raw email.
+
+    Grounded only in the supplied email text. Returns the fields the
+    white-label template needs: property name, supplier, guest, dates, room
+    category, booking reference, amount, and Virtuoso perks. Never invents
+    prices, dates, or references.
+    """
+    prompt = InferenceRequest(
+        capability="intelligence",
+        response_format="json",
+        system=(
+            "You extract structured data from a luxury travel supplier confirmation email. "
+            "Ground the extraction ONLY in the supplied email text. Do not invent prices, dates, or references. "
+            "Return valid JSON with keys: "
+            '"property_name" (hotel/villa/yacht name, or null), '
+            '"supplier" (the supplier/source name, or null), '
+            '"client_name" (the guest name, or null), '
+            '"check_in" (ISO date or null), "check_out" (ISO date or null), '
+            '"room_category" (e.g. Deluxe King, Junior Suite, or null), '
+            '"booking_reference" (the confirmation/reference number, or null), '
+            '"amount" (string with currency, or null), '
+            '"virtuoso_perks" (list of strings, e.g. [\\"Room upgrade\\", \\"Daily breakfast\\", \\"Late checkout\\"]), '
+            '"notes" (any other relevant detail, or null). '
+            "Return ONLY valid JSON."
+        ),
+        prompt=(
+            f"Client: {request.client_name or 'not supplied'}\n"
+            f"Supplier confirmation email:\n{request.raw_email}"
+        ),
+        temperature=0.1,
+        max_tokens=800,
+    )
+    result = infer(prompt)
+    try:
+        result["structured"] = json.loads(result["output"])
+    except ValueError as error:
+        raise HTTPException(status_code=502, detail="Local model did not return valid structured supplier extraction") from error
+    return result

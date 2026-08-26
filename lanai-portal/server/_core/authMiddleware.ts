@@ -6,10 +6,21 @@
  * procedure-level auth middleware.
  */
 import type { Request, Response, NextFunction } from "express";
-import { sdk } from "./sdk";
+import { sdk, type AuthenticatedUser } from "./sdk";
 import { getMemberSessionByToken, getMemberById } from "../db";
+import type { Member } from "../../drizzle/schema";
 
 const MEMBER_COOKIE = "lanai_member_session";
+
+/**
+ * Request with the resolved principal attached. `requireAnyAuth` populates
+ * exactly one of `member` or `user` so downstream proxy handlers (storage,
+ * Chatwoot, CRM) can enforce object ownership without re-deriving the session.
+ */
+export type AuthedRequest = Request & {
+  member?: Member;
+  user?: AuthenticatedUser;
+};
 
 /**
  * Require an authenticated advisor (Keycloak OAuth session).
@@ -37,15 +48,18 @@ export async function requireAnyAuth(
   res: Response,
   next: NextFunction
 ): Promise<void> {
-  // 1. Try advisor OAuth
+  // 1. Try advisor OAuth. authenticateRequest returns the resolved advisor
+  // and throws if the caller is not a valid advisor. On success we attach it
+  // to req so downstream proxy handlers can enforce ownership.
   try {
-    await sdk.authenticateRequest(req);
+    (req as AuthedRequest).user = await sdk.authenticateRequest(req);
     return next();
   } catch {
-    // not an advisor — try member session
+    // not an advisor: try member session
   }
 
-  // 2. Try member session cookie
+  // 2. Try member session cookie. Attach the resolved member to req so the
+  // storage proxy can verify object ownership for downloads.
   try {
     const cookieHeader = req.headers.cookie ?? "";
     const match = cookieHeader
@@ -59,6 +73,7 @@ export async function requireAnyAuth(
       if (session) {
         const m = await getMemberById(session.memberId);
         if (m && m.active) {
+          (req as AuthedRequest).member = m;
           return next();
         }
       }
