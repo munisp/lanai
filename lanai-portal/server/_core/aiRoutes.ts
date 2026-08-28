@@ -373,6 +373,33 @@ export function registerAiRoutes(app: Express): void {
     intelligenceRoute("/intelligence/opportunity-spot"),
   );
 
+  // Shared builder for the morning briefing input payload so the
+  // streaming and non-streaming variants stay in lockstep.
+  async function buildMorningBriefingInput(
+    advisorId: number,
+  ): Promise<Record<string, unknown>> {
+    const db = await getDb();
+    const [openRequests, pendingBookings] = await Promise.all([
+      db
+        .select()
+        .from(travelRequests)
+        .where(and(eq(travelRequests.status, "new")))
+        .orderBy(desc(travelRequests.createdAt))
+        .limit(50),
+      db
+        .select()
+        .from(bookings)
+        .where(eq(bookings.status, "pending"))
+        .orderBy(desc(bookings.createdAt))
+        .limit(50),
+    ]);
+    return {
+      open_travel_requests: openRequests,
+      pending_bookings: pendingBookings,
+      requested_by_user_id: advisorId,
+    };
+  }
+
   app.post(
     "/api/briefing/morning-briefing",
     requireAdvisor,
@@ -380,26 +407,7 @@ export function registerAiRoutes(app: Express): void {
       const started = performance.now();
       let run: { id: number; requestId: string } | undefined;
       try {
-        const db = await getDb();
-        const [openRequests, pendingBookings] = await Promise.all([
-          db
-            .select()
-            .from(travelRequests)
-            .where(and(eq(travelRequests.status, "new")))
-            .orderBy(desc(travelRequests.createdAt))
-            .limit(50),
-          db
-            .select()
-            .from(bookings)
-            .where(eq(bookings.status, "pending"))
-            .orderBy(desc(bookings.createdAt))
-            .limit(50),
-        ]);
-        const input = {
-          open_travel_requests: openRequests,
-          pending_bookings: pendingBookings,
-          requested_by_user_id: req.advisor!.id,
-        };
+        const input = await buildMorningBriefingInput(req.advisor!.id);
         run = await createRun("briefing", req.advisor!, input);
         const upstream = await callGateway("/briefing/morning-briefing", input);
         if (!upstream.ok) return await genericFailure(res, upstream);
@@ -411,6 +419,55 @@ export function registerAiRoutes(app: Express): void {
         res
           .status(503)
           .json({ error: "AI morning briefing generation unavailable" });
+      }
+    },
+  );
+
+  app.post(
+    "/api/briefing/morning-briefing-stream",
+    requireAdvisor,
+    async (req: AuthenticatedRequest, res) => {
+      const started = performance.now();
+      let run: { id: number; requestId: string } | undefined;
+      try {
+        const input = await buildMorningBriefingInput(req.advisor!.id);
+        run = await createRun("briefing", req.advisor!, input, {
+          streaming: true,
+        });
+        const upstream = await callGateway(
+          "/briefing/morning-briefing-stream",
+          input,
+        );
+        if (!upstream.ok || !upstream.body)
+          return await genericFailure(res, upstream);
+        res.status(200).set({
+          "content-type": "text/event-stream",
+          "cache-control": "no-cache, no-transform",
+          connection: "keep-alive",
+          "x-accel-buffering": "no",
+          "x-inference-request-id": run.requestId,
+        });
+        let output = "";
+        const source = Readable.fromWeb(upstream.body as never);
+        source.on("data", (chunk: Buffer) => {
+          output += chunk.toString();
+        });
+        source.on("end", () => {
+          void completeRun(
+            run!.id,
+            { stream_digest: digest(output) },
+            started,
+          );
+        });
+        source.on("error", (error) => {
+          void failRun(run!.id, error, started);
+        });
+        source.pipe(res);
+      } catch (error) {
+        if (run) await failRun(run.id, error, started);
+        res
+          .status(503)
+          .json({ error: "Streaming AI morning briefing unavailable" });
       }
     },
   );

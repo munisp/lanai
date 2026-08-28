@@ -240,9 +240,8 @@ def opportunity_spot(request: IntelligenceRequest) -> dict[str, Any]:
     return result
 
 
-@app.post("/briefing/morning-briefing", dependencies=[Depends(require_service_token)])
-def morning_briefing(payload: dict[str, Any]) -> dict[str, Any]:
-    prompt = InferenceRequest(
+def briefing_prompt(payload: dict[str, Any]) -> InferenceRequest:
+    return InferenceRequest(
         capability="briefing",
         response_format="json",
         system=(
@@ -257,12 +256,32 @@ def morning_briefing(payload: dict[str, Any]) -> dict[str, Any]:
         # proxy/Cloudflare 100s timeout on CPU-hosted models.
         max_tokens=400,
     )
-    result = infer(prompt)
+
+
+@app.post("/briefing/morning-briefing", dependencies=[Depends(require_service_token)])
+def morning_briefing(payload: dict[str, Any]) -> dict[str, Any]:
+    result = infer(briefing_prompt(payload))
     try:
         result["structured"] = json.loads(result["output"])
     except ValueError as error:
         raise HTTPException(status_code=502, detail="Local model did not return a valid structured morning briefing") from error
     return result
+
+
+@app.post("/briefing/morning-briefing-stream", dependencies=[Depends(require_service_token)])
+def morning_briefing_stream(payload: dict[str, Any]) -> StreamingResponse:
+    """SSE streaming variant of the morning briefing.
+
+    Streams JSON tokens as they are produced by the model so the
+    Cloudflare/APISIX proxy sees continuous traffic and does not 504. The
+    client accumulates ``delta`` chunks and parses the assembled JSON when
+    the ``done`` event arrives.
+    """
+    return StreamingResponse(
+        stream_infer(briefing_prompt(payload)),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.post("/whatsapp/draft-reply", dependencies=[Depends(require_service_token)])

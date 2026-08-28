@@ -62,18 +62,99 @@ export default function MorningBriefingPage() {
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 180000);
-      const res = await fetch("/api/briefing/morning-briefing", {
+      const res = await fetch("/api/briefing/morning-briefing-stream", {
         signal: controller.signal,
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requested_at: new Date().toISOString() }),
       });
+      if (!res.ok || !res.body) {
+        clearTimeout(timer);
+        throw new Error(await res.text().catch(() => "Gateway unavailable"));
+      }
+
+      // Consume the SSE stream: accumulate ``delta`` chunks into the raw
+      // JSON the model is emitting, then parse once the ``done`` event
+      // arrives. Streaming keeps the proxy from 504-ing while the
+      // CPU-hosted model generates.
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let assembled = "";
+      let done = false;
+      let streamError: string | null = null;
+
+      while (!done) {
+        const { value, done: streamDone } = await reader.read();
+        if (streamDone) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        // SSE events are separated by a blank line. Process complete
+        // events from the buffer, leaving any partial tail behind.
+        let separatorIndex: number;
+        while (
+          (separatorIndex = buffer.indexOf("\n\n")) !== -1 &&
+          !done
+        ) {
+          const rawEvent = buffer.slice(0, separatorIndex);
+          buffer = buffer.slice(separatorIndex + 2);
+
+          let eventType = "message";
+          const dataLines: string[] = [];
+          for (const line of rawEvent.split("\n")) {
+            if (line.startsWith("event:")) {
+              eventType = line.slice(6).trim();
+            } else if (line.startsWith("data:")) {
+              dataLines.push(line.slice(5).trimStart());
+            }
+          }
+          if (dataLines.length === 0) continue;
+          const dataStr = dataLines.join("\n");
+
+          if (eventType === "done") {
+            done = true;
+            break;
+          }
+          if (eventType === "error") {
+            try {
+              const errPayload = JSON.parse(dataStr);
+              streamError =
+                (errPayload && (errPayload.detail || errPayload.error)) ||
+                "The AI service returned an error.";
+            } catch {
+              streamError = dataStr || "The AI service returned an error.";
+            }
+            done = true;
+            break;
+          }
+
+          // Default data event: accumulate the delta token.
+          try {
+            const payload = JSON.parse(dataStr);
+            if (typeof payload.delta === "string") {
+              assembled += payload.delta;
+            }
+          } catch {
+            // Ignore malformed partial lines; SSE framing guarantees
+            // complete events so this is defensive only.
+          }
+        }
+      }
       clearTimeout(timer);
-      if (!res.ok) throw new Error(await res.text());
-      const data = (await res.json()) as { structured?: BriefingData };
-      if (!data.structured)
-        throw new Error("The AI service returned no structured briefing.");
-      setBriefing(data.structured);
+
+      if (streamError) throw new Error(streamError);
+      if (!assembled.trim())
+        throw new Error("The AI service returned no briefing content.");
+
+      let structured: BriefingData | undefined;
+      try {
+        structured = JSON.parse(assembled) as BriefingData;
+      } catch {
+        throw new Error(
+          "The AI service returned no structured briefing.",
+        );
+      }
+      setBriefing(structured);
       toast.success("Briefing generated from current platform data.");
     } catch (error) {
       setBriefing(null);
