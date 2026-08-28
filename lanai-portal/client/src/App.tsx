@@ -48,8 +48,8 @@ const MemberPortalEnhancedPage = lazy(
 );
 const ClientProposalPage = lazy(() => import("./pages/ClientProposalPage"));
 const CrmSyncPage = lazy(() => import("./pages/CrmSyncPage"));
-import { Crown, Loader2 } from "lucide-react";
-import { Button } from "./components/ui/button";
+import { Loader2 } from "lucide-react";
+const LandingPage = lazy(() => import("./pages/LandingPage"));
 
 // ─── Advisor portal guard ─────────────────────────────────────────────────────
 
@@ -66,43 +66,9 @@ function AdvisorPortalGuard({ children }: { children: React.ReactNode }) {
 
   if (!user) {
     return (
-      <div
-        className="flex items-center justify-center min-h-screen"
-        style={{ background: "oklch(0.97 0.015 80)" }}
-      >
-        <div className="w-full max-w-sm text-center px-8">
-          <div
-            className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-6"
-            style={{ background: "oklch(0.25 0.06 145)" }}
-          >
-            <Crown className="w-6 h-6 text-white" />
-          </div>
-          <h1
-            className="text-2xl font-bold text-gray-900 mb-2"
-            style={{ fontFamily: "'Playfair Display', serif" }}
-          >
-            Lanai Advisor Portal
-          </h1>
-          <p className="text-gray-500 text-sm mb-8">
-            Sign in to access the advisor dashboard.
-          </p>
-          <Button
-            className="w-full text-white gap-2"
-            style={{ background: "oklch(0.25 0.06 145)" }}
-            onClick={() => {
-              window.location.href = getLoginUrl();
-            }}
-          >
-            Sign In
-          </Button>
-          <p className="text-xs text-gray-400 mt-4">
-            Member? Visit{" "}
-            <a href="/client" className="underline hover:text-gray-600">
-              the member portal
-            </a>
-          </p>
-        </div>
-      </div>
+      <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}>
+        <LandingPage />
+      </Suspense>
     );
   }
 
