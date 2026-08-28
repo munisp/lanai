@@ -171,17 +171,37 @@ def create_task(title: str, body: str, person_id: str = None, due_at: str = None
     return task
 
 
+def _digits(phone: str) -> str:
+    """Return the digit-only form of a phone number (no +, spaces, dashes, letters)."""
+    return "".join(ch for ch in str(phone) if ch.isdigit())
+
+
 def find_person_by_phone(phone: str) -> Optional[Dict]:
-    """Find a person by phone number."""
-    people = get_people(200)
+    """Find a person by phone number.
+
+    The CRM stores the national number and an ISO country code (e.g. "GB")
+    separately; it does NOT store the dialing code (e.g. "44"). Reconstructing
+    "+{country}{primary}" therefore yields garbage such as "+GB79111123456"
+    and every lookup used to miss, causing a duplicate person to be created
+    on every inbound WhatsApp message.
+
+    We instead compare digit strings by suffix so a number stored with or
+    without its country dialing code on either side still resolves to the
+    same person. A minimum length guards against short-number false positives.
+    """
+    target = _digits(phone)
+    if len(target) < 7:
+        return None
+    people = get_people(500)
     for p in people:
-        phones = p.get("phones", {})
-        if phones:
-            primary = phones.get("primaryPhoneNumber", "")
-            country = phones.get("primaryPhoneCountryCode", "")
-            full = f"+{country}{primary}".replace("++", "+")
-            if phone.replace("+", "").replace(" ", "") in full.replace("+", "").replace(" ", ""):
-                return p
+        phones = p.get("phones") or {}
+        primary = _digits(phones.get("primaryPhoneNumber", ""))
+        if len(primary) < 7:
+            continue
+        # Match when the shorter digit string is a suffix of the longer, so
+        # country-code presence/absence on either side is tolerated.
+        if target.endswith(primary) or primary.endswith(target):
+            return p
     return None
 
 
