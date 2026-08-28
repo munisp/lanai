@@ -147,10 +147,20 @@
   </div>
 
   <div class="phase p2">
-    <h2>Phase 2 (Days 8 to 14): Connect everything</h2>
-    <p class="phase-goal">Build the follow-up features that make the app fully connected: live data in, live data out, the real advisor lifecycle. End state: one clean run from request to commission.</p>
+    <h2>Phase 2 (Days 8 to 14): Connect everything, led by WhatsApp</h2>
+    <p class="phase-goal">The WhatsApp unified inbox is the headline: inbound message, AI triage, draft reply, advisor sends. This is the moment the app goes from demo to Bolanle's real daily tool. Then connect the rest: email, trips, suppliers, documents, and the full lifecycle. End state: one clean run from enquiry to commission.</p>
 
     <div class="day"><div class="dnum">08<span class="dl">Mon</span></div><div>
+      <h3>WhatsApp unified inbox: inbound to outbound (the headline)</h3>
+      <ul>
+        <li>Wire the full WhatsApp loop: inbound message lands in the unified inbox, AI triages and classifies it (enquiry, request, complaint, lifestyle), AI drafts a reply, advisor reviews and sends.</li>
+        <li>Thread every message per client so the conversation history is visible.</li>
+        <li>This is the UltraNetwork "Unified Inbox" moment: WhatsApp, email, and voice in one place, threaded per client.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> a real inbound WhatsApp message is triaged by AI, a draft reply appears for the advisor, and the advisor sends it from the portal.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">09<span class="dl">Tue</span></div><div>
       <h3>Live inbound email for the Re-brander (Flow B)</h3>
       <ul>
         <li>Replace paste and import with a real inbound email webhook (Resend Inbound or Mailgun) that lands supplier confirmations in a rebrander queue.</li>
@@ -159,7 +169,7 @@
       <div class="done"><b>Done when:</b> a real Four Seasons confirmation email arrives and auto-populates the rebrander.</div>
     </div></div>
 
-    <div class="day"><div class="dnum">09<span class="dl">Tue</span></div><div>
+    <div class="day"><div class="dnum">10<span class="dl">Wed</span></div><div>
       <h3>Auto-derive the trip timeline and fix memberPortal.myTrips</h3>
       <ul>
         <li>Derive the member trip timeline from bookings (proposal to booking to execution to completed, with dates, supplier, and spend), not just travel_requests.</li>
@@ -168,22 +178,13 @@
       <div class="done"><b>Done when:</b> Flow C shows real trips derived from bookings, not seeded requests.</div>
     </div></div>
 
-    <div class="day"><div class="dnum">10<span class="dl">Wed</span></div><div>
+    <div class="day"><div class="dnum">11<span class="dl">Thu</span></div><div>
       <h3>Supplier curation UI on the Suppliers page</h3>
       <ul>
         <li>Add the curation form on <code class="inline">/suppliers</code> so advisors manage the Virtuoso catalog (add, edit, deactivate hotels, room rates, amenities) beyond the seeded four.</li>
         <li>Gate it by senior advisor or admin.</li>
       </ul>
       <div class="done"><b>Done when:</b> an advisor can add a 5th Paris hotel with rates and amenities through the UI.</div>
-    </div></div>
-
-    <div class="day"><div class="dnum">11<span class="dl">Thu</span></div><div>
-      <h3>Live Virtuoso or Little Emperors rate API</h3>
-      <ul>
-        <li>Integrate a live rate source for the catalog so rates refresh instead of seeded baselines.</li>
-        <li>Fall back to the stored baseline if the rate API is down.</li>
-      </ul>
-      <div class="done"><b>Done when:</b> the shortlist shows live or recently-synced rates with a sync timestamp.</div>
     </div></div>
 
     <div class="day"><div class="dnum">12<span class="dl">Fri</span></div><div>
@@ -207,10 +208,45 @@
     <div class="day"><div class="dnum">14<span class="dl">Sun</span></div><div>
       <h3>End to end walkthrough and fix breakages</h3>
       <ul>
-        <li>Run the full connected flow as Bolanle would: recommend, approve, rebrand, send, member sees the trip, booking, commission.</li>
+        <li>Run the full connected flow as Bolanle would: WhatsApp enquiry, AI triage, recommend, approve, rebrand, send, member sees the trip, booking, commission.</li>
         <li>Fix whatever breaks.</li>
       </ul>
       <div class="done"><b>Done when:</b> one clean run of the full lifecycle with no errors.</div>
+    </div></div>
+  </div>
+
+  <div class="phase" style="border-left-color:#5E6B62">
+    <h2>Stretch items (post-pilot, inspired by UltraNetwork)</h2>
+    <p class="phase-goal">These are the features UltraNetwork has that Lanai does not yet. They are not blocking the pilot, but they define the roadmap after launch. Ordered by impact for Bolanle.</p>
+
+    <div class="day"><div class="dnum">S1</div><div>
+      <h3>Interactive and collaborative proposals</h3>
+      <p>UltraNetwork's client gives "instant feedback" on the proposal in-platform. Lanai's member portal only approve or reject. Upgrade the proposal view to let the member comment on specific sections, request changes, and accept line by line.</p>
+    </div></div>
+
+    <div class="day"><div class="dnum">S2</div><div>
+      <h3>Import supplier PDFs into proposals</h3>
+      <p>UltraNetwork uploads supplier PDFs and converts them into collaborative proposals. The rebrander already extracts from email; extend it to accept PDF uploads and produce a proposal from the extracted data.</p>
+    </div></div>
+
+    <div class="day"><div class="dnum">S3</div><div>
+      <h3>Business scorecard</h3>
+      <p>Pipeline value, conversion rate, and repeat clients at a glance. Lanai has revenue analytics but not a conversion or repeat-client scorecard. Add a dashboard tile that shows these three metrics front and center.</p>
+    </div></div>
+
+    <div class="day"><div class="dnum">S4</div><div>
+      <h3>Live Virtuoso or Little Emperors rate API</h3>
+      <p>Integrate a live rate source so rates refresh instead of seeded baselines. Fall back to stored baselines if the API is down.</p>
+    </div></div>
+
+    <div class="day"><div class="dnum">S5</div><div>
+      <h3>Voice-first concierge assistant</h3>
+      <p>UltraNetwork has a mobile voice assistant. Add voice input for the member portal (dictate a request, the AI transcribes and creates the travel request). This is the differentiator for luxury.</p>
+    </div></div>
+
+    <div class="day"><div class="dnum">S6</div><div>
+      <h3>Digital supplier agreements and platform payments</h3>
+      <p>One-click supplier agreements through the platform, and secure payments direct to suppliers. Lanai tracks commission but does not contract or pay through the platform yet.</p>
     </div></div>
   </div>
 

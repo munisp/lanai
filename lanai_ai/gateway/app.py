@@ -256,9 +256,10 @@ def briefing_prompt(payload: dict[str, Any]) -> InferenceRequest:
         ),
         prompt=f"Operational facts: {json.dumps(payload, sort_keys=True)}",
         temperature=0.1,
-        # Keep the briefing concise so inference completes well under the
-        # proxy/Cloudflare 100s timeout on CPU-hosted models.
-        max_tokens=400,
+        # With streaming SSE + the initial keep-alive event, the proxy
+        # timeout is no longer a concern, so allow enough tokens for a
+        # complete briefing JSON.
+        max_tokens=2000,
     )
 
 
