@@ -690,7 +690,7 @@ export default function ProposalEnginePage() {
           <div className="flex gap-2">
             <Button
               onClick={generate}
-              disabled={loading}
+              disabled={loading || !travelRequestId}
               className="flex-1 gap-2"
               style={{ background: "oklch(0.35 0.09 145)" }}
             >

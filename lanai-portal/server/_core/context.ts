@@ -27,30 +27,28 @@ export async function createContext(
     user = null;
   }
 
-  // 2. Try member session cookie (only if not an advisor request)
-  if (!user) {
-    try {
-      const cookieHeader = opts.req.headers.cookie ?? "";
-      const match = cookieHeader
-        .split(";")
-        .map((c) => c.trim())
-        .find((c) => c.startsWith(`${MEMBER_COOKIE}=`));
+  // 2. Try member session cookie (always, so advisor and member sessions can coexist)
+  try {
+    const cookieHeader = opts.req.headers.cookie ?? "";
+    const match = cookieHeader
+      .split(";")
+      .map((c) => c.trim())
+      .find((c) => c.startsWith(`${MEMBER_COOKIE}=`));
 
-      if (match) {
-        const token = match.slice(MEMBER_COOKIE.length + 1);
-        const session = await getMemberSessionByToken(token);
-        if (session) {
-          const m = await getMemberById(session.memberId);
-          if (m && m.active) {
-            member = m;
-            // Fire-and-forget last-seen update
-            updateMemberLastSignedIn(m.id).catch(() => {});
-          }
+    if (match) {
+      const token = match.slice(MEMBER_COOKIE.length + 1);
+      const session = await getMemberSessionByToken(token);
+      if (session) {
+        const m = await getMemberById(session.memberId);
+        if (m && m.active) {
+          member = m;
+          // Fire-and-forget last-seen update
+          updateMemberLastSignedIn(m.id).catch(() => {});
         }
       }
-    } catch {
-      member = null;
     }
+  } catch {
+    member = null;
   }
 
   return { req: opts.req, res: opts.res, user, member };
