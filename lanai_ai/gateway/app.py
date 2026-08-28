@@ -117,6 +117,10 @@ def infer(request: InferenceRequest) -> dict[str, Any]:
 
 
 def stream_infer(request: InferenceRequest) -> Iterator[str]:
+    # Emit an initial keep-alive event so the SSE connection sends bytes
+    # immediately, preventing proxy (Cloudflare/APISIX) idle timeouts while
+    # Ollama loads the model and processes the prompt before the first token.
+    yield f"data: {json.dumps({'status': 'processing'})}\n\n"
     try:
         with requests.post(
             f"{OLLAMA_BASE_URL}/api/generate",
