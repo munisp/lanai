@@ -26,6 +26,12 @@
   .done{font-size:13px;color:#2C5E45;background:#F3F2EC;border-radius:6px;padding:7px 12px;margin-top:8px}
   .done b{color:#2C5E45}
   code.inline{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12.5px;background:#F3F2EC;padding:1px 5px;border-radius:4px;color:#2C5E45}
+  .badge{float:right;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;padding:3px 9px;border-radius:999px;font-weight:600}
+  .badge.done{background:#2C5E45;color:#fff}
+  .badge.pending{background:#E2E0D8;color:#5E6B62}
+  .badge.active{background:#C8A24A;color:#1A1F1B}
+  .wk-status{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12px;color:#2C5E45;margin:0 0 16px;padding:10px 16px;background:#F3F2EC;border-radius:8px;border-left:3px solid #2C5E45}
+  .wk-status b{color:#1A1F1B}
   .legend{display:flex;gap:18px;flex-wrap:wrap;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:11px;color:#5E6B62;margin:10px 0 4px}
   .legend span{display:inline-flex;align-items:center;gap:5px}
   .dot{width:9px;height:9px;border-radius:50%}
@@ -63,6 +69,7 @@
     <p class="lead">From the working bionic demo on the Minisforum to a pilot Bolanle can run real clients through, with everything connected and pilot-grade security.</p>
     <div class="meta">
       <span><b>Start:</b> 26 August 2026</span>
+      <span><b>Week 1 done:</b> 28 August 2026</span>
       <span><b>Pilot launch:</b> 24 September 2026</span>
       <span><b>Owner:</b> You, with Claude</span>
       <span><b>Baseline:</b> bionic A/B/C working on lanai.newfire.app</span>
@@ -81,8 +88,10 @@
     <h2>Phase 1 (Days 1 to 7): Stabilize the demo foundation</h2>
     <p class="phase-goal">Commit the bionic work, fix the demo's sharp edges, and make the seeded demo reproducible. End state: a clean, merged main and a demo with no loose ends.</p>
 
+    <div class="wk-status"><b>Week 1 Status: COMPLETE</b> (28 August 2026). 7 commits on bionic/deployment-fixes. All fixes deployed and verified live on lanai.newfire.app. Portal, gateway, and whatsapp-bridge pods all running bionic images. Remaining: Day 2 rebase onto origin/main (needs your git workflow).</div>
+
     <div class="day"><div class="dnum">01<span class="dl">Mon</span></div><div>
-      <h3>Fix the seed and checkpoint-commit the six chunks</h3>
+      <h3>Fix the seed and checkpoint-commit the six chunks <span class="badge done">Done</span></h3>
       <ul>
         <li>Write the corrected <code class="inline">seed_virtuoso_demo.sql</code> into the repo: quote every camelCase column (<code class="inline">"onboardingComplete"</code>, <code class="inline">"memberId"</code>, <code class="inline">"propertyType"</code>) and add Aisha's <code class="inline">pinHash</code> (bcrypt for 123456). Today's seed fails on the first INSERT and gives Aisha no PIN.</li>
         <li>Stage and commit the six chunks (IDORs, bridge, AI rewire, worker, Virtuoso/email/portal) on <code class="inline">bionic/deployment-fixes</code>.</li>
@@ -91,7 +100,7 @@
     </div></div>
 
     <div class="day"><div class="dnum">02<span class="dl">Tue</span></div><div>
-      <h3>Rebase onto main and merge</h3>
+      <h3>Rebase onto main and merge <span class="badge pending">Pending</span></h3>
       <ul>
         <li>Rebase <code class="inline">bionic/deployment-fixes</code> onto the latest <code class="inline">origin/main</code>; resolve conflicts.</li>
         <li>Open a PR; get CI green; merge to main.</li>
@@ -100,7 +109,7 @@
     </div></div>
 
     <div class="day"><div class="dnum">03<span class="dl">Wed</span></div><div>
-      <h3>Small UI fixes: Approve toast, Google tab, proposal 422</h3>
+      <h3>Small UI fixes: Approve toast, Google tab, proposal 422 <span class="badge done">Done</span></h3>
       <ul>
         <li>Flow A: add a success toast after "Approve top 3" instead of silently resetting to the empty form.</li>
         <li>Flow A: remove or repurpose the hotel card link that opens a Google search in a new tab.</li>
@@ -110,7 +119,7 @@
     </div></div>
 
     <div class="day"><div class="dnum">04<span class="dl">Thu</span></div><div>
-      <h3>Fix the member and advisor session conflict</h3>
+      <h3>Fix the member and advisor session conflict <span class="badge done">Done</span></h3>
       <ul>
         <li>Scope the advisor cookie to path <code class="inline">/</code> and the member cookie to path <code class="inline">/client</code>, or make member auth resolution ignore the advisor cookie entirely.</li>
         <li>Test: sign into the advisor portal, then the member portal, in the same browser.</li>
@@ -119,7 +128,7 @@
     </div></div>
 
     <div class="day"><div class="dnum">05<span class="dl">Fri</span></div><div>
-      <h3>Fix the Morning Briefing 504</h3>
+      <h3>Fix the Morning Briefing 504 <span class="badge done">Done</span></h3>
       <ul>
         <li>Convert <code class="inline">/api/briefing/morning-briefing</code> to streaming SSE (like the proposal engine), or raise the origin timeout and cap the prompt size.</li>
         <li>Show a visible error state instead of a silent reset when it fails.</li>
@@ -128,7 +137,7 @@
     </div></div>
 
     <div class="day"><div class="dnum">06<span class="dl">Sat</span></div><div>
-      <h3>CSP and fonts, advisor provisioning</h3>
+      <h3>CSP and fonts, advisor provisioning <span class="badge done">Done</span></h3>
       <ul>
         <li>Add <code class="inline">fonts.googleapis.com</code> to <code class="inline">style-src</code> and <code class="inline">fonts.gstatic.com</code> to <code class="inline">font-src</code>, or self-host the fonts so the brand renders in production.</li>
         <li>Provision <code class="inline">advisor@lanai.test</code> on the prod Keycloak (role and verified email) or document <code class="inline">devadmin</code> as the demo advisor and rotate its password.</li>
@@ -137,7 +146,7 @@
     </div></div>
 
     <div class="day"><div class="dnum">07<span class="dl">Sun</span></div><div>
-      <h3>WhatsApp dedup and weekly smoke test</h3>
+      <h3>WhatsApp dedup and weekly smoke test <span class="badge done">Done</span></h3>
       <ul>
         <li>Fix WhatsApp ingestion to dedup client and member creation by phone number; archive the 9 duplicate "WhatsApp 1181" records.</li>
         <li>Redeploy portal and gateway together; smoke test A, B, C, and the fallback.</li>
@@ -148,52 +157,59 @@
 
   <div class="phase p2">
     <h2>Phase 2 (Days 8 to 14): Connect everything, led by WhatsApp</h2>
-    <p class="phase-goal">The WhatsApp unified inbox is the headline: inbound message, AI triage, draft reply, advisor sends. This is the moment the app goes from demo to Bolanle's real daily tool. Then connect the rest: email, trips, suppliers, documents, and the full lifecycle. End state: one clean run from enquiry to commission.</p>
+    <p class="phase-goal">The WhatsApp unified inbox is the headline: a real business number, inbound message, AI triage, draft reply, advisor sends. This is the moment the app goes from demo to Bolanle's real daily tool. Then connect the rest: email, trips, suppliers, documents, and the full lifecycle. End state: one clean run from enquiry to commission.</p>
+
+    <div class="wk-status"><b>Week 2 starts: 29 August 2026.</b> The WhatsApp bridge, Chatwoot, and AI triage code all exist in the cluster. What is needed: a real WhatsApp Business number, Meta Business verification (start Day 8, takes 1 to 3 days), linking the number to Chatwoot, and deploying the Chatwoot AI pillar as a pod. Prerequisites to start: a Meta Business account and a provider choice (Twilio or 360dialog).</div>
 
     <div class="day"><div class="dnum">08<span class="dl">Mon</span></div><div>
-      <h3>WhatsApp unified inbox: inbound to outbound (the headline)</h3>
+      <h3>WhatsApp unified inbox: get a real business number and link it <span class="badge active">Next up</span></h3>
       <ul>
-        <li>Wire the full WhatsApp loop: inbound message lands in the unified inbox, AI triages and classifies it (enquiry, request, complaint, lifestyle), AI drafts a reply, advisor reviews and sends.</li>
-        <li>Thread every message per client so the conversation history is visible.</li>
-        <li>This is the UltraNetwork "Unified Inbox" moment: WhatsApp, email, and voice in one place, threaded per client.</li>
+        <li>Choose a WhatsApp Business API provider: Twilio (easiest, you already have a relationship), 360dialog (specialized for WhatsApp), or direct Meta Business API.</li>
+        <li>Buy a dedicated phone number (around $10 to $15 per month plus per-message fees).</li>
+        <li>Start Meta Business verification (business name, address, domain). This takes 1 to 3 days, so start immediately.</li>
+        <li>Chatwoot is already running in the cluster (<code class="inline">chatwoot-b9f8dcb44-rl49x</code>). Add a WhatsApp channel in the Chatwoot admin using the provider's API key and phone number ID.</li>
+        <li>Configure the inbound webhook: WhatsApp, provider, Chatwoot webhook, <code class="inline">lanai-whatsapp-bridge</code> pod (already deployed with dedup fix), AI triage, draft reply, advisor reviews, sends.</li>
+      </ul>
+      <div class="done"><b>Done when:</b> a real WhatsApp Business number is live, linked to Chatwoot, and a test inbound message lands in the advisor inbox.</div>
+    </div></div>
+
+    <div class="day"><div class="dnum">09<span class="dl">Tue</span></div><div>
+      <h3>Wire the AI triage loop: inbound message to draft reply</h3>
+      <ul>
+        <li>Deploy the Chatwoot AI pillar (<code class="inline">lanai_ai/pillars/chatwoot/app.py</code>, port 5560) into the cluster as a pod or alongside the whatsapp-bridge.</li>
+        <li>The pillar already has <code class="inline">find_person_by_phone</code> (now fixed) and draft-reply logic. It classifies each inbound message: enquiry, travel request, lifestyle, complaint, general.</li>
+        <li>The AI drafts a reply in the Lanai voice. The advisor sees the draft in the Chatwoot inbox, edits if needed, and sends.</li>
+        <li>Test: send a WhatsApp from a test phone, verify the AI triages and drafts a reply.</li>
       </ul>
       <div class="done"><b>Done when:</b> a real inbound WhatsApp message is triaged by AI, a draft reply appears for the advisor, and the advisor sends it from the portal.</div>
     </div></div>
 
-    <div class="day"><div class="dnum">09<span class="dl">Tue</span></div><div>
-      <h3>Live inbound email for the Re-brander (Flow B)</h3>
-      <ul>
-        <li>Replace paste and import with a real inbound email webhook (Resend Inbound or Mailgun) that lands supplier confirmations in a rebrander queue.</li>
-        <li>The rebrander auto-loads the latest inbound email for the selected member.</li>
-      </ul>
-      <div class="done"><b>Done when:</b> a real Four Seasons confirmation email arrives and auto-populates the rebrander.</div>
-    </div></div>
-
     <div class="day"><div class="dnum">10<span class="dl">Wed</span></div><div>
-      <h3>Auto-derive the trip timeline and fix memberPortal.myTrips</h3>
+      <h3>Thread per client and link WhatsApp number to member records</h3>
       <ul>
-        <li>Derive the member trip timeline from bookings (proposal to booking to execution to completed, with dates, supplier, and spend), not just travel_requests.</li>
-        <li>Fix <code class="inline">memberPortal.myTrips</code> so members see booking-derived trips.</li>
+        <li>Link the sender's WhatsApp number to an existing member or client record (the <code class="inline">find_person_by_phone</code> fix now makes this work). If no match, create a new client (the dedup fix prevents duplicates).</li>
+        <li>The advisor sees the conversation threaded under the client's record in the Communication Hub.</li>
+        <li>Every inbound WhatsApp message enriches the client profile automatically.</li>
       </ul>
-      <div class="done"><b>Done when:</b> Flow C shows real trips derived from bookings, not seeded requests.</div>
+      <div class="done"><b>Done when:</b> a WhatsApp message from an existing member links to their profile, and the conversation is visible in the Communication Hub.</div>
     </div></div>
 
     <div class="day"><div class="dnum">11<span class="dl">Thu</span></div><div>
-      <h3>Supplier curation UI on the Suppliers page</h3>
+      <h3>Auto-derive trip timeline and live email for the Re-brander</h3>
       <ul>
-        <li>Add the curation form on <code class="inline">/suppliers</code> so advisors manage the Virtuoso catalog (add, edit, deactivate hotels, room rates, amenities) beyond the seeded four.</li>
-        <li>Gate it by senior advisor or admin.</li>
+        <li>Derive the member trip timeline from bookings (proposal to booking to execution to completed, with dates, supplier, and spend).</li>
+        <li>Replace the rebrander's paste and import with a real inbound email webhook (Resend Inbound or Mailgun) that auto-loads supplier confirmations.</li>
       </ul>
-      <div class="done"><b>Done when:</b> an advisor can add a 5th Paris hotel with rates and amenities through the UI.</div>
+      <div class="done"><b>Done when:</b> Flow C shows real booking-derived trips, and a real supplier email auto-populates the rebrander.</div>
     </div></div>
 
     <div class="day"><div class="dnum">12<span class="dl">Fri</span></div><div>
-      <h3>Real document vault</h3>
+      <h3>Supplier curation UI and real document vault</h3>
       <ul>
-        <li>Make the member vault functional: advisor uploads (passport, visa, insurance) to S3; the member sees their documents in the client portal.</li>
-        <li>Apply the storage proxy IDOR fix: resolve key to document to Permify ownership check before presigning; log every download.</li>
+        <li>Add the supplier curation form on <code class="inline">/suppliers</code> so advisors manage the Virtuoso catalog (add, edit, deactivate hotels, room rates, amenities). Gate by senior advisor or admin.</li>
+        <li>Make the member vault functional: advisor uploads (passport, visa, insurance) to S3; the member sees their documents. Apply the storage proxy IDOR fix.</li>
       </ul>
-      <div class="done"><b>Done when:</b> an advisor uploads a passport PDF, the member can view it, and another member cannot.</div>
+      <div class="done"><b>Done when:</b> an advisor can add a 5th hotel through the UI, and a member can view their uploaded passport.</div>
     </div></div>
 
     <div class="day"><div class="dnum">13<span class="dl">Sat</span></div><div>
@@ -413,7 +429,7 @@
   <p>Each day has one to three concrete tasks and a clear "done when" so you know when to stop. The phases are ordered: stabilize what you have, connect the missing pieces, harden for real data, then prove it with real users. If a day runs over, push the next day rather than skipping the security phase, because the pilot holds real client PII by Day 24. I can pair with you on any day; the ones that most benefit from a second pass are Day 1 (the seed), Day 13 (the lifecycle wiring), and the whole security phase (15 to 21), which maps directly to the security report's findings.</p>
 
   <footer>
-    Lanai Lifestyle: 30 Day Demo to Pilot Plan · 26 August 2026 · Grounded in the bionic demo state and the functional and security audit reports.
+    Lanai Lifestyle: 30 Day Demo to Pilot Plan · Updated 28 August 2026 · Week 1 complete (7 commits, all fixes deployed and verified on lanai.newfire.app). Week 2 starts 29 August with real WhatsApp Business integration. Grounded in the bionic demo state, the functional and security audit reports, and the UltraNetwork reference platform.
   </footer>
 </div>
 </body>

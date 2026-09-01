@@ -40,7 +40,7 @@ WHATSAPP_PHONE_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
 BRIDGE_INTERNAL_TOKEN = os.getenv("WHATSAPP_BRIDGE_INTERNAL_TOKEN", "")
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 PORT = int(os.getenv("PORT", "5555"))
-BIND_HOST = os.getenv("BIND_HOST", "127.0.0.1")
+BIND_HOST = os.getenv("BIND_HOST", "0.0.0.0")
 
 logging.basicConfig(
     level=logging.INFO,
