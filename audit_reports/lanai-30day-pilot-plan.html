@@ -159,43 +159,42 @@
     <h2>Phase 2 (Days 8 to 14): Connect everything, led by WhatsApp</h2>
     <p class="phase-goal">The WhatsApp unified inbox is the headline: a real business number, inbound message, AI triage, draft reply, advisor sends. This is the moment the app goes from demo to Bolanle's real daily tool. Then connect the rest: email, trips, suppliers, documents, and the full lifecycle. End state: one clean run from enquiry to commission.</p>
 
-    <div class="wk-status"><b>Week 2 starts: 29 August 2026.</b> The WhatsApp bridge, Chatwoot, and AI triage code all exist in the cluster. What is needed: a real WhatsApp Business number, Meta Business verification (start Day 8, takes 1 to 3 days), linking the number to Chatwoot, and deploying the Chatwoot AI pillar as a pod. Prerequisites to start: a Meta Business account and a provider choice (Twilio or 360dialog).</div>
+    <div class="wk-status"><b>Week 2 status, 3 September 2026:</b> the WhatsApp headline is real. A Meta WhatsApp Cloud API business number (+1 901-646-0915) is live, the webhook is signature-verified, and a real inbound message from the linked test phone flowed end to end: bridge, durable outbox, consumer, local AI triage, member timeline in the Communication Hub. Remaining in Week 2: link the number into Chatwoot for the synchronized inbox view, surface the AI draft reply for one-click advisor send, then continue with email, trips, suppliers, documents, and the full lifecycle.</div>
 
     <div class="day"><div class="dnum">08<span class="dl">Mon</span></div><div>
-      <h3>WhatsApp unified inbox: get a real business number and link it <span class="badge active">Next up</span></h3>
+      <h3>WhatsApp unified inbox: real business number, webhook, and bridge live <span class="badge done">Done</span></h3>
       <ul>
-        <li>Choose a WhatsApp Business API provider: Twilio (easiest, you already have a relationship), 360dialog (specialized for WhatsApp), or direct Meta Business API.</li>
-        <li>Buy a dedicated phone number (around $10 to $15 per month plus per-message fees).</li>
-        <li>Start Meta Business verification (business name, address, domain). This takes 1 to 3 days, so start immediately.</li>
-        <li>Chatwoot is already running in the cluster (<code class="inline">chatwoot-b9f8dcb44-rl49x</code>). Add a WhatsApp channel in the Chatwoot admin using the provider's API key and phone number ID.</li>
-        <li>Configure the inbound webhook: WhatsApp, provider, Chatwoot webhook, <code class="inline">lanai-whatsapp-bridge</code> pod (already deployed with dedup fix), AI triage, draft reply, advisor reviews, sends.</li>
+        <li>Provider chosen: direct Meta WhatsApp Cloud API (no Twilio or 360dialog middleman). Business number <code class="inline">+1 901-646-0915</code> is live on the Meta Business account (business ID 1021110444230412).</li>
+        <li>Webhook subscription verified in the Meta developer dashboard and live at <code class="inline">https://lanai.newfire.app/webhook/whatsapp</code> (handshake returns the challenge; HMAC signature validation enforced on every delivery).</li>
+        <li>Inbound pipeline live end to end as of 3 September 2026: Meta delivers to the public route, the <code class="inline">lanai-whatsapp-bridge</code> pod verifies the signature, dedups by provider event id, and persists the event plus a durable outbox row in one transaction.</li>
+        <li>Meta Business verification is still in progress in the dashboard but is not required for the end-to-end flow on the current test tier.</li>
+        <li>Still open: linking the number into Chatwoot so the WhatsApp Intelligence page (<code class="inline">/whatsapp</code>) shows synchronized conversations; today the verified flow lands in the Communication Hub timeline.</li>
       </ul>
-      <div class="done"><b>Done when:</b> a real WhatsApp Business number is live, linked to Chatwoot, and a test inbound message lands in the advisor inbox.</div>
+      <div class="done"><b>Done when (met):</b> a real WhatsApp Business number is live and a real inbound message lands in the advisor view, signature-verified and persisted.</div>
     </div></div>
 
     <div class="day"><div class="dnum">09<span class="dl">Tue</span></div><div>
-      <h3>Wire the AI triage loop: inbound message to draft reply</h3>
+      <h3>AI triage loop: inbound message to member timeline <span class="badge done">Done</span></h3>
       <ul>
-        <li>Deploy the Chatwoot AI pillar (<code class="inline">lanai_ai/pillars/chatwoot/app.py</code>, port 5560) into the cluster as a pod or alongside the whatsapp-bridge.</li>
-        <li>The pillar already has <code class="inline">find_person_by_phone</code> (now fixed) and draft-reply logic. It classifies each inbound message: enquiry, travel request, lifestyle, complaint, general.</li>
-        <li>The AI drafts a reply in the Lanai voice. The advisor sees the draft in the Chatwoot inbox, edits if needed, and sends.</li>
-        <li>Test: send a WhatsApp from a test phone, verify the AI triages and drafts a reply.</li>
+        <li>Architecture as built: the bridge writes to a durable outbox and a dedicated consumer pod (<code class="inline">lanai-whatsapp-consumer</code>) claims, triages, and persists, instead of a Chatwoot-coupled pillar. The consumer runs local Ollama triage (<code class="inline">qwen2.5:3b</code>) with claim leases, bounded retries, and dead-lettering after 10 attempts.</li>
+        <li>Verified live on 3 September 2026 with a real message from the linked test phone: triage succeeded in 24.3s, an <code class="inline">ai_inference_runs</code> row (capability <code class="inline">whatsapp_triage</code>) was recorded, and the AI summary landed on the member timeline.</li>
+        <li>The advisor sees the triaged entry (channel whatsapp, direction inbound, AI summary, sentiment) in the Communication Hub. Draft replies remain a human-reviewed step; nothing auto-sends from the business number.</li>
+        <li>Still open: surfacing the AI draft reply in the advisor inbox for one-click send (draft generation runs; the send step is manual today).</li>
       </ul>
-      <div class="done"><b>Done when:</b> a real inbound WhatsApp message is triaged by AI, a draft reply appears for the advisor, and the advisor sends it from the portal.</div>
+      <div class="done"><b>Done when (met):</b> a real inbound WhatsApp message is triaged by local AI and appears with an AI summary in the advisor Communication Hub.</div>
     </div></div>
 
     <div class="day"><div class="dnum">10<span class="dl">Wed</span></div><div>
-      <h3>Thread per client and link WhatsApp number to member records</h3>
+      <h3>Thread per client and link WhatsApp number to member records <span class="badge done">Done</span></h3>
       <ul>
-        <li>Link the sender's WhatsApp number to an existing member or client record (the <code class="inline">find_person_by_phone</code> fix now makes this work). If no match, create a new client (the dedup fix prevents duplicates).</li>
-        <li>The advisor sees the conversation threaded under the client's record in the Communication Hub.</li>
-        <li>Every inbound WhatsApp message enriches the client profile automatically.</li>
+        <li>The test phone number is linked to the member record (members.phone = <code class="inline">12407554015</code>), and the consumer resolves the sender to exactly one active member; ambiguous or unknown senders stay unlinked by design.</li>
+        <li>Verified live: the real inbound message landed on the member's Communication Hub timeline, threaded under her record with the AI triage summary attached.</li>
       </ul>
-      <div class="done"><b>Done when:</b> a WhatsApp message from an existing member links to their profile, and the conversation is visible in the Communication Hub.</div>
+      <div class="done"><b>Done when (met):</b> a WhatsApp message from an existing member links to their profile, and the conversation is visible in the Communication Hub.</div>
     </div></div>
 
     <div class="day"><div class="dnum">11<span class="dl">Thu</span></div><div>
-      <h3>Auto-derive trip timeline and live email for the Re-brander</h3>
+      <h3>Auto-derive trip timeline and live email for the Re-brander <span class="badge active">Next up</span></h3>
       <ul>
         <li>Derive the member trip timeline from bookings (proposal to booking to execution to completed, with dates, supplier, and spend).</li>
         <li>Replace the rebrander's paste and import with a real inbound email webhook (Resend Inbound or Mailgun) that auto-loads supplier confirmations.</li>
@@ -429,7 +428,7 @@
   <p>Each day has one to three concrete tasks and a clear "done when" so you know when to stop. The phases are ordered: stabilize what you have, connect the missing pieces, harden for real data, then prove it with real users. If a day runs over, push the next day rather than skipping the security phase, because the pilot holds real client PII by Day 24. I can pair with you on any day; the ones that most benefit from a second pass are Day 1 (the seed), Day 13 (the lifecycle wiring), and the whole security phase (15 to 21), which maps directly to the security report's findings.</p>
 
   <footer>
-    Lanai Lifestyle: 30 Day Demo to Pilot Plan · Updated 28 August 2026 · Week 1 complete (7 commits, all fixes deployed and verified on lanai.newfire.app). Week 2 starts 29 August with real WhatsApp Business integration. Grounded in the bionic demo state, the functional and security audit reports, and the UltraNetwork reference platform.
+    Lanai Lifestyle: 30 Day Demo to Pilot Plan · Updated 3 September 2026 · Weeks 1 and 2 WhatsApp arc complete: real Meta Cloud API number live, webhook signature-verified, and a real inbound message processed end to end (bridge, outbox, consumer, local AI triage, member timeline) and visible on lanai.newfire.app. Grounded in the bionic demo state, the functional and security audit reports, and the UltraNetwork reference platform.
   </footer>
 </div>
 </body>

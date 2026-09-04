@@ -1,0 +1,48 @@
+# Dev-cluster working manifest for the WhatsApp event consumer. Applied to the
+# kind cluster (newwave-dev) alongside the live bridge deployment. The hardened
+# draft in whatsapp-consumer.yaml stays reserved for the production activation
+# gate; this file is the currently running shape and keeps repo and cluster in
+# sync. Secrets are plain env values matching the dev deployment convention.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lanai-whatsapp-consumer
+  namespace: lanai
+  labels:
+    app: lanai-whatsapp-consumer
+    app.kubernetes.io/part-of: lanai
+    app.kubernetes.io/component: event-consumer
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: lanai-whatsapp-consumer
+  template:
+    metadata:
+      labels:
+        app: lanai-whatsapp-consumer
+        app.kubernetes.io/part-of: lanai
+        app.kubernetes.io/component: event-consumer
+    spec:
+      containers:
+        - name: consumer
+          # Same image as the bridge so producer and consumer always ship the
+          # shared outbox contract together.
+          image: lanai-whatsapp-bridge:bionic
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "lanai_ai.pillars.whatsapp.whatsapp_event_consumer"]
+          env:
+            - { name: DATABASE_URL, value: "postgres://lanai:dev-lanai-db-pw@postgres:5432/lanai" }
+            - { name: OLLAMA_BASE_URL, value: "http://ollama:11434" }
+            - { name: OLLAMA_MODEL, value: "qwen2.5:3b" }
+            - { name: WHATSAPP_CONSUMER_POLL_SECONDS, value: "1" }
+            - { name: WHATSAPP_CONSUMER_MAX_ATTEMPTS, value: "10" }
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi

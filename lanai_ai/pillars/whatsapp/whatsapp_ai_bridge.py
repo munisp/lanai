@@ -174,12 +174,15 @@ def _persist_inbound_event(message: InboundMessage) -> str:
         with connection.cursor() as cursor:
             # Create the outbox row first because the webhook event has a
             # non-null foreign key to it. The enclosing transaction rolls both
-            # writes back if either insert cannot be completed.
+            # writes back if either insert cannot be completed. The row is
+            # committed as published: the WhatsApp pipeline's dedicated
+            # consumer subscribes directly to published rows, so these events
+            # never pass through the portal's generic bus dispatcher.
             cursor.execute(
                 """
                 INSERT INTO outbox_events
-                  ("eventId", "aggregateType", "aggregateId", "eventType", payload, "idempotencyKey")
-                VALUES (%s, 'whatsapp', %s, 'whatsapp.message.received', %s::jsonb, %s)
+                  ("eventId", "aggregateType", "aggregateId", "eventType", payload, "idempotencyKey", status)
+                VALUES (%s, 'whatsapp', %s, 'whatsapp.message.received', %s::jsonb, %s, 'published')
                 ON CONFLICT ("idempotencyKey") DO NOTHING
                 RETURNING id
                 """,

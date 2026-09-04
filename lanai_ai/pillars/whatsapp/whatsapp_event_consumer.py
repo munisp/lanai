@@ -343,8 +343,8 @@ def _member_context(cursor: psycopg.Cursor[Any], sender: str) -> tuple[int | Non
         """
         SELECT COALESCE(summary, body)
         FROM communication_timeline
-        WHERE member_id = %s
-        ORDER BY created_at DESC
+        WHERE "memberId" = %s
+        ORDER BY "createdAt" DESC
         LIMIT 5
         """,
         (member_id,),
@@ -433,11 +433,14 @@ def complete_claim(event: ClaimedInboundEvent, triage: dict[str, Any], started_a
                     now,
                 ),
             )
+            # Published at commit for the same reason as the bridge ingest row:
+            # the WhatsApp pipeline owns these events end to end and no generic
+            # bus dispatcher sits between producer and subscriber.
             cursor.execute(
                 """
                 INSERT INTO outbox_events
-                  ("eventId", "aggregateType", "aggregateId", "eventType", payload, "idempotencyKey")
-                VALUES (%s, 'whatsapp', %s, 'whatsapp.triaged', %s::jsonb, %s)
+                  ("eventId", "aggregateType", "aggregateId", "eventType", payload, "idempotencyKey", status)
+                VALUES (%s, 'whatsapp', %s, 'whatsapp.triaged', %s::jsonb, %s, 'published')
                 ON CONFLICT ("idempotencyKey") DO NOTHING
                 """,
                 (
