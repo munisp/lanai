@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lanai Intelligence Platform — Live Presentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --forest: oklch(0.25 0.06 145);
+        --forest-2: oklch(0.35 0.09 145);
+        --gold: oklch(0.72 0.12 75);
+        --ivory: oklch(0.97 0.015 80);
+        --ink: #18212f;
+        --ink-soft: #445163;
+        --panel: rgba(255, 255, 255, 0.78);
+        --border: rgba(24, 33, 47, 0.12);
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Inter, sans-serif;
+        background:
+          radial-gradient(circle at top right, rgba(114, 170, 134, 0.22), transparent 30%),
+          linear-gradient(135deg, var(--ivory) 0%, #f3e4cb 100%);
+        color: var(--ink);
+        min-height: 100vh;
+      }
+
+      .app-shell {
+        min-height: 100vh;
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 20px;
+        background: rgba(255, 255, 255, 0.86);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        box-shadow: 0 12px 30px rgba(24, 33, 47, 0.08);
+        backdrop-filter: blur(14px);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 800;
+        letter-spacing: 0.03em;
+        color: var(--forest);
+      }
+
+      .brand-badge {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(135deg, var(--forest) 0%, var(--forest-2) 100%);
+        color: white;
+        font-family: "Playfair Display", serif;
+        font-size: 20px;
+      }
+
+      .topbar .meta {
+        color: var(--ink-soft);
+        font-size: 13px;
+        font-weight: 500;
+      }
+
+      .controls {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      button {
+        border: none;
+        border-radius: 999px;
+        padding: 8px 12px;
+        font: inherit;
+        cursor: pointer;
+        transition: transform 180ms ease, box-shadow 180ms ease;
+      }
+
+      button:hover { transform: translateY(-1px); }
+
+      .nav-btn {
+        background: var(--forest);
+        color: white;
+        box-shadow: 0 10px 20px rgba(37, 79, 63, 0.18);
+      }
+
+      .nav-btn.secondary {
+        background: white;
+        color: var(--forest);
+        border: 1px solid rgba(37, 79, 63, 0.15);
+      }
+
+      .progress {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 230px;
+      }
+
+      .progress-bar {
+        flex: 1;
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(24, 33, 47, 0.08);
+        overflow: hidden;
+      }
+
+      .progress-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, var(--forest-2), var(--gold));
+        transition: width 250ms ease;
+      }
+
+      .slide-card {
+        flex: 1;
+        min-height: 780px;
+        border-radius: 28px;
+        border: 1px solid rgba(24, 33, 47, 0.08);
+        background: linear-gradient(145deg, #ffffff 0%, #f9f2e6 100%);
+        box-shadow: 0 24px 70px rgba(24, 33, 47, 0.12);
+        overflow: hidden;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        padding: 34px 42px 42px;
+      }
+
+      .slide-card::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.35) 45%, rgba(255,255,255,0) 100%);
+        transform: translateX(-120%);
+        transition: transform 700ms ease;
+        pointer-events: none;
+      }
+
+      .slide-card.is-entering::before {
+        transform: translateX(120%);
+      }
+
+      .slide-eyebrow {
+        color: var(--forest-2);
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+        font-weight: 800;
+        font-size: 12px;
+        margin-bottom: 10px;
+      }
+
+      .slide-title {
+        font-family: "Playfair Display", serif;
+        font-size: 34px;
+        line-height: 1.15;
+        margin: 0 0 12px;
+        color: var(--forest);
+        max-width: 1000px;
+      }
+
+      .slide-subtitle {
+        font-size: 17px;
+        color: var(--ink-soft);
+        line-height: 1.6;
+        max-width: 980px;
+        margin: 0 0 16px;
+      }
+
+      .accent-line {
+        width: 100px;
+        height: 4px;
+        background: linear-gradient(90deg, var(--forest-2), var(--gold));
+        border-radius: 999px;
+        margin-bottom: 20px;
+      }
+
+      .title-hero {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        padding: 28px 32px;
+        background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(244, 234, 214, 0.9));
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        min-height: 420px;
+      }
+
+      .title-hero-copy {
+        max-width: 620px;
+      }
+
+      .title-hero-copy h2 {
+        font-size: 42px;
+        line-height: 1.08;
+        margin: 0 0 16px;
+        color: var(--forest);
+        font-family: "Playfair Display", serif;
+      }
+
+      .title-hero-copy p {
+        font-size: 22px;
+        line-height: 1.5;
+        margin: 0;
+        color: var(--ink-soft);
+      }
+
+      .title-hero-icon {
+        width: 220px;
+        height: 220px;
+        border-radius: 50%;
+        background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.95), rgba(244, 234, 214, 0.96));
+        border: 1px solid rgba(37, 79, 63, 0.16);
+        display: grid;
+        place-items: center;
+        box-shadow: 0 16px 36px rgba(24, 33, 47, 0.08);
+        flex-shrink: 0;
+      }
+
+      .palm-tree {
+        width: 120px;
+        height: 120px;
+        position: relative;
+      }
+
+      .palm-tree::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(135deg, var(--forest), var(--forest-2));
+        clip-path: polygon(50% 0%, 60% 20%, 70% 12%, 78% 26%, 88% 20%, 100% 42%, 82% 50%, 92% 74%, 76% 74%, 72% 100%, 56% 84%, 44% 100%, 40% 74%, 24% 74%, 34% 50%, 0% 42%, 12% 20%, 28% 12%, 40% 20%);
+        border-radius: 20px;
+      }
+
+      .palm-tree::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        bottom: 8px;
+        transform: translateX(-50%);
+        width: 24px;
+        height: 70px;
+        background: linear-gradient(180deg, var(--gold), var(--forest));
+        border-radius: 999px;
+      }
+
+      .hero-panel {
+        display: grid;
+        grid-template-columns: 1.15fr 0.85fr;
+        gap: 16px;
+        margin-bottom: 18px;
+      }
+
+      .hero-panel--metrics-only {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-panel--metrics-only .hero-metrics {
+        max-width: 940px;
+        margin: 0 auto;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .hero-copy {
+        background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(244, 234, 214, 0.7));
+        padding: 22px 24px;
+        border-radius: 22px;
+        border: 1px solid var(--border);
+      }
+
+      .hero-copy h3 {
+        margin: 0 0 12px;
+        font-size: 18px;
+        color: var(--gold);
+      }
+
+      .hero-points {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .hero-points span {
+        background: rgba(37, 79, 63, 0.09);
+        color: var(--forest);
+        border-radius: 999px;
+        padding: 8px 12px;
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      .hero-metrics {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .metric-card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        justify-content: center;
+      }
+
+      .metric-card .value {
+        font-family: "Playfair Display", serif;
+        font-size: 34px;
+        color: var(--forest);
+        line-height: 1;
+      }
+
+      .metric-card .label {
+        color: var(--ink-soft);
+        font-size: 15px;
+        line-height: 1.45;
+      }
+
+      .content-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        flex: 1;
+      }
+
+      .content-block {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 18px 20px;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.5);
+      }
+
+      .content-block h3 {
+        margin: 0 0 10px;
+        font-size: 17px;
+        color: var(--forest);
+      }
+
+      .content-block p, .content-block li {
+        color: var(--ink-soft);
+        font-size: 17px;
+        line-height: 1.6;
+      }
+
+      .content-block li {
+        color: var(--forest);
+        font-weight: 700;
+        font-size: 18px;
+      }
+
+      .content-block ul { margin: 8px 0 0 18px; padding: 0; }
+      .content-block li + li { margin-top: 8px; }
+
+      .footer-note {
+        margin-top: 16px;
+        padding-top: 14px;
+        border-top: 1px solid rgba(24, 33, 47, 0.08);
+        color: var(--ink-soft);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      @media (max-width: 1080px) {
+        .hero-panel { grid-template-columns: 1fr; }
+      }
+
+      @media (max-width: 740px) {
+        .app-shell { padding: 12px; }
+        .topbar { flex-direction: column; align-items: flex-start; }
+        .controls { width: 100%; justify-content: space-between; }
+        .slide-card { padding: 22px; min-height: auto; }
+        .hero-metrics { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <div class="topbar">
+        <div class="brand">
+          <div class="brand-badge">L</div>
+          <div>
+            <div>Lanai Intelligence Platform</div>
+            <div class="meta">Executive boardroom narrative with live product proof</div>
+          </div>
+        </div>
+        <div class="controls">
+          <div class="progress">
+            <span id="counter">1 / 12</span>
+            <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+          </div>
+          <button class="nav-btn secondary" id="prevBtn" aria-label="Previous slide">← Prev</button>
+          <button class="nav-btn" id="nextBtn" aria-label="Next slide">Next →</button>
+        </div>
+      </div>
+
+      <div class="slide-card" id="slideCard" tabindex="0" aria-live="polite">
+        <div class="slide-eyebrow" id="slideEyebrow"></div>
+        <h1 class="slide-title" id="slideTitle"></h1>
+        <p class="slide-subtitle" id="slideSubtitle"></p>
+        <div class="accent-line"></div>
+        <div id="heroPanel"></div>
+        <div class="content-stack" id="cardsGrid"></div>
+        <div class="footer-note" id="slideFooter"></div>
+      </div>
+    </div>
+
+    <script>
+      const slides = [
+        {
+          eyebrow: "Opening",
+          title: "Lanai Intelligence Platform",
+          subtitle: "Premium experience for the premium client",
+          heroTitle: "",
+          heroPoints: [],
+          metrics: [],
+          footer: "",
+          cards: []
+        },
+        {
+          eyebrow: "Opening",
+          title: "Lanai has delivered a complete intelligence-led concierge experience",
+          subtitle: "The platform now brings CRM context, AI assistance, and a client-facing experience together in one operating environment.",
+          heroTitle: "",
+          heroPoints: [],
+          metrics: [
+            { value: "6", label: "capability pillars" },
+            { value: "3", label: "delivery horizons" },
+            { value: "4", label: "live demo moments" },
+            { value: "1", label: "unified experience" }
+          ],
+          footer: "The deck now speaks to what has been built, not only to what is planned.",
+          cards: [
+            { title: "", bullets: ["A premium experience with clear operational value and practical AI support."] },
+            { title: "", bullets: ["A connected experience spanning advisor workflows, AI-assisted proposals, and client access."] },
+            { title: "", bullets: ["A platform that already feels coherent, credible, and ready for the next stage."] }
+          ]
+        },
+        {
+          eyebrow: "Delivered work",
+          title: "The platform already supports the core client and advisor journey",
+          subtitle: "The experience spans request handling, communication, proposal generation, and client visibility in one connected flow.",
+          heroTitle: "",
+          heroPoints: [],
+          metrics: [
+            { value: "4", label: "core workflows" },
+            { value: "2", label: "client-facing surfaces" },
+            { value: "3", label: "live integrations" },
+            { value: "1", label: "connected system" }
+          ],
+          footer: "This is a clear statement of delivery rather than a future-looking outline.",
+          cards: [
+            { title: "", bullets: ["The service layer already supports request intake, client communication, and advisor coordination."] },
+            { title: "", bullets: ["The product layer already supports proposal creation, member access, and operational visibility."] },
+            { title: "", bullets: ["The overall experience already feels coherent, usable, and operational."] }
+          ]
+        },
+        {
+          eyebrow: "Client brief",
+          title: "The solution reflects the brief that was set",
+          subtitle: "The work delivered aligns to the client request for a premium experience, clear operational value, and practical AI support.",
+          heroTitle: "",
+          heroPoints: [],
+          metrics: [
+            { value: "100%", label: "aligned to the request" },
+            { value: "4", label: "client-facing moments" },
+            { value: "2", label: "advisor workflows" },
+            { value: "1", label: "single story arc" }
+          ],
+          footer: "The presentation now centers the client’s needs and the work that has answered them.",
+          cards: [
+            { title: "", bullets: ["The experience moves from request to response with a premium flow and clear operational value."] },
+            { title: "", bullets: ["The product feels polished, intentional, and tailored to the client’s expectations."] },
+            { title: "", bullets: ["The delivery feels thoughtful, precise, and well aligned to the brief."] }
+          ]
+        },
+        {
+          eyebrow: "Pillar 1",
+          title: "WhatsApp is now positioned as an intelligent concierge channel",
+          subtitle: "Message intake, drafting support, and routing are brought into one workflow.",
+          heroTitle: "",
+          heroPoints: [],
+          metrics: [
+            { value: "AI", label: "message triage" },
+            { value: "Live", label: "handoff into workflow" },
+            { value: "1", label: "unified communication layer" },
+            { value: "∞", label: "room for scale" }
+          ],
+          footer: "This is a practical proof point because it shows intelligence at the point of interaction.",
+          cards: [
+            { title: "", bullets: ["The experience already supports message intake, draft generation, and routing into advisor tasks."] },
+            { title: "", bullets: ["It reduces manual triage and creates more consistent, faster responses."] },
+            { title: "", bullets: ["It gives the client a more attentive and premium communication experience."] }
+          ]
+        },
+        {
+          eyebrow: "Pillar 2",
+          title: "Proposal creation is now a live AI-assisted workflow",
+          subtitle: "Travel recommendations can be drafted and shaped in a guided workflow that supports the advisor.",
+          heroTitle: "",
+          heroPoints: [],
+          metrics: [
+            { value: "Live", label: "proposal drafting" },
+            { value: "Rapid", label: "iteration" },
+            { value: "Tailored", label: "to the client" },
+            { value: "Ready", label: "for handoff" }
+          ],
+          footer: "This is one of the strongest client-facing product moments because it feels immediate and useful.",
+          cards: [
+            { title: "", bullets: ["The advisor can capture trip intent, assemble a draft in real time, and shape it to the client."] },
+            { title: "", bullets: ["The workflow improves turnaround time and creates more consistent, higher-quality output."] },
+            { title: "", bullets: ["The result feels practical, intelligent, and immediately credible."] }
+          ]
+        },
+        {
+          eyebrow: "Pillar 3",
+          title: "Client intelligence is now part of the experience",
+          subtitle: "The platform can surface profile context, signal trends, and next actions from client data.",
+          heroTitle: "",
+          heroPoints: [],
+          metrics: [
+            { value: "Insight", label: "based on profile" },
+            { value: "Signal", label: "based on behavior" },
+            { value: "Action", label: "based on opportunity" },
+            { value: "Value", label: "for the relationship" }
+          ],
+          footer: "The platform is moving from static service into a more informed and proactive experience.",
+          cards: [
+            { title: "", bullets: ["The advisor can tailor outreach and anticipate needs with stronger client context."] },
+            { title: "", bullets: ["The client receives more relevant service and more thoughtful communication."] },
+            { title: "", bullets: ["The result creates stronger loyalty potential and a more premium relationship."] }
+          ]
+        },
+        {
+          eyebrow: "Pillar 4",
+          title: "The client portal is now a working member experience",
+          subtitle: "Members can access trip context and request support through a dedicated portal.",
+          heroTitle: "",
+          heroPoints: [],
+          metrics: [
+            { value: "Portal", label: "for members" },
+            { value: "Secure", label: "access and profile" },
+            { value: "Shared", label: "trip context" },
+            { value: "Trusted", label: "brand experience" }
+          ],
+          footer: "This is where the product becomes visibly client-facing and differentiated.",
+          cards: [
+            { title: "", bullets: ["Members can view trip context, access their profile, and reach support through a dedicated portal."] },
+            { title: "", bullets: ["The advisor gains clearer ownership and less friction in the service journey."] },
+            { title: "", bullets: ["The experience elevates the brand and supports a premium positioning."] }
+          ]
+        },
+        {
+          eyebrow: "Pillar 5",
+          title: "CRM-backed operations are now embedded in the advisor experience",
+          subtitle: "The platform is grounded in live client and request data rather than static demo placeholders.",
+          heroTitle: "",
+          heroPoints: [],
+          metrics: [
+            { value: "CRM", label: "connected" },
+            { value: "Live", label: "dashboard context" },
+            { value: "Action", label: "oriented" },
+            { value: "Scalable", label: "for the team" }
+          ],
+          footer: "This reassures the client and sponsor that the product is moving toward real readiness.",
+          cards: [
+            { title: "", bullets: ["The experience is grounded in live client and request data rather than static demo placeholders."] },
+            { title: "", bullets: ["It improves adoption, shows product maturity, and reduces friction in daily work."] },
+            { title: "", bullets: ["It signals that the platform is built for real operational use."] }
+          ]
+        },
+        {
+          eyebrow: "Roadmap",
+          title: "The roadmap is staged, credible, and focused on value",
+          subtitle: "The next steps are clear and tied to practical delivery rather than abstract ambition.",
+          heroTitle: "",
+          heroPoints: [],
+          metrics: [
+            { value: "Phase 1", label: "deepen daily value" },
+            { value: "Phase 2", label: "expand client experience" },
+            { value: "Phase 3", label: "activate intelligent advisor layer" },
+            { value: "Outcome", label: "greater strategic differentiation" }
+          ],
+          footer: "The implementation path is now clear and believable.",
+          cards: [
+            { title: "", bullets: ["The near-term focus is to strengthen AI in day-to-day work and improve advisor adoption."] },
+            { title: "", bullets: ["The mid-term focus is to broaden portal capability and deepen client and supplier reach."] },
+            { title: "", bullets: ["The long-term focus is to create proactive intelligence and differentiate through a smarter concierge layer."] }
+          ]
+        },
+        {
+          eyebrow: "Close",
+          title: "The final message is simple: Lanai is already building the future of luxury concierge",
+          subtitle: "The platform now demonstrates meaningful value across both advisor work and client experience.",
+          heroTitle: "",
+          heroPoints: [],
+          metrics: [
+            { value: "Vision", label: "for a smarter concierge model" },
+            { value: "Proof", label: "through live experience" },
+            { value: "Momentum", label: "through phased delivery" },
+            { value: "Impact", label: "for client and business" }
+          ],
+          footer: "This is a strong closing because it ties the work to both client value and business relevance.",
+          cards: [
+            { title: "", bullets: ["The platform is thoughtful, well-scoped, and already demonstrates meaningful value."] },
+            { title: "", bullets: ["The presentation now shows a clear delivery story with real product substance."] },
+            { title: "", bullets: ["Lanai is not only adopting AI — it is shaping a more intelligent concierge experience."] }
+          ]
+        }
+      ];
+
+      let currentIndex = 0;
+      const slideCard = document.getElementById("slideCard");
+      const eyebrowEl = document.getElementById("slideEyebrow");
+      const titleEl = document.getElementById("slideTitle");
+      const subtitleEl = document.getElementById("slideSubtitle");
+      const heroPanelEl = document.getElementById("heroPanel");
+      const cardsGridEl = document.getElementById("cardsGrid");
+      const footerEl = document.getElementById("slideFooter");
+      const counterEl = document.getElementById("counter");
+      const progressFillEl = document.getElementById("progressFill");
+
+      function renderSlide() {
+        const slide = slides[currentIndex];
+        eyebrowEl.textContent = slide.eyebrow;
+        titleEl.textContent = slide.title;
+        subtitleEl.textContent = slide.subtitle;
+        footerEl.textContent = slide.footer;
+        counterEl.textContent = `${currentIndex + 1} / ${slides.length}`;
+        progressFillEl.style.width = `${((currentIndex + 1) / slides.length) * 100}%`;
+
+        const heroContent = slide.heroTitle
+          ? `
+            <div class="hero-panel">
+              <div class="hero-copy">
+                <h3>${slide.heroTitle}</h3>
+                <div class="hero-points">
+                  ${slide.heroPoints.map((point) => `<span>${point}</span>`).join("")}
+                </div>
+              </div>
+              <div class="hero-metrics">
+                ${slide.metrics.map((metric) => `
+                  <div class="metric-card">
+                    <span class="value">${metric.value}</span>
+                    <span class="label">${metric.label}</span>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+          `
+          : `
+            <div class="hero-panel hero-panel--metrics-only">
+              <div class="hero-metrics">
+                ${slide.metrics.map((metric) => `
+                  <div class="metric-card">
+                    <span class="value">${metric.value}</span>
+                    <span class="label">${metric.label}</span>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+          `;
+
+        if (slide.title === "Lanai Intelligence Platform") {
+          heroPanelEl.innerHTML = `
+            <div class="title-hero">
+              <div class="title-hero-copy">
+                <h2>${slide.title}</h2>
+                <p>${slide.subtitle}</p>
+              </div>
+              <div class="title-hero-icon" aria-hidden="true">
+                <div class="palm-tree"></div>
+              </div>
+            </div>
+          `;
+          cardsGridEl.innerHTML = "";
+        } else {
+          heroPanelEl.innerHTML = `
+            <div class="hero-panel hero-panel--metrics-only">
+              <div class="hero-metrics">
+                ${slide.metrics.map((metric) => `
+                  <div class="metric-card">
+                    <span class="value">${metric.value}</span>
+                    <span class="label">${metric.label}</span>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+          `;
+
+          cardsGridEl.innerHTML = slide.cards.map((card) => `
+            <div class="content-block">
+              <ul>
+                ${card.bullets.map((item) => `<li>${item}</li>`).join("")}
+              </ul>
+            </div>
+          `).join("");
+        }
+
+        slideCard.classList.remove("is-entering");
+        void slideCard.offsetWidth;
+        slideCard.classList.add("is-entering");
+      }
+
+      function nextSlide() {
+        currentIndex = (currentIndex + 1) % slides.length;
+        renderSlide();
+      }
+
+      function prevSlide() {
+        currentIndex = (currentIndex - 1 + slides.length) % slides.length;
+        renderSlide();
+      }
+
+      document.getElementById("nextBtn").addEventListener("click", nextSlide);
+      document.getElementById("prevBtn").addEventListener("click", prevSlide);
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "ArrowRight" || event.key === " " || event.key === "PageDown") {
+          event.preventDefault();
+          nextSlide();
+        } else if (event.key === "ArrowLeft" || event.key === "PageUp") {
+          event.preventDefault();
+          prevSlide();
+        }
+      });
+
+      renderSlide();
+    </script>
+  </body>
+</html>

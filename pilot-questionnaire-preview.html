@@ -1,0 +1,681 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lanai Pilot Questionnaire</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --paper: #FBFAF6;
+    --ink: #26251F;
+    --muted: #6E6E63;
+    --accent: #3D5A48;
+    --accent-ink: #2C4436;
+    --hairline: #E3E0D5;
+    --panel: #F3F1E8;
+    --rule: #A8A99B;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #1B1D18;
+      --ink: #E8E6DB;
+      --muted: #9A9A8C;
+      --accent: #A6C2AE;
+      --accent-ink: #C2D8C6;
+      --hairline: #33352C;
+      --panel: #22241E;
+      --rule: #4A4D40;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #1B1D18;
+    --ink: #E8E6DB;
+    --muted: #9A9A8C;
+    --accent: #A6C2AE;
+    --accent-ink: #C2D8C6;
+    --hairline: #33352C;
+    --panel: #22241E;
+    --rule: #4A4D40;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Lora", Georgia, serif;
+    font-size: 16.5px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet {
+    max-width: 43rem;
+    margin: 0 auto;
+    padding: 3.5rem 1.5rem 5rem;
+  }
+
+  /* Masthead */
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 1.1rem;
+  }
+  h1 {
+    font-family: "Cormorant Garamond", Georgia, serif;
+    font-weight: 600;
+    font-size: clamp(2.1rem, 5.5vw, 2.9rem);
+    line-height: 1.12;
+    letter-spacing: 0.005em;
+    margin: 0 0 1.4rem;
+    text-wrap: balance;
+  }
+  .masthead-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 1rem 1.5rem;
+    padding: 1.1rem 0 0;
+    border-top: 1px solid var(--hairline);
+    margin-bottom: 0;
+  }
+  .masthead-meta dt {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.66rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 0.2rem;
+  }
+  .masthead-meta dd {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 500;
+  }
+  .masthead-rule {
+    border: none;
+    border-top: 1px solid var(--hairline);
+    border-bottom: 3px double var(--accent);
+    height: 3px;
+    margin: 1.1rem 0 0;
+  }
+
+  /* Sections */
+  section { margin-top: 3.2rem; }
+  .sec-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.9rem;
+    margin-bottom: 0.4rem;
+  }
+  .sec-id {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--accent);
+    flex: none;
+  }
+  h2 {
+    font-family: "Cormorant Garamond", Georgia, serif;
+    font-weight: 600;
+    font-size: 1.7rem;
+    line-height: 1.2;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .sec-head-line {
+    border: none;
+    border-top: 1px solid var(--hairline);
+    margin: 0.55rem 0 1.15rem;
+  }
+
+  /* Questions */
+  .q {
+    display: grid;
+    grid-template-columns: 3rem 1fr;
+    gap: 0.4rem 0.9rem;
+    padding: 0.85rem 0;
+    border-top: 1px solid var(--hairline);
+  }
+  .q:first-of-type { border-top: none; }
+  .qid {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--accent);
+    padding-top: 0.28rem;
+  }
+  .q-body p { margin: 0; }
+  .q-text { margin: 0; }
+  .q-note {
+    font-size: 0.88rem;
+    color: var(--muted);
+    font-style: italic;
+    margin-top: 0.35rem;
+  }
+
+  /* For-later tag */
+  .later {
+    display: inline-block;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.62rem;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 0.08rem 0.45rem;
+    margin-left: 0.5rem;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+
+  /* Options */
+  .opts {
+    list-style: none;
+    margin: 0.7rem 0 0;
+    padding: 0;
+    display: grid;
+    gap: 0.5rem;
+  }
+  .opts li {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    font-size: 0.95rem;
+  }
+  .box {
+    flex: none;
+    width: 0.85rem;
+    height: 0.85rem;
+    border: 1.5px solid var(--rule);
+    border-radius: 2px;
+    transform: translateY(0.12rem);
+  }
+
+  /* Answer rules */
+  .rule {
+    display: block;
+    border-bottom: 1px dotted var(--rule);
+    height: 1.9rem;
+  }
+  .rule-inline {
+    display: inline-block;
+    min-width: 8rem;
+    border-bottom: 1px dotted var(--rule);
+    height: 1.15em;
+  }
+  .answers { margin-top: 0.7rem; display: grid; gap: 0.4rem; }
+  .pair { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 0.7rem; font-size: 0.95rem; }
+  .pair span { white-space: nowrap; }
+
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--panel);
+    padding: 0.85rem 1.1rem;
+    margin: 0.8rem 0 0;
+    font-style: italic;
+    font-size: 0.98rem;
+  }
+
+  /* Tables */
+  .table-wrap { overflow-x: auto; margin-top: 1rem; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+    font-variant-numeric: tabular-nums;
+  }
+  th {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.68rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: left;
+    padding: 0.5rem 0.9rem 0.5rem 0;
+    border-bottom: 2px solid var(--accent);
+  }
+  td {
+    padding: 0.6rem 0.9rem 0.6rem 0;
+    border-bottom: 1px solid var(--hairline);
+    vertical-align: top;
+  }
+  td.num { font-family: "IBM Plex Mono", monospace; color: var(--accent); white-space: nowrap; }
+  td .prio { display: flex; gap: 1rem; flex-wrap: wrap; }
+  td .prio span { display: inline-flex; align-items: baseline; gap: 0.35rem; white-space: nowrap; font-size: 0.85rem; }
+  td .prio .box { width: 0.75rem; height: 0.75rem; }
+
+  /* Sign-off */
+  .signoff {
+    border: 1px solid var(--hairline);
+    background: var(--panel);
+    padding: 1.5rem 1.6rem 1.2rem;
+    margin-top: 1.2rem;
+  }
+  .signoff .rule { border-bottom-style: solid; border-bottom-color: var(--rule); }
+  .signoff .cap {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.66rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0.15rem 0 1.1rem;
+  }
+
+  /* Intro block */
+  .intro { margin-top: 2.6rem; }
+  .intro p { margin: 0 0 0.9rem; }
+  .lede { font-size: 1.05rem; }
+  .lede strong { font-weight: 600; }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--hairline);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  a:focus-visible, .box:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  @media (max-width: 480px) {
+    .q { grid-template-columns: 2.3rem 1fr; }
+    .sheet { padding: 2.5rem 1.1rem 4rem; }
+  }
+  @media print {
+    body { background: #fff; }
+    .q, .signoff, .table-wrap { break-inside: avoid; }
+  }
+</style>
+
+<div class="sheet">
+
+  <header>
+    <p class="eyebrow">Lanai Lifestyle</p>
+    <h1>Pilot Requirements Questionnaire</h1>
+    <dl class="masthead-meta">
+      <div><dt>Prepared for</dt><dd>Ms Bolanle</dd></div>
+      <div><dt>Prepared by</dt><dd>Lanai delivery team</dd></div>
+      <div><dt>Date</dt><dd>4 September 2026</dd></div>
+      <div><dt>Kindly return by</dt><dd>6 September 2026</dd></div>
+    </dl>
+    <hr class="masthead-rule">
+  </header>
+
+  <div class="intro">
+    <p class="lede">Thank you for the direction you gave us on 19 August. It reshaped the platform around one principle: <strong>digitize the back office, not the relationship.</strong> You stay at the centre of every client interaction. The software works behind you.</p>
+    <p>We are now preparing the <strong>pilot</strong>: a small, controlled first use of the platform with a limited number of clients. For the pilot we want to build the <strong>simplest working version</strong> of each feature, confirm it with you, and add depth after the pilot proves itself.</p>
+    <p>The platform is built for how you work today: <strong>one person running a premium service.</strong> Every feature aims to take weight off your day to day, so the system carries the routine work and you keep the judgment calls. It is ready to grow with you too: when you eventually bring in a team, the team features get built then. Where a question looks ahead to that day, it is marked <strong>for later</strong>.</p>
+    <p>This questionnaire makes sure the pilot contains exactly what you need, nothing more and nothing missing. Your answers become our agreed requirements. They also give us a baseline, so if anything changes during development we can record the change, agree it, and date it instead of losing it in conversation.</p>
+    <p><strong>Time to complete: about 45 minutes.</strong></p>
+  </div>
+
+  <section aria-labelledby="how">
+    <div class="sec-head"><span class="sec-id">&sect;</span><h2 id="how">How to answer</h2></div>
+    <hr class="sec-head-line">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Level</th><th scope="col">Meaning</th></tr></thead>
+        <tbody>
+          <tr><td class="num">MUST</td><td>The pilot is not a success without it. Build first.</td></tr>
+          <tr><td class="num">SHOULD</td><td>Genuinely valuable, but the pilot still works without it.</td></tr>
+          <tr><td class="num">LATER</td><td>Agreed and recorded now, built after the pilot.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="q-note" style="margin-top:0.8rem;">If you are unsure, mark it SHOULD. Nothing marked LATER is forgotten; it goes on the after-pilot list with a date.</p>
+  </section>
+
+  <section aria-labelledby="sec-a">
+    <div class="sec-head"><span class="sec-id">A</span><h2 id="sec-a">The pilot and what success looks like</h2></div>
+    <hr class="sec-head-line">
+    <div class="q"><span class="qid">A1</span><div class="q-body"><p class="q-text">In one or two sentences: what must this pilot prove to you for you to consider it a success?</p><span class="rule"></span></div></div>
+    <div class="q"><span class="qid">A2</span><div class="q-body"><p class="q-text">How many clients should be in the pilot?</p><p class="q-note">We suggest starting with 2 to 5.</p><span class="rule"></span></div></div>
+    <div class="q"><span class="qid">A3</span><div class="q-body"><p class="q-text">You run the service alone today. Which parts of your day take the most time or cause the most stress?</p><p class="q-note">This tells us where the system should take load first.</p><span class="rule"></span></div></div>
+    <div class="q"><span class="qid">A4</span><div class="q-body"><p class="q-text">From the list below, tick every statement that would make you say the pilot is <em>not</em> ready:</p>
+      <ul class="opts">
+        <li><span class="box"></span>Messages arrive late or get lost</li>
+        <li><span class="box"></span>You cannot find the client's history quickly</li>
+        <li><span class="box"></span>Replies take longer than answering by hand</li>
+        <li><span class="box"></span>Client information ends up where it should not be</li>
+        <li><span class="box"></span>The AI suggestions feel generic or wrong</li>
+        <li><span class="box"></span>Nobody is sure what needs doing next</li>
+        <li><span class="box"></span>Other: <span class="rule-inline" style="min-width:12rem;"></span></li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">A5</span><div class="q-body"><p class="q-text">How long should the pilot run before you judge it?</p><p class="q-note">We suggest 2 to 4 weeks.</p><span class="rule"></span></div></div>
+  </section>
+
+  <section aria-labelledby="sec-b">
+    <div class="sec-head"><span class="sec-id">B</span><h2 id="sec-b">Client messages: WhatsApp and voice notes</h2></div>
+    <hr class="sec-head-line">
+    <div class="q"><span class="qid">B1</span><div class="q-body"><p class="q-text">For the pilot, is WhatsApp the only channel clients should use? Or must email also work from day one?</p>
+      <ul class="opts">
+        <li><span class="box"></span>WhatsApp only (recommended for the pilot)</li>
+        <li><span class="box"></span>WhatsApp and email</li>
+        <li><span class="box"></span>Other: <span class="rule-inline" style="min-width:12rem;"></span></li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">B2</span><div class="q-body"><p class="q-text">Clients often send voice notes. The system can turn a voice note into text automatically so you can read and triage it. For the pilot:</p>
+      <ul class="opts">
+        <li><span class="box"></span><strong>MUST:</strong> voice notes must work from day one</li>
+        <li><span class="box"></span><strong>SHOULD:</strong> start with text messages only, add voice notes during the pilot</li>
+        <li><span class="box"></span><strong>LATER:</strong> text only for the pilot</li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">B3</span><div class="q-body"><p class="q-text">Which message types do you expect clients to send during the pilot? Tick all that apply:</p>
+      <ul class="opts">
+        <li><span class="box"></span>Text messages</li>
+        <li><span class="box"></span>Voice notes</li>
+        <li><span class="box"></span>Photos (for example a passport photo or a hotel picture)</li>
+        <li><span class="box"></span>Documents (PDF itineraries, invitations)</li>
+        <li><span class="box"></span>Other: <span class="rule-inline" style="min-width:12rem;"></span></li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">B4</span><div class="q-body"><p class="q-text">In your business, what makes a message <em>urgent</em>? Give one or two real examples of urgent requests you have received.</p><span class="rule"></span></div></div>
+    <div class="q"><span class="qid">B5</span><div class="q-body"><p class="q-text">What response time should a client expect for an ordinary request, and for an urgent one?</p>
+      <div class="pair"><span>Ordinary: <span class="rule-inline"></span></span><span>Urgent: <span class="rule-inline"></span></span></div>
+    </div></div>
+    <div class="q"><span class="qid">B6</span><div class="q-body"><p class="q-text">When a message arrives from a phone number the system does not recognise, what should happen?</p>
+      <ul class="opts">
+        <li><span class="box"></span>Hold it for your review before anything is created (recommended)</li>
+        <li><span class="box"></span>Create a new client record automatically, and tell you</li>
+        <li><span class="box"></span>Other: <span class="rule-inline" style="min-width:12rem;"></span></li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">B7</span><div class="q-body"><p class="q-text">During the pilot, will you ever <em>start</em> a conversation with a client (a birthday note, a follow-up, a check-in), rather than only replying?</p>
+      <ul class="opts">
+        <li><span class="box"></span>Replies only for the pilot</li>
+        <li><span class="box"></span>Yes, I will also start conversations</li>
+      </ul>
+    </div></div>
+  </section>
+
+  <section aria-labelledby="sec-c">
+    <div class="sec-head"><span class="sec-id">C</span><h2 id="sec-c">AI assistance and your guarantee</h2></div>
+    <hr class="sec-head-line">
+    <div class="q"><span class="qid">C1</span><div class="q-body"><p class="q-text">Please confirm the operating rule for the pilot:</p>
+      <p class="callout">No client ever receives a message that you have not reviewed. The AI drafts, you decide.</p>
+      <ul class="opts">
+        <li><span class="box"></span>Confirmed</li>
+        <li><span class="box"></span>I would like to discuss this</li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">C2</span><div class="q-body"><p class="q-text">For every incoming message, the AI prepares a working sheet for you. Which parts matter most to you? Rank your top 3 (write 1, 2, 3):</p>
+      <ul class="opts">
+        <li><span class="box"></span>A short summary of what the client wants</li>
+        <li><span class="box"></span>Urgency level (so you know what to handle first)</li>
+        <li><span class="box"></span>The client's history and preferences, side by side</li>
+        <li><span class="box"></span>A suggested reply you can edit</li>
+        <li><span class="box"></span>A suggested next action (for example: create a travel request)</li>
+        <li><span class="box"></span>An estimate of the value of the opportunity</li>
+        <li><span class="box"></span>Other: <span class="rule-inline" style="min-width:12rem;"></span></li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">C3</span><div class="q-body"><p class="q-text">The system keeps a private memory for each client so replies feel personal. Which of these matter most to your service? Rank your top 3:</p>
+      <ul class="opts">
+        <li><span class="box"></span>Travel history (where they have stayed, what they loved)</li>
+        <li><span class="box"></span>Preferences (airline seats, room types, dietary needs)</li>
+        <li><span class="box"></span>Family members and how to address them</li>
+        <li><span class="box"></span>Important dates (birthdays, anniversaries)</li>
+        <li><span class="box"></span>Past requests and complaints</li>
+        <li><span class="box"></span>Other: <span class="rule-inline" style="min-width:12rem;"></span></li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">C4</span><div class="q-body"><p class="q-text">The AI is never allowed to invent facts. Which of these must it absolutely never state to you as if confirmed, unless it has real data behind it? Tick all that apply:</p>
+      <ul class="opts">
+        <li><span class="box"></span>Prices</li>
+        <li><span class="box"></span>Room or flight availability</li>
+        <li><span class="box"></span>Bookings being confirmed</li>
+        <li><span class="box"></span>Supplier commitments</li>
+        <li><span class="box"></span>All of the above (recommended)</li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">C5</span><div class="q-body"><p class="q-text">If the AI is temporarily unavailable, you still see the raw message and reply normally, and the system sends the client a short holding note. As the business owner, you approve the wording of that holding note.</p>
+      <p class="q-note">Suggested: &ldquo;Thank you for your message. The concierge team has received it and will respond shortly.&rdquo;</p>
+      <ul class="opts">
+        <li><span class="box"></span>Approved as suggested</li>
+        <li><span class="box"></span>My wording: <span class="rule-inline" style="min-width:14rem;"></span></li>
+      </ul>
+      <span class="rule"></span>
+    </div></div>
+  </section>
+
+  <section aria-labelledby="sec-d">
+    <div class="sec-head"><span class="sec-id">D</span><h2 id="sec-d">Your daily dashboard</h2></div>
+    <hr class="sec-head-line">
+    <div class="q"><span class="qid">D1</span><div class="q-body"><p class="q-text">When you open the dashboard, what should you see first?</p>
+      <ul class="opts">
+        <li><span class="box"></span>The most urgent messages first (recommended)</li>
+        <li><span class="box"></span>The newest messages first</li>
+        <li><span class="box"></span>Your own open tasks first</li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">D2</span><div class="q-body"><p class="q-text">When you open one client conversation, what must be on that single screen? Tick all that apply:</p>
+      <ul class="opts">
+        <li><span class="box"></span>The full message history with that client</li>
+        <li><span class="box"></span>The AI working sheet (summary, urgency, suggested reply)</li>
+        <li><span class="box"></span>The client's profile and preferences</li>
+        <li><span class="box"></span>Open requests and their status</li>
+        <li><span class="box"></span>Past proposals and bookings</li>
+        <li><span class="box"></span>Other: <span class="rule-inline" style="min-width:12rem;"></span></li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">D3</span><div class="q-body"><p class="q-text">The system can automatically create a task for you. When should it do that? Tick all that apply:</p>
+      <ul class="opts">
+        <li><span class="box"></span>An urgent message arrives</li>
+        <li><span class="box"></span>A message from a brand new client arrives</li>
+        <li><span class="box"></span>A complaint arrives</li>
+        <li><span class="box"></span>The AI could not process a message</li>
+        <li><span class="box"></span>A promised follow-up date is reached</li>
+        <li><span class="box"></span>Other: <span class="rule-inline" style="min-width:12rem;"></span></li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">D4</span><div class="q-body"><p class="q-text">What would help you most if the system did it automatically every morning?</p>
+      <ul class="opts">
+        <li><span class="box"></span>A short list of overnight messages with urgency marks</li>
+        <li><span class="box"></span>Today's follow-ups and promised dates</li>
+        <li><span class="box"></span>Anything urgent flagged on top</li>
+        <li><span class="box"></span>Client birthdays and important dates coming up</li>
+        <li><span class="box"></span>Other: <span class="rule-inline" style="min-width:12rem;"></span></li>
+      </ul>
+    </div></div>
+  </section>
+
+  <section aria-labelledby="sec-e">
+    <div class="sec-head"><span class="sec-id">E</span><h2 id="sec-e">Travel requests, proposals, and bookings</h2></div>
+    <hr class="sec-head-line">
+    <div class="q"><span class="qid">E1</span><div class="q-body"><p class="q-text">For the pilot, a request moves through these stages:</p>
+      <p class="callout">Request received &rarr; Proposal sent &rarr; Client approved &rarr; Booked &rarr; Follow-up</p>
+      <ul class="opts">
+        <li><span class="box"></span>These stages are right for the pilot</li>
+        <li><span class="box"></span>Adjust: <span class="rule-inline" style="min-width:13rem;"></span></li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">E2</span><div class="q-body"><p class="q-text">What is the simplest useful version of a proposal for the pilot?</p>
+      <ul class="opts">
+        <li><span class="box"></span>A saved document with a status (draft, sent, approved, declined)</li>
+        <li><span class="box"></span>The above, plus keeping each version when it is revised</li>
+        <li><span class="box"></span>The above, plus client-facing presentation layout</li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">E3</span><div class="q-body"><p class="q-text">Please confirm booking approval during the pilot:</p>
+      <ul class="opts">
+        <li><span class="box"></span>Yes, I confirm every booking myself</li>
+        <li><span class="box"></span>I would like to discuss this</li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">E4</span><div class="q-body"><p class="q-text">Internal notes and commercial data (supplier costs, commissions) are kept away from anything a client could ever see. Please confirm this is a hard rule:</p>
+      <ul class="opts">
+        <li><span class="box"></span>Confirmed</li>
+        <li><span class="box"></span>Additional rules: <span class="rule-inline" style="min-width:12rem;"></span></li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">E5</span><div class="q-body"><p class="q-text">After a trip is completed, what follow-up should the system remind you about? Tick all that apply:</p>
+      <ul class="opts">
+        <li><span class="box"></span>A thank-you message</li>
+        <li><span class="box"></span>Asking for feedback</li>
+        <li><span class="box"></span>Recording preferences learned from the trip</li>
+        <li><span class="box"></span>Suggesting the next trip based on history</li>
+        <li><span class="box"></span>Other: <span class="rule-inline" style="min-width:12rem;"></span></li>
+      </ul>
+    </div></div>
+  </section>
+
+  <section aria-labelledby="sec-f">
+    <div class="sec-head"><span class="sec-id">F</span><h2 id="sec-f">Client records, privacy, and discretion</h2></div>
+    <hr class="sec-head-line">
+    <div class="q"><span class="qid">F1</span><div class="q-body"><p class="q-text">Which client information is the most sensitive in your business? Tick all that apply (these receive the strongest protection):</p>
+      <ul class="opts">
+        <li><span class="box"></span>Passport details</li>
+        <li><span class="box"></span>Date of birth</li>
+        <li><span class="box"></span>Home address</li>
+        <li><span class="box"></span>Emergency contacts</li>
+        <li><span class="box"></span>Family office or family details</li>
+        <li><span class="box"></span>Payment details</li>
+        <li><span class="box"></span>Travel patterns (where clients are right now)</li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">F2</span><div class="q-body"><p class="q-text">When you eventually bring in help, who should see a client's full record? We record this now and build it when you grow.<span class="later">For later</span></p>
+      <ul class="opts">
+        <li><span class="box"></span>Only the person assigned to that client</li>
+        <li><span class="box"></span>Senior team members see everything, others see only their assigned clients</li>
+        <li><span class="box"></span>Not sure yet, decide later</li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">F3</span><div class="q-body"><p class="q-text">If two records look like the same person (a repeated phone number or a spelling difference), what should happen?</p>
+      <ul class="opts">
+        <li><span class="box"></span>Flag it for you to merge manually (recommended)</li>
+        <li><span class="box"></span>Merge automatically and report it</li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">F4</span><div class="q-body"><p class="q-text">Is there anything you do <em>not</em> want stored in the system at all during the pilot?</p><span class="rule"></span></div></div>
+    <div class="q"><span class="qid">F5</span><div class="q-body"><p class="q-text">Every action in the system is recorded in an audit trail: who saw what, who sent what, and when. Please confirm you want this on:</p>
+      <ul class="opts">
+        <li><span class="box"></span>Confirmed</li>
+        <li><span class="box"></span>I would like to discuss this</li>
+      </ul>
+    </div></div>
+  </section>
+
+  <section aria-labelledby="sec-g">
+    <div class="sec-head"><span class="sec-id">G</span><h2 id="sec-g">Scope boundaries for the pilot</h2></div>
+    <hr class="sec-head-line">
+    <div class="q"><span class="qid">G1</span><div class="q-body"><p class="q-text">Payments and invoices. Should the pilot include any payment step, or is it purely messaging, requests, and trips?</p>
+      <ul class="opts">
+        <li><span class="box"></span>No payments in the pilot (recommended, keeps the pilot simple)</li>
+        <li><span class="box"></span>Yes, invoices must be included: <span class="rule-inline" style="min-width:10rem;"></span></li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">G2</span><div class="q-body"><p class="q-text">During the pilot, clients use <em>your</em> concierge service as they always have. There is no client-facing app or login for them. Please confirm:</p>
+      <ul class="opts">
+        <li><span class="box"></span>Confirmed, clients only use WhatsApp (and email if chosen in B1)</li>
+        <li><span class="box"></span>I would like to discuss this</li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">G3</span><div class="q-body"><p class="q-text">Weekly during the pilot, we can send you a short summary. Which numbers would you want in it? Tick all that apply:</p>
+      <ul class="opts">
+        <li><span class="box"></span>Messages received and answered</li>
+        <li><span class="box"></span>Fastest and average response time</li>
+        <li><span class="box"></span>Requests opened and completed</li>
+        <li><span class="box"></span>Proposals sent and approved</li>
+        <li><span class="box"></span>Trips booked</li>
+        <li><span class="box"></span>Anything you had to chase manually</li>
+        <li><span class="box"></span>Other: <span class="rule-inline" style="min-width:12rem;"></span></li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">G4</span><div class="q-body"><p class="q-text">How much time can you give to learn the system before the pilot starts?</p><span class="rule"></span></div></div>
+    <div class="q"><span class="qid">G5</span><div class="q-body"><p class="q-text">During the pilot, if something goes wrong, what is the right way for your team to reach us?</p><span class="rule"></span></div></div>
+  </section>
+
+  <section aria-labelledby="sec-h">
+    <div class="sec-head"><span class="sec-id">H</span><h2 id="sec-h">How we handle changes during the pilot</h2></div>
+    <hr class="sec-head-line">
+    <div class="q"><span class="qid">H1</span><div class="q-body"><p class="q-text">Proposed rule: during development and the pilot, any new idea or change request is written into a <strong>change log</strong>. Each entry gets a number, a date, who asked, and a decision: <strong>now, after pilot, or declined</strong>. Nothing gets built silently, and nothing gets lost.</p>
+      <ul class="opts">
+        <li><span class="box"></span>Agreed</li>
+        <li><span class="box"></span>I would like to discuss this</li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">H2</span><div class="q-body"><p class="q-text">Proposed rule: for the duration of the pilot, the default answer to any new feature request is <strong>after the pilot</strong>, unless it blocks a MUST item. This protects the go-live date.</p>
+      <ul class="opts">
+        <li><span class="box"></span>Agreed</li>
+        <li><span class="box"></span>I would like to discuss this</li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">H3</span><div class="q-body"><p class="q-text">Scope decisions: we propose that you are the single decision maker on scope changes. Please confirm:</p>
+      <ul class="opts">
+        <li><span class="box"></span>Confirmed, I decide on scope</li>
+        <li><span class="box"></span>Someone else decides: <span class="rule-inline" style="min-width:12rem;"></span></li>
+      </ul>
+    </div></div>
+    <div class="q"><span class="qid">H4</span><div class="q-body"><p class="q-text">Proposed rhythm: a short weekly call (15 to 30 minutes) to review progress, the change log, and pilot numbers.</p>
+      <ul class="opts">
+        <li><span class="box"></span>Agreed. Preferred day and time: <span class="rule-inline" style="min-width:11rem;"></span></li>
+        <li><span class="box"></span>I prefer a different rhythm: <span class="rule-inline" style="min-width:10rem;"></span></li>
+      </ul>
+    </div></div>
+  </section>
+
+  <section aria-labelledby="sec-i">
+    <div class="sec-head"><span class="sec-id">I</span><h2 id="sec-i">Pilot priority grid</h2></div>
+    <hr class="sec-head-line">
+    <p>For each feature, tick <strong>MUST</strong>, <strong>SHOULD</strong>, or <strong>LATER</strong>. This grid becomes the pilot scope we both sign.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">#</th><th scope="col">Feature (simplest version)</th><th scope="col">Your priority</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td>WhatsApp text messages captured reliably, nothing lost</td><td><div class="prio"><span><span class="box"></span>MUST</span><span><span class="box"></span>SHOULD</span><span><span class="box"></span>LATER</span></div></td></tr>
+          <tr><td class="num">2</td><td>Voice notes turned into text automatically</td><td><div class="prio"><span><span class="box"></span>MUST</span><span><span class="box"></span>SHOULD</span><span><span class="box"></span>LATER</span></div></td></tr>
+          <tr><td class="num">3</td><td>Every reply reviewed and sent by you, never by AI alone</td><td><div class="prio"><span><span class="box"></span>MUST</span><span><span class="box"></span>SHOULD</span><span><span class="box"></span>LATER</span></div></td></tr>
+          <tr><td class="num">4</td><td>AI working sheet per message (summary, urgency, suggested reply)</td><td><div class="prio"><span><span class="box"></span>MUST</span><span><span class="box"></span>SHOULD</span><span><span class="box"></span>LATER</span></div></td></tr>
+          <tr><td class="num">5</td><td>AI knows each client's history and preferences</td><td><div class="prio"><span><span class="box"></span>MUST</span><span><span class="box"></span>SHOULD</span><span><span class="box"></span>LATER</span></div></td></tr>
+          <tr><td class="num">6</td><td>Urgent or new messages become tasks for you automatically</td><td><div class="prio"><span><span class="box"></span>MUST</span><span><span class="box"></span>SHOULD</span><span><span class="box"></span>LATER</span></div></td></tr>
+          <tr><td class="num">7</td><td>Daily morning briefing of what needs your attention</td><td><div class="prio"><span><span class="box"></span>MUST</span><span><span class="box"></span>SHOULD</span><span><span class="box"></span>LATER</span></div></td></tr>
+          <tr><td class="num">8</td><td>Client records created and kept in step automatically</td><td><div class="prio"><span><span class="box"></span>MUST</span><span><span class="box"></span>SHOULD</span><span><span class="box"></span>LATER</span></div></td></tr>
+          <tr><td class="num">9</td><td>Travel request tracked through to booking and follow-up</td><td><div class="prio"><span><span class="box"></span>MUST</span><span><span class="box"></span>SHOULD</span><span><span class="box"></span>LATER</span></div></td></tr>
+          <tr><td class="num">10</td><td>Proposals saved with a status</td><td><div class="prio"><span><span class="box"></span>MUST</span><span><span class="box"></span>SHOULD</span><span><span class="box"></span>LATER</span></div></td></tr>
+          <tr><td class="num">11</td><td>Booking records and follow-up reminders</td><td><div class="prio"><span><span class="box"></span>MUST</span><span><span class="box"></span>SHOULD</span><span><span class="box"></span>LATER</span></div></td></tr>
+          <tr><td class="num">12</td><td>Approved holding note when AI is unavailable</td><td><div class="prio"><span><span class="box"></span>MUST</span><span><span class="box"></span>SHOULD</span><span><span class="box"></span>LATER</span></div></td></tr>
+          <tr><td class="num">13</td><td>Your login protected with two-step verification</td><td><div class="prio"><span><span class="box"></span>MUST</span><span><span class="box"></span>SHOULD</span><span><span class="box"></span>LATER</span></div></td></tr>
+          <tr><td class="num">14</td><td>Weekly activity summary</td><td><div class="prio"><span><span class="box"></span>MUST</span><span><span class="box"></span>SHOULD</span><span><span class="box"></span>LATER</span></div></td></tr>
+          <tr><td class="num">15</td><td>Audit trail of every action</td><td><div class="prio"><span><span class="box"></span>MUST</span><span><span class="box"></span>SHOULD</span><span><span class="box"></span>LATER</span></div></td></tr>
+          <tr><td class="num">16</td><td>Your additions from the sections above</td><td><div class="prio"><span><span class="box"></span>MUST</span><span><span class="box"></span>SHOULD</span><span><span class="box"></span>LATER</span></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="sec-sign">
+    <div class="sec-head"><span class="sec-id">&sect;</span><h2 id="sec-sign">Sign-off</h2></div>
+    <hr class="sec-head-line">
+    <p>By signing below, you confirm the pilot scope described by your answers above. It becomes the agreed requirements baseline for the pilot. Any later change goes through the change log (Section H) so the pilot keeps its date.</p>
+    <div class="signoff">
+      <span class="rule"></span>
+      <p class="cap">Name</p>
+      <span class="rule"></span>
+      <p class="cap">Signature</p>
+      <span class="rule"></span>
+      <p class="cap">Date</p>
+    </div>
+  </section>
+
+  <footer>
+    <span>Lanai Lifestyle</span>
+    <span>Pilot Requirements &middot; September 2026</span>
+  </footer>
+
+</div>

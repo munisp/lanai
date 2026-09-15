@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lanai Lifestyle, Business Overview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* Palette: ivory canvas, sand, forest green, champagne gold */
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+
+      body {
+        margin: 0;
+        font-family: "DM Sans", sans-serif;
+        background: linear-gradient(160deg, #fbfaf2 0%, #f4efdf 100%);
+        color: #1a2a22;
+        min-height: 100vh;
+      }
+
+      .app-shell {
+        min-height: 100vh;
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      /* Topbar */
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 12px 18px;
+        background: rgba(255, 255, 255, 0.8);
+        border: 1px solid #ddd6c2;
+        border-radius: 16px;
+        box-shadow: 0 8px 24px rgba(16, 42, 32, 0.06);
+        backdrop-filter: blur(12px);
+      }
+
+      .brand { display: flex; align-items: center; gap: 12px; }
+
+      .brand-mark {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(135deg, #d8b26a 0%, #b8924e 100%);
+        color: #102a20;
+        box-shadow: 0 6px 16px rgba(184, 146, 78, 0.35);
+      }
+      .brand-mark svg { width: 22px; height: 22px; }
+
+      .brand-name {
+        font-family: "Playfair Display", serif;
+        font-weight: 700;
+        color: #102a20;
+        font-size: 17px;
+        line-height: 1.1;
+      }
+      .brand-meta {
+        color: #5e6b62;
+        font-size: 11.5px;
+        letter-spacing: 0.02em;
+      }
+
+      .controls { display: flex; align-items: center; gap: 10px; }
+
+      button {
+        border: none;
+        border-radius: 999px;
+        padding: 9px 16px;
+        font-family: inherit;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+      }
+      button:hover { transform: translateY(-1px); }
+      button:active { transform: translateY(0); }
+
+      .nav-btn {
+        background: #2c5e45;
+        color: #fbfaf2;
+        box-shadow: 0 8px 18px rgba(44, 94, 69, 0.22);
+      }
+      .nav-btn.secondary {
+        background: #ffffff;
+        color: #2c5e45;
+        border: 1px solid #ddd6c2;
+        box-shadow: none;
+      }
+      .nav-btn.secondary:hover { background: #f4efdf; }
+
+      .progress { display: flex; align-items: center; gap: 10px; min-width: 210px; }
+      #counter {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 11.5px;
+        color: #5e6b62;
+        white-space: nowrap;
+      }
+      .progress-bar {
+        flex: 1;
+        height: 6px;
+        border-radius: 999px;
+        background: #ece6d4;
+        overflow: hidden;
+      }
+      .progress-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #2c5e45, #c8a24a);
+        transition: width 280ms ease;
+      }
+
+      /* Slide stage */
+      .slide-card {
+        flex: 1;
+        min-height: 720px;
+        border-radius: 22px;
+        border: 1px solid #ddd6c2;
+        background: #ffffff;
+        box-shadow: 0 24px 60px rgba(16, 42, 32, 0.10), 0 2px 8px rgba(16, 42, 32, 0.04);
+        overflow: hidden;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        padding: 54px 64px;
+      }
+
+      .slide-inner {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        max-width: 1080px;
+        margin: 0 auto;
+        width: 100%;
+      }
+
+      .eyebrow {
+        font-family: "DM Sans", sans-serif;
+        color: #2c5e45;
+        text-transform: uppercase;
+        letter-spacing: 0.22em;
+        font-weight: 700;
+        font-size: 11.5px;
+        margin-bottom: 14px;
+      }
+
+      .h1 {
+        font-family: "Playfair Display", serif;
+        font-size: clamp(28px, 3.4vw, 42px);
+        line-height: 1.12;
+        margin: 0 0 14px;
+        color: #102a20;
+        font-weight: 700;
+        max-width: 920px;
+      }
+
+      .lead {
+        font-size: 17px;
+        color: #5e6b62;
+        line-height: 1.6;
+        max-width: 760px;
+        margin: 0 0 22px;
+      }
+
+      .divider {
+        width: 80px;
+        height: 3px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #2c5e45, #c8a24a);
+        margin-bottom: 24px;
+      }
+
+      /* KPI row */
+      .kpi-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+      }
+      .kpi {
+        background: #fbfaf2;
+        border: 1px solid #ece6d4;
+        border-radius: 14px;
+        padding: 18px 18px;
+        border-top: 3px solid #c8a24a;
+      }
+      .kpi .v {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 26px;
+        font-weight: 700;
+        color: #2c5e45;
+        line-height: 1.05;
+      }
+      .kpi .l {
+        color: #5e6b62;
+        font-size: 13px;
+        line-height: 1.4;
+        margin-top: 7px;
+      }
+
+      /* Generic card */
+      .card {
+        background: #ffffff;
+        border: 1px solid #ece6d4;
+        border-radius: 16px;
+        padding: 20px 20px;
+        box-shadow: 0 1px 3px rgba(16, 42, 32, 0.05), 0 6px 18px rgba(16, 42, 32, 0.04);
+        transition: transform 220ms ease, box-shadow 220ms ease;
+      }
+      .card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 10px rgba(16, 42, 32, 0.07), 0 14px 30px rgba(16, 42, 32, 0.08);
+      }
+
+      .card-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(135deg, #efe2c2, #e2cf9c);
+        color: #2c5e45;
+        margin-bottom: 14px;
+      }
+      .card-icon svg { width: 22px; height: 22px; }
+
+      .card-title {
+        font-family: "Playfair Display", serif;
+        font-size: 18px;
+        font-weight: 700;
+        color: #102a20;
+        margin: 0 0 6px;
+      }
+      .card-desc {
+        font-size: 14px;
+        color: #5e6b62;
+        line-height: 1.5;
+        margin: 0;
+      }
+
+      .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+      .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+
+      /* Flow diagram */
+      .flow {
+        display: flex;
+        align-items: stretch;
+        gap: 0;
+        margin-top: 6px;
+      }
+      .flow-node {
+        flex: 1;
+        background: #fbfaf2;
+        border: 1px solid #ece6d4;
+        border-radius: 16px;
+        padding: 22px 18px;
+        text-align: center;
+        position: relative;
+      }
+      .flow-node .fn-icon {
+        width: 52px;
+        height: 52px;
+        margin: 0 auto 14px;
+        border-radius: 14px;
+        display: grid;
+        place-items: center;
+        background: #2c5e45;
+        color: #fbfaf2;
+      }
+      .flow-node .fn-icon svg { width: 26px; height: 26px; }
+      .flow-node .fn-title {
+        font-family: "Playfair Display", serif;
+        font-size: 17px;
+        font-weight: 700;
+        color: #102a20;
+        margin-bottom: 4px;
+      }
+      .flow-node .fn-sub {
+        font-size: 12.5px;
+        color: #5e6b62;
+        line-height: 1.4;
+      }
+      .flow-arrow {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        color: #c8a24a;
+        flex-shrink: 0;
+      }
+      .flow-arrow svg { width: 26px; height: 26px; }
+
+      /* Two portal graphic */
+      .portals {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+        margin-bottom: 18px;
+      }
+      .portal-card {
+        border: 1px solid #ece6d4;
+        border-radius: 18px;
+        overflow: hidden;
+        background: #ffffff;
+        box-shadow: 0 6px 18px rgba(16, 42, 32, 0.05);
+      }
+      .portal-head {
+        padding: 16px 18px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .portal-head.advisor { background: #102a20; color: #ede7d6; }
+      .portal-head.member { background: #f4efdf; color: #102a20; }
+      .portal-head .ph-icon {
+        width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center;
+      }
+      .portal-head.advisor .ph-icon { background: #c8a24a; color: #102a20; }
+      .portal-head.member .ph-icon { background: #2c5e45; color: #fbfaf2; }
+      .portal-head .ph-icon svg { width: 20px; height: 20px; }
+      .portal-head .ph-name { font-family: "Playfair Display", serif; font-weight: 700; font-size: 17px; }
+      .portal-head .ph-tag { font-size: 12px; opacity: 0.8; }
+      .portal-body { padding: 14px 18px 18px; }
+      .pb-label {
+        font-size: 10.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: #8a8674;
+        font-weight: 700;
+        margin-bottom: 10px;
+      }
+      .portal-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+      .ptag {
+        font-size: 11.5px;
+        padding: 5px 11px;
+        border-radius: 999px;
+        background: #f4efdf;
+        color: #3a4640;
+        border: 1px solid #ece6d4;
+        font-weight: 500;
+        line-height: 1.2;
+        white-space: nowrap;
+      }
+
+      .unified-bar {
+        background: linear-gradient(90deg, #efe2c2, #e8d6a4);
+        border: 1px solid #ddca97;
+        border-radius: 14px;
+        padding: 14px 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: #102a20;
+      }
+      .unified-bar .ub-icon { color: #2c5e45; display: grid; place-items: center; }
+      .unified-bar .ub-icon svg { width: 22px; height: 22px; }
+      .unified-bar .ub-text { font-family: "Playfair Display", serif; font-weight: 700; font-size: 15px; }
+      .unified-bar .ub-sub { font-size: 12.5px; color: #4a574e; }
+
+      /* Banner */
+      .banner {
+        margin-top: 20px;
+        background: #102a20;
+        color: #ede7d6;
+        border-radius: 14px;
+        padding: 15px 22px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        font-size: 14.5px;
+      }
+      .banner .b-icon {
+        width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+        background: #c8a24a; color: #102a20; display: grid; place-items: center;
+      }
+      .banner .b-icon svg { width: 20px; height: 20px; }
+      .banner strong { color: #e8d6a4; }
+
+      /* Feature list */
+      .feat-list { display: flex; flex-direction: column; gap: 12px; }
+      .feat {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        padding: 14px 16px;
+        background: #fbfaf2;
+        border: 1px solid #ece6d4;
+        border-radius: 14px;
+      }
+      .feat .f-icon {
+        width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0;
+        background: #efe2c2; color: #2c5e45; display: grid; place-items: center;
+      }
+      .feat .f-icon svg { width: 20px; height: 20px; }
+      .feat .f-title { font-family: "Playfair Display", serif; font-weight: 700; color: #102a20; font-size: 15.5px; margin-bottom: 2px; }
+      .feat .f-desc { font-size: 13.5px; color: #5e6b62; line-height: 1.45; }
+
+      .tiers { display: flex; gap: 10px; margin-top: 18px; }
+      .tier {
+        padding: 8px 16px;
+        border-radius: 999px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
+      .tier.plat { background: #102a20; color: #e8d6a4; border: 1px solid #2c5e45; }
+      .tier.gold { background: #e8d6a4; color: #102a20; border: 1px solid #c8a24a; }
+      .tier.silv { background: #f4efdf; color: #4a574e; border: 1px solid #c9c2ac; }
+
+      /* Roadmap columns */
+      .road-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+      .road-col {
+        border: 1px solid #ece6d4;
+        border-radius: 18px;
+        padding: 22px 24px;
+        background: #fbfaf2;
+      }
+      .road-col.next { background: #ffffff; }
+      .road-col .rc-head {
+        display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
+      }
+      .road-col .rc-head .rc-icon { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; }
+      .road-col.built .rc-icon { background: #2c5e45; color: #fbfaf2; }
+      .road-col.next .rc-icon { background: #c8a24a; color: #102a20; }
+      .road-col .rc-head .rc-icon svg { width: 18px; height: 18px; }
+      .road-col .rc-title { font-family: "Playfair Display", serif; font-weight: 700; font-size: 17px; color: #102a20; }
+      .road-list { list-style: none; margin: 0; padding: 0; }
+      .road-list li {
+        display: flex; align-items: flex-start; gap: 10px;
+        padding: 8px 0; font-size: 14px; color: #3a4640; line-height: 1.45;
+        border-bottom: 1px solid #ece6d4;
+      }
+      .road-list li:last-child { border-bottom: none; }
+      .road-list li .dot { color: #c8a24a; flex-shrink: 0; margin-top: 2px; }
+      .road-list li .dot svg { width: 16px; height: 16px; display: block; }
+
+      /* Cover */
+      .cover {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        position: relative;
+      }
+      .cover-mark {
+        width: 84px; height: 84px; border-radius: 22px;
+        background: linear-gradient(135deg, #d8b26a, #b8924e);
+        color: #102a20; display: grid; place-items: center;
+        box-shadow: 0 12px 30px rgba(184, 146, 78, 0.4);
+        margin-bottom: 22px;
+      }
+      .cover-mark svg { width: 44px; height: 44px; }
+      .cover h2 {
+        font-family: "Playfair Display", serif;
+        font-size: clamp(46px, 6vw, 72px);
+        line-height: 1.02;
+        margin: 0 0 8px;
+        color: #102a20;
+        font-weight: 700;
+      }
+      .cover .cover-tag {
+        font-family: "Playfair Display", serif;
+        font-style: italic;
+        font-size: clamp(18px, 2vw, 24px);
+        color: #2c5e45;
+        margin: 18px 0 0;
+        max-width: 640px;
+      }
+      .cover .cover-conf {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 11px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #8a8674;
+        margin-top: 26px;
+        padding-top: 16px;
+        border-top: 1px solid #ece6d4;
+        max-width: 640px;
+      }
+      .cover-watermark {
+        position: absolute;
+        right: -10px;
+        bottom: -20px;
+        color: #e8dfc4;
+        opacity: 0.5;
+        pointer-events: none;
+      }
+      .cover-watermark svg { width: 260px; height: 260px; }
+
+      /* Close */
+      .close-body { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 20px; }
+      .cta {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        background: #2c5e45;
+        color: #fbfaf2;
+        border-radius: 999px;
+        padding: 16px 26px;
+        font-family: "Playfair Display", serif;
+        font-weight: 700;
+        font-size: 18px;
+        width: fit-content;
+        box-shadow: 0 12px 28px rgba(44, 94, 69, 0.28);
+      }
+      .cta svg { width: 22px; height: 22px; }
+
+      .footer-note {
+        margin-top: 18px;
+        padding-top: 14px;
+        border-top: 1px solid #ece6d4;
+        color: #8a8674;
+        font-size: 12.5px;
+      }
+
+      /* Per-layout sizing to fill the stage */
+      .layout-flow .h1 { font-size: clamp(30px, 3.6vw, 46px); }
+      .layout-flow .lead { font-size: 18px; }
+      .layout-flow .flow { margin-top: 30px; }
+      .layout-flow .flow-node { padding: 48px 22px; }
+      .layout-flow .flow-node .fn-icon { width: 84px; height: 84px; border-radius: 22px; margin-bottom: 22px; }
+      .layout-flow .flow-node .fn-icon svg { width: 38px; height: 38px; }
+      .layout-flow .flow-node .fn-title { font-size: 22px; margin-bottom: 7px; }
+      .layout-flow .flow-node .fn-sub { font-size: 15px; }
+      .layout-flow .flow-arrow svg { width: 32px; height: 32px; }
+      .layout-flow .footer-note { margin-top: 44px; font-size: 14px; }
+
+      .layout-ai .h1 { font-size: clamp(30px, 3.6vw, 46px); }
+      .layout-ai .lead { font-size: 18px; }
+      .layout-ai .grid-4 { gap: 18px; }
+      .layout-ai .card { padding: 34px 24px; }
+      .layout-ai .card-icon { width: 68px; height: 68px; border-radius: 17px; margin-bottom: 18px; }
+      .layout-ai .card-icon svg { width: 32px; height: 32px; }
+      .layout-ai .card-title { font-size: 22px; margin-bottom: 9px; }
+      .layout-ai .card-desc { font-size: 15.5px; line-height: 1.6; }
+      .layout-ai .banner { margin-top: 36px; padding: 26px 28px; font-size: 15.5px; }
+      .layout-ai .banner .b-icon { width: 46px; height: 46px; }
+      .layout-ai .banner .b-icon svg { width: 24px; height: 24px; }
+
+      .layout-member .h1 { font-size: clamp(30px, 3.6vw, 46px); }
+      .layout-member .lead { font-size: 18px; }
+      .layout-member .feat-list { gap: 14px; }
+      .layout-member .feat { padding: 18px 20px; }
+      .layout-member .feat .f-icon { width: 52px; height: 52px; border-radius: 14px; }
+      .layout-member .feat .f-icon svg { width: 26px; height: 26px; }
+      .layout-member .feat .f-title { font-size: 17px; }
+      .layout-member .feat .f-desc { font-size: 14.5px; }
+      .layout-member .tiers { margin-top: 26px; }
+      .layout-member .tier { padding: 10px 20px; font-size: 13px; }
+      .layout-member .footer-note { margin-top: 26px; }
+
+      .layout-ops .h1 { font-size: clamp(30px, 3.6vw, 46px); }
+      .layout-ops .lead { font-size: 18px; }
+      .layout-ops .grid-4 { gap: 18px; }
+      .layout-ops .card { padding: 22px 20px; }
+      .layout-ops .card-icon { width: 50px; height: 50px; margin-bottom: 16px; }
+      .layout-ops .card-icon svg { width: 25px; height: 25px; }
+      .layout-ops .card-title { font-size: 19px; }
+      .layout-ops .card-desc { font-size: 14.5px; }
+
+      .layout-why .h1 { font-size: clamp(30px, 3.6vw, 46px); }
+      .layout-why .lead { font-size: 17px; }
+      .layout-why .grid-3 { gap: 18px; margin-top: 4px; }
+      .layout-why .card { padding: 18px 20px; }
+      .layout-why .card-icon { width: 52px; height: 52px; border-radius: 14px; margin-bottom: 12px; }
+      .layout-why .card-icon svg { width: 25px; height: 25px; }
+      .layout-why .card-title { font-size: 17px; margin-bottom: 7px; }
+      .layout-why .card-desc { font-size: 14px; line-height: 1.5; }
+      .layout-why .kpi-row { grid-template-columns: repeat(2, 1fr); }
+      .layout-why .kpi .v { font-size: 24px; }
+      .layout-why .banner { margin-top: 16px; padding: 18px 24px; font-size: 15px; }
+      .layout-why .banner .b-icon { width: 42px; height: 42px; }
+      .layout-why .banner .b-icon svg { width: 22px; height: 22px; }
+
+      .layout-roadmap .h1 { font-size: clamp(30px, 3.6vw, 46px); }
+      .layout-roadmap .lead { font-size: 18px; }
+      .layout-roadmap .road-cols { gap: 22px; }
+      .layout-roadmap .road-col { padding: 28px 28px; }
+      .layout-roadmap .road-col .rc-head { margin-bottom: 20px; }
+      .layout-roadmap .road-col .rc-icon { width: 40px; height: 40px; }
+      .layout-roadmap .road-col .rc-icon svg { width: 20px; height: 20px; }
+      .layout-roadmap .road-col .rc-title { font-size: 19px; }
+      .layout-roadmap .road-list li { padding: 13px 0; font-size: 15px; }
+
+      /* Print / PDF mode */
+      body.print-mode { background: #ffffff; }
+      html.print-mode, body.print-mode { overflow: hidden; }
+      body.print-mode .topbar { display: none; }
+      body.print-mode .app-shell { padding: 0; gap: 0; min-height: 0; }
+      body.print-mode .slide-card {
+        padding: 0; border: none; border-radius: 0; box-shadow: none;
+        background: none; min-height: 0; overflow: visible;
+      }
+      body.print-mode .print-page {
+        width: 1280px; height: 800px; padding: 50px 64px;
+        background: #ffffff; display: flex; flex-direction: column;
+        page-break-after: always; break-after: page; overflow: hidden;
+        box-sizing: border-box;
+      }
+      body.print-mode .print-page:last-child { page-break-after: auto; break-after: auto; }
+      body.print-mode .slide-inner { flex: 1; max-width: 1080px; margin: 0 auto; width: 100%; }
+      body.print-mode .r { opacity: 1 !important; animation: none !important; }
+      @page { size: 1280px 800px; margin: 0; }
+
+      /* Animations */
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(14px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .r { opacity: 0; animation: fadeUp 0.55s cubic-bezier(0.23, 1, 0.32, 1) forwards; }
+      .r:nth-child(1) { animation-delay: 0.04s; }
+      .r:nth-child(2) { animation-delay: 0.10s; }
+      .r:nth-child(3) { animation-delay: 0.16s; }
+      .r:nth-child(4) { animation-delay: 0.22s; }
+      .r:nth-child(5) { animation-delay: 0.28s; }
+      .r:nth-child(6) { animation-delay: 0.34s; }
+      .r:nth-child(7) { animation-delay: 0.40s; }
+      .r:nth-child(8) { animation-delay: 0.46s; }
+
+      @media (prefers-reduced-motion: reduce) {
+        .r { animation: none; opacity: 1; }
+        * { transition: none !important; }
+      }
+
+      /* Responsive */
+      @media (max-width: 1080px) {
+        .kpi-row { grid-template-columns: repeat(2, 1fr); }
+        .grid-4 { grid-template-columns: repeat(2, 1fr); }
+        .grid-3 { grid-template-columns: 1fr; }
+        .portals, .road-cols, .grid-2 { grid-template-columns: 1fr; }
+        .flow { flex-direction: column; }
+        .flow-arrow { transform: rotate(90deg); width: 100%; height: 36px; }
+      }
+      @media (max-width: 740px) {
+        .app-shell { padding: 12px; }
+        .topbar { flex-direction: column; align-items: flex-start; }
+        .controls { width: 100%; justify-content: space-between; }
+        .slide-card { padding: 30px 24px; min-height: auto; }
+        .kpi-row, .grid-4 { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <div class="topbar">
+        <div class="brand">
+          <div class="brand-mark" id="brandMark"></div>
+          <div>
+            <div class="brand-name">Lanai Lifestyle</div>
+            <div class="brand-meta">Business Overview, Client Review</div>
+          </div>
+        </div>
+        <div class="controls">
+          <div class="progress">
+            <span id="counter">1 / 9</span>
+            <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+          </div>
+          <button class="nav-btn secondary" id="prevBtn" aria-label="Previous">&#8592; Prev</button>
+          <button class="nav-btn" id="nextBtn" aria-label="Next">Next &#8594;</button>
+        </div>
+      </div>
+
+      <div class="slide-card" id="slideCard" tabindex="0" aria-live="polite">
+        <div class="slide-inner" id="slideBody"></div>
+      </div>
+    </div>
+
+    <script>
+      const ICONS = {
+        palm: '<path d="M12 22V12"/><path d="M12 12C12 8 9 6 5 6"/><path d="M12 12C12 8 15 6 19 6"/><path d="M12 12C9.5 12 6.5 10.5 4.5 8"/><path d="M12 12C14.5 12 17.5 10.5 19.5 8"/>',
+        crown: '<path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7z"/><path d="M5 20h14"/>',
+        layout: '<path d="M3 3h18v18H3z"/><path d="M3 9h18"/><path d="M9 21V9"/>',
+        inbox: '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z"/>',
+        file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5"/><path d="M8 13h8"/><path d="M8 17h8"/>',
+        plane: '<path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>',
+        dollar: '<path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+        sparkles: '<path d="M12 2l2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5z"/>',
+        bulb: '<path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z"/>',
+        sunrise: '<path d="M12 2v8"/><path d="m4.9 10.9 1.4 1.4"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m17.7 12.3 1.4-1.4"/><path d="M22 22H2"/><path d="m8 6 4-4 4 4"/>',
+        message: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+        shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+        user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+        card: '<path d="M2 5h20v14H2z"/><path d="M2 10h20"/>',
+        gift: '<path d="M20 12v10H4V12"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>',
+        database: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/>',
+        receipt: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1z"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h5"/>',
+        chart: '<path d="M3 3v18h18"/><path d="M7 16v-5"/><path d="M12 16V7"/><path d="M17 16v-3"/>',
+        list: '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>',
+        star: '<path d="M12 2l3 6.5 7 .9-5 4.8 1.2 7L12 17.8 5.8 21.2 7 14.2 2 9.4l7-.9z"/>',
+        arrow: '<path d="M5 12h14"/><path d="M12 5l7 7-7 7"/>',
+        check: '<path d="M20 6 9 17l-5-5"/>',
+        lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+        key: '<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.5 12.5 9-9"/><path d="m16 7 3 3"/><path d="m19 4 3 3"/>'
+      };
+
+      function icon(name) {
+        return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ""}</svg>`;
+      }
+
+      const slides = [
+        /* 1. COVER */
+        {
+          layout: "cover",
+          eyebrow: "Business Overview",
+          mark: "palm",
+          title: "Lanai Lifestyle",
+          tag: "The intelligence platform for luxury travel concierge.",
+          conf: "Confidential. Prepared for client review."
+        },
+
+        /* 2. WHAT IT IS */
+        {
+          layout: "glance",
+          eyebrow: "What It Is",
+          title: "One platform for the entire concierge relationship.",
+          lead: "Lanai unifies the advisor workspace and the member portal into a single system, covering Membership, Travel, Events, and Lifestyle. High-touch service, powered by intelligence.",
+          kpis: [
+            { v: "4", l: "Business units" },
+            { v: "2", l: "Portals" },
+            { v: "3", l: "Membership tiers" },
+            { v: "7", l: "Stage journey" }
+          ],
+          footer: "Every record, from first enquiry to lifelong relationship, lives in one connected system."
+        },
+
+        /* 3. WHAT IT COVERS */
+        {
+          layout: "flow",
+          eyebrow: "What It Covers",
+          title: "From first enquiry to lifelong relationship.",
+          lead: "Lanai owns the full client journey, not just the transaction. Every stage lives in one connected record.",
+          steps: [
+            { icon: "inbox", title: "Discover", sub: "Capture every request and qualify the opportunity" },
+            { icon: "file", title: "Design", sub: "Craft bespoke proposals in the Lanai voice" },
+            { icon: "plane", title: "Deliver", sub: "Confirm, track, and execute every detail" },
+            { icon: "sparkles", title: "Deepen", sub: "Nurture the relationship with intelligence and memory" }
+          ],
+          footer: "Seven stages. One continuous relationship."
+        },
+
+        /* 4. WHY NOW */
+        {
+          layout: "why",
+          eyebrow: "Why Now",
+          title: "Relationships are the product. Operational drag is the cost.",
+          lead: "Luxury travel runs on relationships, but the work behind them still lives in inboxes, spreadsheets, and memory. Advisors who scale the relationship without losing the human touch will define the next decade.",
+          cards: [
+            { icon: "list", title: "Run on fragments", desc: "Client knowledge, supplier contacts, and trip history scattered across tools. Every handoff is a risk to the relationship." },
+            { icon: "chart", title: "Rising expectations", desc: "Wealthy travellers expect service that remembers everything. Manual outreach cannot keep pace with that expectation." },
+            { icon: "sparkles", title: "Intelligence as edge", desc: "The advantage belongs to teams who give every advisor the memory and speed of a full organisation." }
+          ],
+          kpis: [
+            { v: "$11.9B", l: "AI in luxury travel, projected by 2034 (directional)" },
+            { v: "+40%", l: "Higher repeat booking with CRM-driven retention" }
+          ],
+          banner: "<strong>The risk is not moving too fast.</strong> It is standing still while competitors automate the relationship."
+        },
+
+        /* 5. HOW IT WORKS, THE ADVISOR */
+        {
+          layout: "flow",
+          eyebrow: "How It Works: The Advisor",
+          title: "Every advisor, backed by the whole organisation.",
+          lead: "From the morning briefing to commission received, an advisor's day flows through one workspace.",
+          steps: [
+            { icon: "sunrise", title: "Morning Briefing", sub: "AI priorities, follow-ups, and clients needing attention" },
+            { icon: "file", title: "Requests and Proposals", sub: "Capture requests and draft bespoke proposals with an AI co-pilot" },
+            { icon: "bulb", title: "Client Intelligence", sub: "Living profiles, churn signals, and next-trip prompts" },
+            { icon: "dollar", title: "Bookings and Commission", sub: "Confirm bookings and track every commission to receipt" }
+          ],
+          footer: "Less admin. More relationship."
+        },
+
+        /* 6. HOW IT WORKS, THE MEMBER */
+        {
+          layout: "member",
+          eyebrow: "How It Works: The Member",
+          title: "A private digital home for every member.",
+          lead: "A calm, branded space to request, review, and track, with tier and relationship front and center.",
+          feats: [
+            { icon: "inbox", title: "Request anything", desc: "Submit travel, event, or lifestyle requests in seconds." },
+            { icon: "file", title: "Review proposals", desc: "Approve or respond to bespoke proposals with full itinerary and pricing." },
+            { icon: "plane", title: "Track bookings", desc: "Follow every booking from confirmed to complete." },
+            { icon: "card", title: "Billing and membership", desc: "Membership fees and payments, handled in platform." },
+            { icon: "crown", title: "Recognised tier", desc: "Platinum, Gold, or Silver status reflected across the experience." }
+          ],
+          footer: "The portal extends the advisor, it never replaces them."
+        },
+
+        /* 7. HOW IT WORKS, INTELLIGENCE */
+        {
+          layout: "ai",
+          eyebrow: "The Differentiator",
+          title: "An AI co-pilot for every advisor.",
+          lead: "The intelligence layer does the work advisors cannot scale alone, while keeping the human firmly in control.",
+          cards: [
+            { icon: "sparkles", title: "Proposal Co-Pilot", desc: "Drafts bespoke proposals and itineraries in the Lanai voice, grounded in the client's full history." },
+            { icon: "bulb", title: "Client Intelligence", desc: "Surfaces preferences, churn signals, and next-trip opportunities automatically." },
+            { icon: "sunrise", title: "Morning Briefing", desc: "A daily digest of priorities, drafted from overnight messages and client activity." },
+            { icon: "message", title: "Draft Replies", desc: "Suggested responses across WhatsApp and email, ready to review and send." }
+          ],
+          banner: "<strong>Private by design.</strong> Local AI models. No client data sent to third parties. Every output grounded, never invented."
+        },
+
+        /* 8. HOW IT WORKS, THE FOUNDATION */
+        {
+          layout: "ops",
+          eyebrow: "The Foundation",
+          title: "Plugged into the systems your business depends on.",
+          lead: "Lanai connects the tools a modern concierge business already runs, so nothing lives in isolation.",
+          ops: [
+            { icon: "database", title: "CRM Sync", desc: "Two-way sync with your CRM, one source of truth for every client" },
+            { icon: "message", title: "Omnichannel Messaging", desc: "WhatsApp, email, and chat in one inbox" },
+            { icon: "card", title: "Payments", desc: "Membership billing and payments handled in platform" },
+            { icon: "receipt", title: "Commission Ledger", desc: "Every commission tracked from expected to received" },
+            { icon: "key", title: "Single Sign-On", desc: "Secure staff access through enterprise identity" },
+            { icon: "list", title: "Supplier Network", desc: "Suppliers, services, and preferred rates in one directory" },
+            { icon: "shield", title: "Audit and Events", desc: "Every action logged, every event durable" },
+            { icon: "check", title: "Role-Based Access", desc: "The right people see the right clients" }
+          ]
+        },
+
+        /* 9. CLOSE */
+        {
+          layout: "close",
+          eyebrow: "The Opportunity",
+          title: "High-touch service, at the speed of intelligence.",
+          lead: "Lanai gives every advisor the memory, speed, and reach of an entire organisation, so the relationship that differentiates your business can scale without losing its soul.",
+          cta: "Schedule a live walkthrough"
+        }
+      ];
+
+      const slideBody = document.getElementById("slideBody");
+      const slideCard = document.getElementById("slideCard");
+      const counterEl = document.getElementById("counter");
+      const progressFillEl = document.getElementById("progressFill");
+      let currentIndex = 0;
+
+      function buildHTML(s) {
+        let html = "";
+
+        if (s.layout === "cover") {
+          html = `
+            <div class="cover">
+              <div class="cover-watermark">${icon("palm")}</div>
+              <div class="cover-mark r">${icon(s.mark)}</div>
+              <div class="eyebrow r">${s.eyebrow}</div>
+              <h2 class="r">${s.title}</h2>
+              <div class="divider r"></div>
+              <p class="cover-tag r">${s.tag}</p>
+              <div class="cover-conf r">${s.conf}</div>
+            </div>`;
+        }
+
+        else if (s.layout === "glance") {
+          html = `
+            <div class="eyebrow r">${s.eyebrow}</div>
+            <h1 class="h1 r">${s.title}</h1>
+            <p class="lead r">${s.lead}</p>
+            <div class="divider r"></div>
+            <div class="portals r">
+              <div class="portal-card">
+                <div class="portal-head advisor">
+                  <div class="ph-icon">${icon("layout")}</div>
+                  <div>
+                    <div class="ph-name">Advisor Portal</div>
+                    <div class="ph-tag">The advisor workspace</div>
+                  </div>
+                </div>
+                <div class="portal-body">
+                  <div class="pb-label">Includes</div>
+                  <div class="portal-tags">
+                    <span class="ptag">Clients</span>
+                    <span class="ptag">Requests</span>
+                    <span class="ptag">Proposals</span>
+                    <span class="ptag">Bookings</span>
+                    <span class="ptag">Suppliers</span>
+                    <span class="ptag">Intelligence</span>
+                    <span class="ptag">Briefing</span>
+                    <span class="ptag">Inbox</span>
+                  </div>
+                </div>
+              </div>
+              <div class="portal-card">
+                <div class="portal-head member">
+                  <div class="ph-icon">${icon("crown")}</div>
+                  <div>
+                    <div class="ph-name">Member Portal</div>
+                    <div class="ph-tag">For Platinum, Gold, Silver</div>
+                  </div>
+                </div>
+                <div class="portal-body">
+                  <div class="pb-label">Includes</div>
+                  <div class="portal-tags">
+                    <span class="ptag">Trips</span>
+                    <span class="ptag">Requests</span>
+                    <span class="ptag">Proposals</span>
+                    <span class="ptag">Bookings</span>
+                    <span class="ptag">Billing</span>
+                    <span class="ptag">Profile</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="unified-bar r">
+              <div class="ub-icon">${icon("database")}</div>
+              <div>
+                <div class="ub-text">One source of truth</div>
+                <div class="ub-sub">Across every conversation, proposal, and trip</div>
+              </div>
+            </div>
+            <div class="kpi-row" style="margin-top:18px">
+              ${s.kpis.map(k => `<div class="kpi r"><div class="v">${k.v}</div><div class="l">${k.l}</div></div>`).join("")}
+            </div>
+            <div class="footer-note r">${s.footer}</div>`;
+        }
+
+        else if (s.layout === "flow") {
+          html = `
+            <div class="eyebrow r">${s.eyebrow}</div>
+            <h1 class="h1 r">${s.title}</h1>
+            <p class="lead r">${s.lead}</p>
+            <div class="divider r"></div>
+            <div class="flow r">
+              ${s.steps.map((st, i) => `
+                <div class="flow-node">
+                  <div class="fn-icon">${icon(st.icon)}</div>
+                  <div class="fn-title">${st.title}</div>
+                  <div class="fn-sub">${st.sub}</div>
+                </div>
+                ${i < s.steps.length - 1 ? `<div class="flow-arrow">${icon("arrow")}</div>` : ""}
+              `).join("")}
+            </div>
+            <div class="footer-note r">${s.footer}</div>`;
+        }
+
+        else if (s.layout === "ai") {
+          html = `
+            <div class="eyebrow r">${s.eyebrow}</div>
+            <h1 class="h1 r">${s.title}</h1>
+            <p class="lead r">${s.lead}</p>
+            <div class="divider r"></div>
+            <div class="grid-4">
+              ${s.cards.map(c => `
+                <div class="card r">
+                  <div class="card-icon">${icon(c.icon)}</div>
+                  <div class="card-title">${c.title}</div>
+                  <p class="card-desc">${c.desc}</p>
+                </div>
+              `).join("")}
+            </div>
+            <div class="banner r">
+              <div class="b-icon">${icon("shield")}</div>
+              <div>${s.banner}</div>
+            </div>`;
+        }
+
+        else if (s.layout === "member") {
+          html = `
+            <div class="eyebrow r">${s.eyebrow}</div>
+            <h1 class="h1 r">${s.title}</h1>
+            <p class="lead r">${s.lead}</p>
+            <div class="divider r"></div>
+            <div class="grid-2">
+              <div class="feat-list">
+                ${s.feats.slice(0, 3).map(f => `
+                  <div class="feat r">
+                    <div class="f-icon">${icon(f.icon)}</div>
+                    <div>
+                      <div class="f-title">${f.title}</div>
+                      <div class="f-desc">${f.desc}</div>
+                    </div>
+                  </div>
+                `).join("")}
+              </div>
+              <div class="feat-list">
+                ${s.feats.slice(3).map(f => `
+                  <div class="feat r">
+                    <div class="f-icon">${icon(f.icon)}</div>
+                    <div>
+                      <div class="f-title">${f.title}</div>
+                      <div class="f-desc">${f.desc}</div>
+                    </div>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+            <div class="tiers r">
+              <span class="tier plat">Platinum</span>
+              <span class="tier gold">Gold</span>
+              <span class="tier silv">Silver</span>
+            </div>
+            <div class="footer-note r">${s.footer}</div>`;
+        }
+
+        else if (s.layout === "ops") {
+          html = `
+            <div class="eyebrow r">${s.eyebrow}</div>
+            <h1 class="h1 r">${s.title}</h1>
+            <p class="lead r">${s.lead}</p>
+            <div class="divider r"></div>
+            <div class="grid-4">
+              ${s.ops.map(o => `
+                <div class="card r">
+                  <div class="card-icon">${icon(o.icon)}</div>
+                  <div class="card-title">${o.title}</div>
+                  <p class="card-desc">${o.desc}</p>
+                </div>
+              `).join("")}
+            </div>`;
+        }
+
+        else if (s.layout === "roadmap") {
+          html = `
+            <div class="eyebrow r">${s.eyebrow}</div>
+            <h1 class="h1 r">${s.title}</h1>
+            <p class="lead r">${s.lead}</p>
+            <div class="divider r"></div>
+            <div class="road-cols">
+              <div class="road-col built r">
+                <div class="rc-head">
+                  <div class="rc-icon">${icon("shield")}</div>
+                  <div class="rc-title">Built on</div>
+                </div>
+                <ul class="road-list">
+                  ${s.built.map(b => `<li><span class="dot">${icon("check")}</span><span>${b}</span></li>`).join("")}
+                </ul>
+              </div>
+              <div class="road-col next r">
+                <div class="rc-head">
+                  <div class="rc-icon">${icon("arrow")}</div>
+                  <div class="rc-title">What is next</div>
+                </div>
+                <ul class="road-list">
+                  ${s.next.map(n => `<li><span class="dot">${icon("star")}</span><span>${n}</span></li>`).join("")}
+                </ul>
+              </div>
+            </div>`;
+        }
+
+        else if (s.layout === "why") {
+          html = `
+            <div class="eyebrow r">${s.eyebrow}</div>
+            <h1 class="h1 r">${s.title}</h1>
+            <p class="lead r">${s.lead}</p>
+            <div class="divider r"></div>
+            <div class="grid-3">
+              ${s.cards.map(c => `
+                <div class="card r">
+                  <div class="card-icon">${icon(c.icon)}</div>
+                  <div class="card-title">${c.title}</div>
+                  <p class="card-desc">${c.desc}</p>
+                </div>
+              `).join("")}
+            </div>
+            <div class="kpi-row r" style="margin-top:16px">
+              ${s.kpis.map(k => `<div class="kpi"><div class="v">${k.v}</div><div class="l">${k.l}</div></div>`).join("")}
+            </div>
+            <div class="banner r">
+              <div class="b-icon">${icon("shield")}</div>
+              <div>${s.banner}</div>
+            </div>`;
+        }
+
+        else if (s.layout === "close") {
+          html = `
+            <div class="close-body">
+              <div class="cover-mark r" style="width:72px;height:72px;border-radius:18px;margin-bottom:10px">${icon("palm")}</div>
+              <div class="eyebrow r">${s.eyebrow}</div>
+              <h1 class="h1 r" style="font-size:clamp(34px,4vw,52px)">${s.title}</h1>
+              <div class="divider r"></div>
+              <p class="lead r" style="font-size:19px">${s.lead}</p>
+              <div class="cta r">
+                ${s.cta}
+                ${icon("arrow")}
+              </div>
+            </div>`;
+        }
+
+        return html;
+      }
+
+      function renderSlide() {
+        const s = slides[currentIndex];
+        slideBody.className = "slide-inner layout-" + s.layout;
+        slideBody.innerHTML = buildHTML(s);
+        counterEl.textContent = `${currentIndex + 1} / ${slides.length}`;
+        progressFillEl.style.width = `${((currentIndex + 1) / slides.length) * 100}%`;
+        slideCard.focus();
+      }
+
+      function nextSlide() { currentIndex = (currentIndex + 1) % slides.length; renderSlide(); }
+      function prevSlide() { currentIndex = (currentIndex - 1 + slides.length) % slides.length; renderSlide(); }
+
+      document.getElementById("brandMark").innerHTML = icon("palm");
+      document.getElementById("nextBtn").addEventListener("click", nextSlide);
+      document.getElementById("prevBtn").addEventListener("click", prevSlide);
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "ArrowRight" || event.key === " " || event.key === "PageDown") {
+          event.preventDefault();
+          nextSlide();
+        } else if (event.key === "ArrowLeft" || event.key === "PageUp") {
+          event.preventDefault();
+          prevSlide();
+        } else if (event.key === "Home") {
+          currentIndex = 0; renderSlide();
+        } else if (event.key === "End") {
+          currentIndex = slides.length - 1; renderSlide();
+        }
+      });
+
+      renderSlide();
+
+      const params = new URLSearchParams(location.search);
+      function printPageHTML(s) {
+        return `<section class="print-page layout-${s.layout}"><div class="slide-inner">${buildHTML(s)}</div></section>`;
+      }
+      function enablePrintMode() {
+        document.documentElement.classList.add("print-mode");
+        document.body.classList.add("print-mode");
+        slideBody.className = "";
+      }
+      if (params.has("print")) {
+        enablePrintMode();
+        slideBody.innerHTML = slides.map(printPageHTML).join("");
+      } else if (params.has("slide")) {
+        enablePrintMode();
+        const n = Math.max(0, Math.min(slides.length - 1, parseInt(params.get("slide"), 10) || 0));
+        slideBody.innerHTML = printPageHTML(slides[n]);
+      }
+    </script>
+  </body>
+</html>
