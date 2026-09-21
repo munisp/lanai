@@ -4,22 +4,47 @@
 
 ---
 
-## RESUME POINT (as of 9 September 2026)
+## RESUME POINT (as of 21 September 2026)
 
-**Where we are:** Requirements phase is COMPLETE and the go-live sprint is PLANNED. Deadline: production release Friday 18 September 2026. The operating document is `GO_LIVE_DAILY_PLAN.md`: day-by-day from Wed 9 Sep to Fri 18 Sep, every item traced to SR-IDs and the P0 register, with the no-excuses bar for the Tuesday 15 September update (section 4) and the go/no-go gate (section 5).
+**Where we are:** First CODE is landed on the pilot branch after the long requirements-only stretch. Commit `b42cf32` on `pilot/requirements-baseline-2026-09` closes ALL six P0-11 IDOR gaps (authMiddleware identity attachment, storageProxy member-prefix scoping, crmProxy path allowlist, members.list / clients.list / aiInsights.list row-scoping per UR-F2) and adds migration `0011_pilot_srs_tables.sql` (client_memory SR-201, sla_timers SR-502, proposal_versions SR-602, with enums, FKs, indexes). Verified before commit: `tsc --noEmit` has 6 errors, ALL pre-existing (chart.tsx recharts types, stripeRouter version pin), none in changed files; `drizzle-kit check` passes (journal 0011 entry, 0011 snapshot, SQL file all consistent). The migration was reconstructed by hand after two generator corruptions, then validated line by line against schema.ts; it has NOT yet been applied to any database.
 
-**Working state discovered 9 Sep (changes the plan's shape):** the repo is further along than the 30-day doc's slippage suggested. Existing and verified in `schema.ts`: advisor_tasks, audit_logs, morning_briefings, commission_ledger, celebrations, member_profiles, member_family_members, plus the full travel lifecycle tables. `voiceTranscription.ts` exists but has never been run through the live pipeline. So the sprint is mostly wiring and verifying, not building from scratch. True gaps: client_memory grounding (P0-13), IDOR closures (P0-11), PII encryption and egress removal (P0-12), backup rehearsal (P0-10), unmocked integration tests as a gate (P0-06). SRS section 8 rewritten to match reality.
+**Next actions, in order:**
+1. Push the branch (docs commit first, then code commit b42cf32).
+2. Backup and restore rehearsal on the production DB (P0-10 / SR-1005) BEFORE any migration runs there.
+3. Deploy to lanai-server (redeploy.sh resets to origin/main, so either merge pilot branch to main or mirror its docker build/run steps against the branch manually over SSH).
+4. Apply migration 0011 on production after backup verified.
+5. Verify on https://lanai.newfire.app: health endpoint, then unauthenticated 401/403 probes on the fixed endpoints (members.list, clients.list, aiInsights.list, storage presign, crm proxy).
 
-**Next actions, in order (today, Wed 9 Sep):**
-1. Commit and push the 6 requirements docs (still untracked in the working tree).
-2. Decide the stash `chatwoot-api-in-consumer` (apply or discard with note).
-3. Backup and restore rehearsal (P0-10), THEN migrations 0011+.
-4. Voice spike through the live pipeline.
-5. Message Ms Bolanle CR-001 and CR-002 today; message co-developer the SRS + plan + CR-006.
+**Known state of lanai.newfire.app:** live and reachable, but running a 25 July build (pre-pivot). Nothing from this branch is deployed yet. Deployment host is lanai-server at /opt/lanai (redeploy.sh); the k8s path is unavailable (no kubeconfig contexts on this Mac).
 
-**Cron status:** daily check-in 07:43 (f98ce0a4) and Tuesday update 08:17 (fd40f917), both session-only, expire 16 September. Durable fallback: any session told "run the daily check-in" or "prepare Tuesday update" uses GO_LIVE_DAILY_PLAN.md plus this log.
+**Flagged to user:** `BLUECATFISH_PILOT_REQUIREMENTS_QUESTIONNAIRE.md` in the lanai folder is the blank Blue Catfish thesis questionnaire template (15 Sep), unrelated to Lanai; left untracked, not committed, user should move it to the bluecatfish repo.
+
+**Cron status:** all session crons expired 16 September. Cadence from here: in-session execution only, plus this log.
 
 ---
+
+## Session 2026-09-21 (user-directed implementation block)
+
+- User instruction: implement the next fixes and verify them on lanai.newfire.app. Executed the P0-11 closures end to end and the migration, with verification at every step.
+- P0-11 (all six closed, UR-F2 row-level scoping): (1) getMessages conversation ownership was ALREADY fixed (verified, no change); (2) authMiddleware requireAnyAuth now attaches req.authType + req.memberId; (3) storageProxy rejects member presigns outside members/<id>/; (4) crmProxy allowlists /crm/graphql only (sole consumer: client/src/lib/crmApi.ts); (5) members.list advisor-scoped via assignedAdvisorId; (6) clients.list advisor-scoped; (7) aiInsights.list non-senior callers scoped through a members subquery. Design checked against actual consumers before writing; no in-repo consumer of /manus-storage exists, so the storage scoping defines the members/<id>/ convention without breaking anything.
+- Migration 0011: first drizzle-kit generate was correct but OVER-BROAD (meta snapshot drift: co-dev hand-wrote 0007-0010 SQL without snapshots, so the diff included already-existing chatwoot/whatsapp/outbox/ledger objects). My hand-rewrite then corrupted the file and it was deleted; a bare regenerate said no changes because meta already contained the new tables. Reconstructed the file with Write/Edit in small verified pieces, transcribing every column from a fresh schema.ts read (caught two wrong recollections: client_memory.memberId is NULLABLE, sourceId is integer not text). Final file: 4 CREATE TYPEs, 3 CREATE TABLEs, 3 FK constraints, 5 indexes + 1 unique index, statement-breakpoint separators. drizzle-kit check: Everything's fine. Local apply test NOT possible (no psql, colima/docker down); true apply test deferred to the post-backup production step.
+- Commits: b42cf32 (code, 10 files) landed on the pilot branch. Docs commit (this log + UPDATE_2026-09-15 draft) landed same day. Push attempted same session.
+- Classifier outages (z-ai/glm-5.3-flash unavailable) blocked write-shaped Bash on and off all week; worked around with file tools and read-only commands, retried git work when the classifier passed.
+- 18 September go-live date: passed with no release. Nothing was deployed. The honest position for Ms Bolanle remains the drafted update: re-baseline the pilot dates with her (CR-001/CR-002 answers still outstanding) or approve an execution block; code exists now that did not exist last week, but it is NOT live.
+
+## Check-in 2026-09-16 08:20 (daily cron, Day 8, LAST scheduled daily check-in)
+
+- Wednesday 16 September, two days before the 18 September go-live date. Verified: origin branch unchanged (bed848b is the tip), the update draft and log edits still uncommitted locally (classifier outage blocked the commit three sessions running).
+- Closed yesterday: nothing new beyond Tuesday's item 1 (the 20-file baseline push, bed848b). The Tuesday update to Ms Bolanle was drafted and presented; SEND STATUS UNKNOWN, user asked whether it was handled and whether anything was live on lanai.newfire.app, which surfaced a mental-model gap: the draft is a repo file, sending is a human action, and nothing is deployed anywhere.
+- Still open: the entire build (backup rehearsal, migrations 0011+, stash decision, voice spike, client memory, triage, urgency seeds, personas, rehearsal). Go-live in 2 days is not achievable as a release; the update to her carries the proposed one-week shift and awaits her answers on CR-001/CR-002.
+- This is the final firing of the daily check-in cron (7-day expiry, created 9 Sep). The Tuesday 08:17 cron expires today as well. Cadence from here: in-session execution only, plus the progress log.
+- 15 September bar: superseded by the honest-update rule. 18 September go-live: NOT ACHIEVABLE; decision needed now is executing the build block or formally re-baselining with her.
+
+- Item 1 CLOSED, after 6 days red: commit bed848b pushed to origin branch `pilot/requirements-baseline-2026-09`. 20 files, 7385 insertions: signed UR baseline, SRS v1.0, daily plan, progress log, weekly template, questionnaire source and preview, 12 presentation decks, .gitignore fix (lanai_ai/logs excluded). GitHub PR link available. Classifier outage from 14 Sep cleared on retry.
+- Still open, everything else: backup rehearsal (P0-10), migrations 0011+ (client_memory, sla_timers, proposal_versions), stash decision, voice spike, client memory, triage, urgency seeds, seeding, rehearsal. 5 consecutive zero days means the 15 September no-excuses bar was missed as written; today's update goes out with the truth instead.
+- Tuesday update drafted for the user to send to Ms Bolanle before 10:00 (Mode A, honest content, includes revised timeline request and CR-001/CR-002 questions). No answers from her yet on the CRs.
+- Critical path if any of the 18 September date survives: backup and restore rehearsal, then migrations, then voice spike, all today, in-session.
+- 15 September bar: MISSED as written, replaced by honest update (per plan rule: never silent, never vague). 18 September go-live: requires decision today; recommended consciously re-baselined pilot start per UR-H2.
 
 ## Check-in 2026-09-14 08:13 (daily cron, Day 6, consolidated Sat-Mon)
 
