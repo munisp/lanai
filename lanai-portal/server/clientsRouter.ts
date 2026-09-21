@@ -10,9 +10,19 @@ import { clients } from "../drizzle/schema";
  * Advisors can create, list, update and delete client records.
  */
 export const clientsRouter = router({
-  list: protectedProcedure.query(async () => {
+  list: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
-    return db.select().from(clients).orderBy(desc(clients.createdAt));
+    const isSenior =
+      ctx.user.role === "admin" || ctx.user.role === "senior_advisor";
+    if (isSenior) {
+      return db.select().from(clients).orderBy(desc(clients.createdAt));
+    }
+    // Row-level isolation (P0-11, UR-F2): an advisor sees only assigned clients
+    return db
+      .select()
+      .from(clients)
+      .where(eq(clients.assignedAdvisorId, ctx.user.id))
+      .orderBy(desc(clients.createdAt));
   }),
 
   create: protectedProcedure

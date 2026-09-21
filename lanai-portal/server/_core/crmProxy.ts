@@ -32,6 +32,24 @@ export function registerCrmProxy(app: Express): void {
   // ── Auth guard: only authenticated advisors may access the CRM ───────────
   app.use("/crm", requireAdvisorAuth);
 
+  // ── Path allowlist (P0-11): the portal only consumes the Twenty GraphQL
+  // API. Anything else is refused rather than relayed, so the proxy cannot
+  // be used to reach arbitrary Twenty endpoints with the server token. ────
+  app.use(
+    "/crm",
+    (req: Request, res: Response, next: () => void) => {
+      const targetPath = (req.url || "/").split("?")[0];
+      const allowed = /^\/graphql$/.test(targetPath);
+      if (!allowed) {
+        res
+          .status(404)
+          .json({ error: "Not found: CRM proxy path not allowlisted" });
+        return;
+      }
+      next();
+    },
+  );
+
   app.use(
     "/crm",
     (req: Request, res: Response, next: () => void) => {

@@ -11,6 +11,18 @@ import { getMemberSessionByToken, getMemberById } from "../db";
 
 const MEMBER_COOKIE = "lanai_member_session";
 
+// Identity attached by the auth guards so downstream proxies can scope
+// access to the caller's own data (row-level ownership, P0-11).
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      authType?: "advisor" | "member";
+      memberId?: number;
+    }
+  }
+}
+
 /**
  * Require an authenticated advisor (Keycloak OAuth session).
  * Returns 401 if the caller is not a signed-in advisor.
@@ -40,6 +52,7 @@ export async function requireAnyAuth(
   // 1. Try advisor OAuth
   try {
     await sdk.authenticateRequest(req);
+    req.authType = "advisor";
     return next();
   } catch {
     // not an advisor — try member session
@@ -59,6 +72,8 @@ export async function requireAnyAuth(
       if (session) {
         const m = await getMemberById(session.memberId);
         if (m && m.active) {
+          req.authType = "member";
+          req.memberId = session.memberId;
           return next();
         }
       }

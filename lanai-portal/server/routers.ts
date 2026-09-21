@@ -555,10 +555,15 @@ export const appRouter = router({
 
   // ── Advisor: member management ──────────────────────────────────────────────
   members: router({
-    /** List all members — any advisor can view. */
-    list: protectedProcedure.query(async () => {
+    /** List members, row-scoped by role: admin and senior_advisor see all, an advisor sees only the members assigned to them (P0-11, UR-F2). */
+    list: protectedProcedure.query(async ({ ctx }) => {
       const all = await getAllMembers();
-      return all.map((m) => ({
+      const isSenior =
+        ctx.user.role === "admin" || ctx.user.role === "senior_advisor";
+      const visible = isSenior
+        ? all
+        : all.filter((m) => m.assignedAdvisorId === ctx.user.id);
+      return visible.map((m) => ({
         id: m.id,
         email: m.email,
         name: m.name,

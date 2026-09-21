@@ -2336,3 +2336,99 @@ export const clients = pgTable(
 );
 export type Client = typeof clients.$inferSelect;
 export type InsertClient = typeof clients.$inferInsert;
+
+// ─── Pilot: SR-200 client memory ─────────────────────────────────────────────
+// The per-client private memory store (SR-201, P0-13 grounding). Rows are
+// sourced (message, task, trip, or manual) and review-gated so AI-noticed
+// patterns influence drafts only after review (SR-207, UR-C3).
+export const clientMemoryCategoryEnum = pgEnum("client_memory_category", [
+  "travel_history",
+  "preference",
+  "family",
+  "important_date",
+  "past_request",
+  "issue",
+  "pattern",
+]);
+export const clientMemorySourceEnum = pgEnum("client_memory_source", [
+  "message",
+  "task",
+  "trip",
+  "manual",
+]);
+export const clientMemoryReviewEnum = pgEnum("client_memory_review", [
+  "pending",
+  "approved",
+  "rejected",
+]);
+
+export const clientMemory = pgTable(
+  "client_memory",
+  {
+    id: serial("id").primaryKey(),
+    memberId: integer("memberId").references(() => members.id),
+    category: clientMemoryCategoryEnum("category").notNull(),
+    content: text("content").notNull(),
+    sourceType: clientMemorySourceEnum("sourceType").notNull().default("message"),
+    sourceId: integer("sourceId"),
+    reviewStatus: clientMemoryReviewEnum("reviewStatus")
+      .default("approved")
+      .notNull(),
+    createdByAdvisorId: integer("createdByAdvisorId"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("client_memory_member_idx").on(t.memberId),
+    index("client_memory_category_idx").on(t.category),
+  ],
+);
+export type ClientMemory = typeof clientMemory.$inferSelect;
+export type InsertClientMemory = typeof clientMemory.$inferInsert;
+
+// ─── Pilot: SR-500 SLA timers ────────────────────────────────────────────────
+// Her SLA split (UR-B5): urgent requests answered in 15 to 30 minutes,
+// ordinary in 2 to 4 hours. Timers start at capture and feed breach alerts.
+export const slaUrgencyEnum = pgEnum("sla_urgency", ["urgent", "ordinary"]);
+export const slaTimers = pgTable(
+  "sla_timers",
+  {
+    id: serial("id").primaryKey(),
+    conversationId: integer("conversationId").references(() => conversations.id),
+    urgency: slaUrgencyEnum("urgency").notNull(),
+    openedAt: timestamp("openedAt").defaultNow().notNull(),
+    firstResponseAt: timestamp("firstResponseAt"),
+    breachWarnedAt: timestamp("breachWarnedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("sla_timers_conversation_idx").on(t.conversationId),
+    index("sla_timers_open_idx").on(t.firstResponseAt),
+  ],
+);
+export type SlaTimer = typeof slaTimers.$inferSelect;
+export type InsertSlaTimer = typeof slaTimers.$inferInsert;
+
+// ─── Pilot: SR-600 proposal versions ─────────────────────────────────────────
+// Each revision of a proposal is retained (UR-E2 "version history").
+export const proposalVersions = pgTable(
+  "proposal_versions",
+  {
+    id: serial("id").primaryKey(),
+    proposalId: integer("proposalId")
+      .references(() => proposals.id)
+      .notNull(),
+    versionNo: integer("versionNo").notNull(),
+    documentRef: text("documentRef"),
+    status: proposalStatusEnum("status").notNull(),
+    createdByAdvisorId: integer("createdByAdvisorId"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("proposal_versions_proposal_idx").on(t.proposalId),
+    uniqueIndex("proposal_versions_unique").on(t.proposalId, t.versionNo),
+  ],
+);
+export type ProposalVersion = typeof proposalVersions.$inferSelect;
+export type InsertProposalVersion = typeof proposalVersions.$inferInsert;

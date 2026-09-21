@@ -18,7 +18,7 @@
  */
 
 import { z } from "zod";
-import { eq, and, desc, asc, isNull, sql } from "drizzle-orm";
+import { eq, and, desc, asc, isNull, sql, inArray } from "drizzle-orm";
 import {
   router,
   protectedProcedure,
@@ -271,11 +271,34 @@ export const aiInsightsRouter = router({
         unactionedOnly: z.boolean().optional(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const db = await getDb();
+      const isSenior =
+        ctx.user.role === "admin" || ctx.user.role === "senior_advisor";
+      const conditions = [];
+      if (input.memberId) {
+        conditions.push(eq(aiInsights.memberId, input.memberId));
+      }
+      if (input.insightType) {
+        conditions.push(eq(aiInsights.insightType, input.insightType));
+      }
+      if (input.unactionedOnly) {
+        conditions.push(eq(aiInsights.isActioned, false));
+      }
+      // Row-level isolation (P0-11, UR-F2): an advisor is limited to insights
+      // about members assigned to them; admin and senior_advisor see all.
+      if (!isSenior) {
+        const assigned = await db
+          .select({ id: members.id })
+          .from(members)
+          .where(eq(members.assignedAdvisorId, ctx.user.id));
+        const ids = assigned.map((row) => row.id);
+        conditions.push(inArray(aiInsights.memberId, ids.length ? ids : [-1]));
+      }
       return db
         .select()
         .from(aiInsights)
+        .where(conditions.length ? and(...conditions) : undefined)
         .orderBy(desc(aiInsights.createdAt))
         .limit(100);
     }),

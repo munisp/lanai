@@ -3,6 +3,8 @@
  *
  * Security:
  *  - All requests require an authenticated advisor or member session.
+ *  - Member sessions may only presign objects under their own `members/<id>/`
+ *    prefix (row-level ownership, P0-11). Advisor sessions may presign any key.
  *  - Path traversal is blocked (no `..` segments allowed).
  *  - The server-side Forge API key is never exposed to the client.
  */
@@ -26,6 +28,18 @@ export function registerStorageProxy(app: Express) {
     if (key.includes("..") || key.includes("//")) {
       res.status(400).send("Invalid storage key");
       return;
+    }
+
+    // Member sessions are scoped to their own storage prefix (P0-11)
+    if (req.authType === "member") {
+      const ownPrefix = `members/${req.memberId}/`;
+      if (!key.startsWith(ownPrefix)) {
+        console.warn(
+          `[StorageProxy] member ${req.memberId} denied presign for foreign key ${key}`,
+        );
+        res.status(403).send("Forbidden: storage key outside member scope");
+        return;
+      }
     }
 
     if (!ENV.forgeApiUrl || !ENV.forgeApiKey) {

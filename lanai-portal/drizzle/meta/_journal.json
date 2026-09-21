@@ -78,6 +78,13 @@
       "when": 1787222400000,
       "tag": "0010_chatwoot_webhook_events",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789968403983,
+      "tag": "0011_pilot_srs_tables",
+      "breakpoints": true
     }
   ]
 }
