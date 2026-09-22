@@ -4,8 +4,8 @@ import {
   LayoutDashboard, Users, Plane, Crown, FileText,
   Brain, Sunrise, Building2, MessageCircle, Settings,
   ChevronLeft, ChevronRight, Menu, UserCog,
-  BarChart2, Receipt, Gift, Star, CheckSquare,
-  MessageSquare, TrendingUp, Globe
+  BarChart2, Receipt, Gift, Star, CheckSquare, CalendarCheck,
+  MessageSquare, TrendingUp, Globe, MapPin
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +20,8 @@ const NAV_ITEMS = [
   { href: "/members",             icon: Crown,           label: "Members",             group: "crm" },
   { href: "/travel-requests",     icon: Plane,           label: "Travel Requests",     group: "crm" },
   { href: "/trip-timeline",       icon: Globe,           label: "Trip Timeline",       group: "crm" },
+  { href: "/itineraries",         icon: MapPin,          label: "Custom Itineraries",  group: "crm" },
+  { href: "/welcome-gifts",       icon: Gift,            label: "Welcome Gifts",       group: "crm" },
   { href: "/celebrations",        icon: Gift,            label: "Celebrations",        group: "crm" },
 
   // AI Intelligence
@@ -30,6 +32,7 @@ const NAV_ITEMS = [
   // Operations
   { href: "/suppliers",           icon: Building2,       label: "Suppliers",           group: "ops" },
   { href: "/supplier-services",   icon: Star,            label: "Supplier Services",   group: "ops" },
+  { href: "/bookings",            icon: CalendarCheck,   label: "Bookings",            group: "ops" },
   { href: "/whatsapp",            icon: MessageCircle,   label: "WhatsApp",            group: "ops" },
   { href: "/inbox",               icon: MessageSquare,   label: "Unified Inbox",       group: "ops" },
   { href: "/chatwoot",            icon: MessageCircle,   label: "Chatwoot Inbox",      group: "ops" },
@@ -73,7 +76,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         collapsed && "justify-center px-3"
       )}>
         <img
-          src="/manus-storage/lanai_logo_mark_81fa1679.png"
+          src="/lanai_logo_mark.svg"
           alt="Lanai"
           className="w-8 h-8 object-contain flex-shrink-0"
         />
@@ -156,7 +159,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         <div
           className="absolute inset-0 opacity-10 pointer-events-none"
           style={{
-            backgroundImage: `url(/manus-storage/lanai_sidebar_texture_e855e839.jpg)`,
+            backgroundImage: `url(/lanai_sidebar_texture.svg)`,
             backgroundSize: "cover",
             backgroundPosition: "center"
           }}
@@ -208,7 +211,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
-            <img src="/manus-storage/lanai_logo_mark_81fa1679.png" alt="Lanai" className="w-6 h-6 object-contain" />
+            <img src="/lanai_logo_mark.svg" alt="Lanai" className="w-6 h-6 object-contain" />
             <span className="font-semibold text-sm" style={{ fontFamily: "'Playfair Display', serif" }}>
               Lanai Lifestyle
             </span>

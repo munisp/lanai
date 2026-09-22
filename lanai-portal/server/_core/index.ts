@@ -16,6 +16,11 @@ import { registerCrmProxy } from "./crmProxy";
 import { registerStripeWebhook } from "../stripeRouter";
 import { registerChatwootProxy } from "./chatwootProxy";
 import { ENV } from "./env";
+import { registerCrmDataRoutes } from "./crmData";
+import { registerAiProxy } from "./aiProxy";
+import { registerWhatsappInbound } from "./whatsappInbound";
+import { registerWhatsappInbox } from "./whatsappInbox";
+import { registerKeycloakProxy } from "./keycloakProxy";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -47,11 +52,11 @@ async function startServer() {
         ? {
             directives: {
               defaultSrc: ["'self'"],
-              scriptSrc: ["'self'", "'unsafe-inline'"], // Vite HMR needs unsafe-inline in dev
-              styleSrc: ["'self'", "'unsafe-inline'"],
+              scriptSrc: ["'self'", "'unsafe-inline'", "https://static.cloudflareinsights.com"], // Vite HMR needs unsafe-inline in dev
+              styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
               imgSrc: ["'self'", "data:", "https:"],
-              connectSrc: ["'self'", "https:"],
-              fontSrc: ["'self'", "https:", "data:"],
+              connectSrc: ["'self'", "https:", "https://static.cloudflareinsights.com"],
+              fontSrc: ["'self'", "https:", "https://fonts.gstatic.com", "data:"],
               objectSrc: ["'none'"],
               mediaSrc: ["'self'"],
               frameSrc: ["'none'"],
@@ -72,8 +77,9 @@ async function startServer() {
   app.use(
     cors({
       origin: (origin, callback) => {
-        // Allow same-origin requests (no origin header)
-        if (!origin) return callback(null, true);
+        // Allow same-origin requests (no origin header) and Keycloak
+        // post-login redirects that send Origin: null.
+        if (!origin || origin === "null") return callback(null, true);
         if (allowedOrigins.includes(origin)) return callback(null, true);
         callback(new Error(`CORS: origin ${origin} not allowed`));
       },
@@ -93,7 +99,10 @@ async function startServer() {
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: "Too many requests, please try again later." },
-    skip: (req) => req.path === "/api/health", // don't rate-limit health checks
+    skip: (req) =>
+      req.path === "/api/health" || // don't rate-limit health checks
+      req.path.startsWith("/assets/") || // static build assets
+      /\.(js|css|png|jpg|jpeg|svg|ico|woff2?|map)$/.test(req.path), // static files
   });
   app.use(globalLimiter);
 
@@ -123,6 +132,9 @@ async function startServer() {
   app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
   registerStripeWebhook(app);
 
+  // ── Keycloak proxy (must be before body parsers so login POST body reaches Keycloak)
+  registerKeycloakProxy(app, (process.env.KEYCLOAK_INTERNAL_URL ?? "http://localhost:8080") + "/auth");
+
   // ── Body parsers ──────────────────────────────────────────────────────────
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -132,6 +144,45 @@ async function startServer() {
   registerOAuthRoutes(app);
   registerCrmProxy(app);
   registerChatwootProxy(app);
+
+  // ── CRM data aggregator (platform DB → CRM shapes; no external CRM required)
+  registerCrmDataRoutes(app);
+
+  // ── AI pillar proxy (advisor UI → local microservices)
+  registerAiProxy(app);
+
+  // ── WhatsApp inbound persistence (bridge → platform DB)
+  registerWhatsappInbound(app);
+
+  // ── WhatsApp native inbox (list + reply from the portal)
+  registerWhatsappInbox(app);
+
+  // ── WhatsApp webhook proxy (public tunnel → bridge on :5555)
+  // Intentionally unauthenticated: Meta calls this directly. Security is provided
+  // by the bridge's verify-token challenge and optional app-secret validation.
+  app.use("/webhook/whatsapp", async (req: express.Request, res: express.Response) => {
+    const target = `http://localhost:5555${req.originalUrl}`;
+    try {
+      const body = ["GET", "HEAD"].includes(req.method)
+        ? undefined
+        : JSON.stringify((req as any).body ?? {});
+      const upstream = await fetch(target, {
+        method: req.method,
+        headers: {
+          "Content-Type": req.headers["content-type"] ?? "application/json",
+          "x-forwarded-for": req.ip ?? "",
+        },
+        body,
+      });
+      const text = await upstream.text();
+      res.status(upstream.status);
+      const ct = upstream.headers.get("content-type") ?? "text/plain";
+      res.setHeader("content-type", ct);
+      res.send(text);
+    } catch (err) {
+      res.status(502).json({ error: "WhatsApp bridge unreachable", detail: String(err) });
+    }
+  });
 
   // ── tRPC API ──────────────────────────────────────────────────────────────
   app.use(

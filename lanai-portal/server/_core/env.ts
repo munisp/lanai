@@ -32,6 +32,12 @@ export const ENV = {
   oAuthServerUrl: process.env.OAUTH_SERVER_URL ?? "",
   ownerOpenId:    process.env.OWNER_OPEN_ID ?? "",
   isProduction:   process.env.NODE_ENV === "production",
+  devLogin:       process.env.DEV_LOGIN === "true" || process.env.NODE_ENV !== "production",
+
+  // ── Keycloak (OIDC identity provider) ─────────────────────────────────────
+  keycloakRealm:          process.env.KEYCLOAK_REALM ?? "",
+  keycloakClientId:       process.env.KEYCLOAK_CLIENT_ID ?? "",
+  keycloakClientSecret:   process.env.KEYCLOAK_CLIENT_SECRET ?? "",
   port:           requireEnvInt("PORT", 3001),
 
   // ── AI / LLM ──────────────────────────────────────────────────────────────
@@ -61,7 +67,7 @@ export const ENV = {
 
   // ── Rate limiting ─────────────────────────────────────────────────────────
   rateLimitWindowMs:  requireEnvInt("RATE_LIMIT_WINDOW_MS", 15 * 60 * 1000),
-  rateLimitMax:       requireEnvInt("RATE_LIMIT_MAX", 300),
+  rateLimitMax:       requireEnvInt("RATE_LIMIT_MAX", 2000),
   authRateLimitMax:   requireEnvInt("AUTH_RATE_LIMIT_MAX", 20),
 
   // ── CORS ──────────────────────────────────────────────────────────────────

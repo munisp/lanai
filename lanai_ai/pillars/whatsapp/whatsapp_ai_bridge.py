@@ -12,7 +12,7 @@ import hmac
 from datetime import datetime
 from flask import Flask, request, jsonify
 
-sys.path.insert(0, '/home/ubuntu/lanai_ai')
+sys.path.insert(0, '/opt/lanai/lanai_ai')
 from core.ollama_client import ask_json, health_check
 from core.crm_connector import (find_person_by_phone, create_person,
                                   create_note, create_task, get_people)
@@ -29,7 +29,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
-        logging.FileHandler("/home/ubuntu/lanai_ai/logs/whatsapp.log"),
+        logging.FileHandler("/opt/lanai/lanai_ai/logs/whatsapp.log"),
         logging.StreamHandler()
     ]
 )
@@ -97,8 +97,12 @@ def _process_message(msg: dict, value: dict):
 
     logger.info(f"Processing message from {phone}: {text[:100]}")
 
-    # ── 1. Look up client in CRM ──────────────────────────────────────────────
-    person = find_person_by_phone(phone)
+    # ── 1. Look up client in CRM (best-effort; degrade gracefully) ────────────
+    person = None
+    try:
+        person = find_person_by_phone(phone)
+    except Exception as e:
+        logger.warning(f"CRM lookup failed (continuing without it): {e}")
     if person:
         first = person.get("name", {}).get("firstName", "")
         last  = person.get("name", {}).get("lastName", "")
@@ -107,12 +111,11 @@ def _process_message(msg: dict, value: dict):
         is_new      = False
         logger.info(f"Found existing client: {client_name} ({person_id})")
     else:
-        # Auto-create new contact
+        # No external CRM match — treat as new inbound contact.
         client_name = f"WhatsApp {phone[-4:]}"
-        person      = create_person("WhatsApp", phone[-4:], phone=phone)
-        person_id   = person.get("id")
+        person_id   = None
         is_new      = True
-        logger.info(f"Created new contact: {client_name} ({person_id})")
+        logger.info(f"New inbound contact from {phone}")
 
     # ── 2. Run AI triage ──────────────────────────────────────────────────────
     logger.info(f"Running AI triage for message from {client_name}...")
@@ -157,17 +160,115 @@ Received: {datetime.utcfromtimestamp(int(timestamp)).strftime('%Y-%m-%d %H:%M UT
     if is_new:
         note_body += "\n⚠️ **New Contact** — auto-created from WhatsApp. Please verify and update profile."
 
-    note = create_note(note_title, note_body, person_id)
-    logger.info(f"Created note: {note.get('id')}")
+    note = None
+    try:
+        note = create_note(note_title, note_body, person_id)
+        logger.info(f"Created note: {note.get('id')}")
+    except Exception as e:
+        logger.warning(f"CRM note creation skipped (external CRM unavailable): {e}")
 
     # ── 4. Create task if high urgency or new contact ─────────────────────────
     if urgency == "HIGH" or is_new or intent in ["COMPLAINT", "URGENT"]:
         task_title = f"{'🚨 URGENT' if urgency == 'HIGH' else '📋'} Respond to {client_name} — {intent}"
         task_body  = f"WhatsApp from {phone}\n\nMessage: {text[:200]}\n\nSuggested action: {suggested}\n\nDraft reply ready in linked note."
-        task = create_task(task_title, task_body, person_id)
-        logger.info(f"Created task: {task.get('id')}")
+        try:
+            task = create_task(task_title, task_body, person_id)
+            logger.info(f"Created task: {task.get('id')}")
+        except Exception as e:
+            logger.warning(f"CRM task creation skipped (external CRM unavailable): {e}")
+
+    # ── 5. Persist to the Lanai platform DB (replaces external CRM writes) ────
+    try:
+        import requests as req
+        portal = os.getenv("LANAI_PORTAL_URL", "http://localhost:3001")
+        resp = req.post(
+            f"{portal}/api/whatsapp/inbound",
+            headers={"Content-Type": "application/json"},
+            json={
+                "phone": phone,
+                "client_name": client_name,
+                "intent": intent,
+                "urgency": urgency,
+                "sentiment": sentiment,
+                "summary": summary,
+                "suggested_action": suggested,
+                "draft_reply": draft,
+                "tags": tags,
+                "estimated_value": est_value,
+                "message": text,
+                "is_new": is_new,
+            },
+            timeout=10,
+        )
+        logger.info(f"Persisted inbound to portal: {resp.status_code} {resp.text[:120]}")
+    except Exception as e:
+        logger.error(f"Failed to persist inbound to portal: {e}")
+
+    # ── 6. Store the raw message in the portal inbox (for the agent UI) ───────
+    try:
+        import requests as req
+        portal = os.getenv("LANAI_PORTAL_URL", "http://localhost:3001")
+        resp2 = req.post(
+            f"{portal}/api/whatsapp/messages",
+            headers={"Content-Type": "application/json"},
+            json={
+                "phone": phone,
+                "body": text,
+                "contact_name": client_name,
+                "triage": {
+                    "intent": intent,
+                    "urgency": urgency,
+                    "sentiment": sentiment,
+                    "summary": summary,
+                    "suggested_action": suggested,
+                    "draft_reply": draft,
+                },
+            },
+            timeout=10,
+        )
+        logger.info(f"Stored inbox message: {resp2.status_code} {resp2.text[:120]}")
+    except Exception as e:
+        logger.error(f"Failed to store inbox message: {e}")
+
+    # ── 7. Auto-acknowledge: send an immediate WhatsApp reply to the client ──
+    _auto_reply(phone, client_name, text, draft, intent, urgency)
 
     return triage
+
+
+def _auto_reply(phone: str, client_name: str, text: str, draft: str, intent: str, urgency: str):
+    """Send an immediate acknowledgement WhatsApp to the client who messaged us.
+
+    Uses the AI-generated draft reply when available, otherwise a friendly
+    acknowledgement. Inbound messages always open a 24h free-form window.
+    """
+    if not phone:
+        return
+
+    if draft and draft.strip():
+        reply = draft.strip()
+    else:
+        first = client_name.split()[-1] if client_name else "there"
+        reply = (
+            f"Thank you for messaging Lanai, {first}. We've received your note "
+            f"and a dedicated advisor will be in touch shortly. If this is urgent, "
+            f"please reply URGENT and we'll prioritise it."
+        )
+
+    # Safety cap to respect WhatsApp text limits.
+    reply = reply[:4000]
+
+    try:
+        import requests as req
+        resp = req.post(
+            "http://localhost:5555/api/send-whatsapp",
+            headers={"Content-Type": "application/json"},
+            json={"to": phone, "message": reply},
+            timeout=15,
+        )
+        logger.info(f"Auto-reply sent to {phone}: {resp.status_code} {resp.text[:120]}")
+    except Exception as e:
+        logger.error(f"Failed to send auto-reply to {phone}: {e}")
 
 
 # ─── OUTBOUND MESSAGE SENDER ─────────────────────────────────────────────────

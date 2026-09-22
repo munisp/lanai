@@ -3,7 +3,7 @@ import {
   Plus, Trash2, Save, ChevronDown, ChevronUp, Star, UserCheck,
   Briefcase, AlertCircle, Users
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +47,14 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
       <div className="col-span-2">{children}</div>
     </div>
   );
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function splitCsv(value: string): string[] {
+  return value.split(",").map(s => s.trim()).filter(Boolean);
+}
+function safeJsonParse(value: string): Record<string, string> | undefined {
+  try { return JSON.parse(value); } catch { return undefined; }
 }
 
 // ─── Frequent Flyer Entry ─────────────────────────────────────────────────────
@@ -185,6 +193,49 @@ export default function MemberProfilePage({ memberId }: { memberId?: number }) {
   const [annualRevenue, setAnnualRevenue] = useState(profile?.annualRevenue ?? "");
   const [membershipFees, setMembershipFees] = useState(profile?.membershipFeesPaid ?? "");
   const [satisfactionScore, setSatisfactionScore] = useState(profile?.satisfactionScore ?? "");
+  const [allergies, setAllergies] = useState(profile?.allergies ?? "");
+  const [dietaryRequirements, setDietaryRequirements] = useState(profile?.dietaryRequirements ?? "");
+  const [favouriteDestinations, setFavouriteDestinations] = useState((profile?.favouriteDestinations ?? []).join(", "));
+  const [bucketList, setBucketList] = useState((profile?.bucketListDestinations ?? []).join(", "));
+  const [travelStyle, setTravelStyle] = useState((profile?.travelStyle ?? []).join(", "));
+  const [roomPreferences, setRoomPreferences] = useState<string>(profile?.roomPreferences ? JSON.stringify(profile.roomPreferences) : "");
+  const [hotelBrands, setHotelBrands] = useState((profile?.preferredHotelBrands ?? []).join(", "));
+  const [visaExpiry, setVisaExpiry] = useState((profile?.visaExpiry ?? []).map((v: any) => `${v.country}:${v.expiry}`).join("\n"));
+  const [anniversaryDate, setAnniversaryDate] = useState(profile?.anniversaryDate ? String(profile.anniversaryDate).slice(0, 10) : "");
+  const [privacyNotes, setPrivacyNotes] = useState(profile?.privacyNotes ?? "");
+  const [nda, setNda] = useState<boolean>(Boolean(profile?.nda));
+
+  // Sync form state when profile data loads
+  useEffect(() => {
+    if (!profile) return;
+    setFfNumbers((profile?.frequentFlyerNumbers as { airline: string; number: string }[] | null) ?? []);
+    setHotelLoyalty((profile?.hotelLoyaltyNumbers as { chain: string; number: string; tier?: string }[] | null) ?? []);
+    setCabinClass(profile?.cabinClass ?? "business");
+    setSeatPref(profile?.seatPreference ?? "window");
+    setSecurityLevel(profile?.securityLevel ?? "standard");
+    setConciergeNotes(profile?.conciergeNotes ?? "");
+    setPaName(profile?.personalAssistantName ?? "");
+    setPaEmail(profile?.personalAssistantEmail ?? "");
+    setPaPhone(profile?.personalAssistantPhone ?? "");
+    setFoName(profile?.familyOfficeContactName ?? "");
+    setFoEmail(profile?.familyOfficeContactEmail ?? "");
+    setPaymentMethod(profile?.preferredPaymentMethod ?? "");
+    setLifetimeRevenue(profile?.lifetimeRevenue ?? "");
+    setAnnualRevenue(profile?.annualRevenue ?? "");
+    setMembershipFees(profile?.membershipFeesPaid ?? "");
+    setSatisfactionScore(profile?.satisfactionScore ?? "");
+    setAllergies(profile?.allergies ?? "");
+    setDietaryRequirements(profile?.dietaryRequirements ?? "");
+    setFavouriteDestinations((profile?.favouriteDestinations ?? []).join(", "));
+    setBucketList((profile?.bucketListDestinations ?? []).join(", "));
+    setTravelStyle((profile?.travelStyle ?? []).join(", "));
+    setRoomPreferences(profile?.roomPreferences ? JSON.stringify(profile.roomPreferences) : "");
+    setHotelBrands((profile?.preferredHotelBrands ?? []).join(", "));
+    setVisaExpiry((profile?.visaExpiry ?? []).map((v: any) => `${v.country}:${v.expiry}`).join("\n"));
+    setAnniversaryDate(profile?.anniversaryDate ? String(profile.anniversaryDate).slice(0, 10) : "");
+    setPrivacyNotes(profile?.privacyNotes ?? "");
+    setNda(Boolean(profile?.nda));
+  }, [profile]);
 
   // New family member form
   const [newFamilyName, setNewFamilyName] = useState("");
@@ -207,6 +258,19 @@ export default function MemberProfilePage({ memberId }: { memberId?: number }) {
       familyOfficeContactName: foName || undefined,
       familyOfficeContactEmail: foEmail || undefined,
       preferredPaymentMethod: paymentMethod || undefined,
+      allergies: allergies || undefined,
+      favouriteDestinations: splitCsv(favouriteDestinations),
+      bucketListDestinations: splitCsv(bucketList),
+      travelStyle: splitCsv(travelStyle),
+      roomPreferences: roomPreferences ? safeJsonParse(roomPreferences) : undefined,
+      preferredHotelBrands: splitCsv(hotelBrands),
+      visaExpiry: visaExpiry.split("\n").map((s: string) => s.trim()).filter(Boolean).map((line: string) => {
+        const [country, expiry] = line.split(":").map((s: string) => s.trim());
+        return { country, expiry };
+      }),
+      anniversaryDate: anniversaryDate || undefined,
+      privacyNotes: privacyNotes || undefined,
+      nda: nda,
     });
   };
 
@@ -360,6 +424,45 @@ export default function MemberProfilePage({ memberId }: { memberId?: number }) {
             placeholder="Internal notes visible to advisors only. Preferences, quirks, important context..."
             className="min-h-28"
           />
+        </div>
+      </Section>
+
+      {/* Preferences & Lifecycle */}
+      <Section title="Preferences & Lifecycle" icon={Heart}>
+        <div className="pt-4 space-y-0">
+          <FieldRow label="Favourite Destinations">
+            <Input value={favouriteDestinations} onChange={e => setFavouriteDestinations(e.target.value)} placeholder="Maldives, Amalfi Coast, Kyoto" />
+          </FieldRow>
+          <FieldRow label="Bucket List">
+            <Input value={bucketList} onChange={e => setBucketList(e.target.value)} placeholder="Antarctica, safari in Kenya" />
+          </FieldRow>
+          <FieldRow label="Travel Style">
+            <Input value={travelStyle} onChange={e => setTravelStyle(e.target.value)} placeholder="Adventure, wellness, culture" />
+          </FieldRow>
+          <FieldRow label="Dietary Requirements">
+            <Input value={dietaryRequirements} onChange={e => setDietaryRequirements(e.target.value)} placeholder="Vegetarian, gluten-free" />
+          </FieldRow>
+          <FieldRow label="Allergies">
+            <Input value={allergies} onChange={e => setAllergies(e.target.value)} placeholder="Peanuts, shellfish" />
+          </FieldRow>
+          <FieldRow label="Preferred Hotel Brands">
+            <Input value={hotelBrands} onChange={e => setHotelBrands(e.target.value)} placeholder="Aman, Four Seasons, Soneva" />
+          </FieldRow>
+          <FieldRow label="Room Preferences">
+            <Input value={roomPreferences} onChange={e => setRoomPreferences(e.target.value)} placeholder='{"bed":"king","view":"ocean"}' />
+          </FieldRow>
+          <FieldRow label="Visa Expiry">
+            <Textarea value={visaExpiry} onChange={e => setVisaExpiry(e.target.value)} placeholder={"One per line: Country:YYYY-MM-DD"} className="min-h-16 font-mono text-xs" />
+          </FieldRow>
+          <FieldRow label="Anniversary Date">
+            <Input type="date" value={anniversaryDate} onChange={e => setAnniversaryDate(e.target.value)} />
+          </FieldRow>
+          <FieldRow label="Privacy Notes">
+            <Textarea value={privacyNotes} onChange={e => setPrivacyNotes(e.target.value)} placeholder="Confidential handling instructions" className="min-h-16" />
+          </FieldRow>
+          <FieldRow label="NDA Signed">
+            <input type="checkbox" checked={nda} onChange={e => setNda(e.target.checked)} className="rounded mt-2" />
+          </FieldRow>
         </div>
       </Section>
 

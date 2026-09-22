@@ -1,0 +1,61 @@
+services:
+  chatwoot-postgres:
+    image: pgvector/pgvector:pg16
+    restart: always
+    volumes:
+      - chatwoot_pg:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: chatwoot
+      POSTGRES_USER: chatwoot
+      POSTGRES_PASSWORD: chatwoot_pass
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chatwoot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  chatwoot-redis:
+    image: redis:7-alpine
+    restart: always
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    volumes:
+      - chatwoot_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  chatwoot:
+    image: chatwoot/chatwoot:latest
+    restart: always
+    command: ["bin/rails", "server", "-b", "0.0.0.0", "-p", "3000"]
+    depends_on:
+      chatwoot-postgres:
+        condition: service_healthy
+      chatwoot-redis:
+        condition: service_healthy
+    ports:
+      - "3004:3000"
+    environment:
+      FRONTEND_URL: "http://localhost:3004"
+      BASE_URL: "http://localhost:3004"
+      DEFAULT_LOCALE: "en"
+      POSTGRES_HOST: chatwoot-postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DATABASE: chatwoot
+      POSTGRES_USERNAME: chatwoot
+      POSTGRES_PASSWORD: chatwoot_pass
+      REDIS_URL: "redis://chatwoot-redis:6379"
+      SECRET_KEY_BASE: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
+      RAILS_ENV: "production"
+      INSTALLATION_ENV: "selfhost"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  chatwoot_pg:
+  chatwoot_redis:

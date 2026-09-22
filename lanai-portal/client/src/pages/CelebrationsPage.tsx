@@ -184,8 +184,28 @@ function AddCelebrationDialog({ memberId, onAdded }: { memberId: number; onAdded
 
   const addCelebration = trpc.celebrations.add.useMutation({
     onSuccess: () => { toast.success("Celebration added"); setOpen(false); onAdded(); },
-    onError: () => toast.error("Failed to add celebration"),
+    onError: (err) => { console.error("[AddCelebration] mutation error", err); toast.error("Failed to add celebration"); },
   });
+
+  const canSubmitC = title && date;
+  const isDisabledC = !canSubmitC || addCelebration.isPending;
+
+  const handleSubmitCelebration = () => {
+    console.log("[AddCelebration] submit clicked", { title, date, type, notes });
+    try {
+      addCelebration.mutate({
+        memberId,
+        celebrationType: type as "birthday" | "anniversary" | "honeymoon" | "graduation" | "retirement" | "promotion" | "other",
+        title,
+        celebrationDate: date,
+        notes: notes || undefined,
+        reminderDaysBefore: reminderDays ? parseInt(reminderDays) : undefined,
+        isRecurring: recurring,
+      });
+    } catch (err) {
+      console.error("[AddCelebration] mutate threw", err);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -243,20 +263,12 @@ function AddCelebrationDialog({ memberId, onAdded }: { memberId: number; onAdded
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button
-              onClick={() => addCelebration.mutate({
-                memberId,
-                celebrationType: type as "birthday" | "anniversary" | "honeymoon" | "graduation" | "retirement" | "promotion" | "other",
-                title,
-                celebrationDate: date,
-                notes: notes || undefined,
-                reminderDaysBefore: reminderDays ? parseInt(reminderDays) : undefined,
-                isRecurring: recurring,
-                // giftBudget not in schema
-              })}
-              disabled={!title || !date || addCelebration.isPending}
+              type="button"
+              onClick={handleSubmitCelebration}
+              disabled={isDisabledC}
               className="text-white" style={{ background: "oklch(0.35 0.09 145)" }}
             >
-              {addCelebration.isPending ? "Adding..." : "Add Celebration"}
+              {addCelebration.isPending ? "Adding..." : isDisabledC ? "Add (need title+date)" : "Add Celebration"}
             </Button>
           </div>
         </div>
@@ -279,13 +291,16 @@ export default function CelebrationsPage({ memberId }: { memberId?: number }) {
 
   const deleteCelebration = trpc.celebrations.delete.useMutation({
     onSuccess: () => { toast.success("Celebration removed"); refetchCeleb(); },
+    onError: (err) => { console.error("[DeleteCelebration] error", err); toast.error("Failed to delete celebration"); },
   });
 
   const confirmAmenity = trpc.vipAmenities.confirm.useMutation({
     onSuccess: () => { toast.success("Amenity confirmed"); refetchAmenities(); },
+    onError: (err) => { console.error("[ConfirmAmenity] error", err); toast.error("Failed to confirm amenity"); },
   });
   const deliverAmenity = trpc.vipAmenities.markDelivered.useMutation({
     onSuccess: () => { toast.success("Amenity delivered"); refetchAmenities(); },
+    onError: (err) => { console.error("[DeliverAmenity] error", err); toast.error("Failed to deliver amenity"); },
   });
 
   const [amenityType, setAmenityType] = useState("champagne");
@@ -293,6 +308,7 @@ export default function CelebrationsPage({ memberId }: { memberId?: number }) {
   const [amenityCost, setAmenityCost] = useState("");
   const addAmenity = trpc.vipAmenities.request.useMutation({
     onSuccess: () => { toast.success("VIP amenity requested"); refetchAmenities(); setAmenityDesc(""); setAmenityCost(""); },
+    onError: (err) => { console.error("[AddAmenity] error", err); toast.error("Failed to request amenity"); },
   });
 
   return (
@@ -404,12 +420,20 @@ export default function CelebrationsPage({ memberId }: { memberId?: number }) {
               <Input type="number" value={amenityCost} onChange={e => setAmenityCost(e.target.value)} placeholder="0.00" />
             </div>
             <Button
-              onClick={() => addAmenity.mutate({
-                memberId: id,
-                amenityType,
-                description: amenityDesc || undefined,
-                cost: amenityCost || undefined,
-              })}
+              type="button"
+              onClick={() => {
+                console.log("[AddAmenity] request clicked", { amenityType, amenityDesc, amenityCost });
+                try {
+                  addAmenity.mutate({
+                    memberId: id,
+                    amenityType,
+                    description: amenityDesc || undefined,
+                    cost: amenityCost || undefined,
+                  });
+                } catch (err) {
+                  console.error("[AddAmenity] mutate threw", err);
+                }
+              }}
               disabled={addAmenity.isPending}
               className="gap-2 text-white whitespace-nowrap" style={{ background: "oklch(0.35 0.09 145)" }}
             >

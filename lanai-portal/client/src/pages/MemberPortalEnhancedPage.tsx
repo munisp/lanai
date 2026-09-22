@@ -268,10 +268,11 @@ function InvoicesSection({ memberId: _memberId }: { memberId: number }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function MemberPortalEnhancedPage() {
-  const { data: session } = trpc.auth.me.useQuery();
-  const memberId = (session as { member?: { id: number } } | null)?.member?.id ?? 1;
+  const { data: session } = trpc.memberAuth.me.useQuery();
+  const memberId = (session as { id: number } | null)?.id ?? 1;
 
   const { data: profile, isLoading, refetch } = trpc.memberProfile.get.useQuery({ memberId });
+  const { data: memberRecord } = trpc.members.fetchById.useQuery({ memberId });
   const [editing, setEditing] = useState(false);
 
   // Editable fields
@@ -290,6 +291,10 @@ export default function MemberPortalEnhancedPage() {
     onSuccess: () => { toast.success("Profile updated"); setEditing(false); refetch(); },
     onError: () => toast.error("Failed to update profile"),
   });
+  const updateMember = trpc.members.updateIdentity.useMutation({
+    onSuccess: () => { toast.success("Profile updated"); setEditing(false); },
+    onError: () => toast.error("Failed to update profile"),
+  });
 
   const handleSave = () => {
     updateProfile.mutate({
@@ -303,6 +308,12 @@ export default function MemberPortalEnhancedPage() {
       anniversaryDate: anniversaryDate || undefined,
       conciergeNotes: conciergeNotes || undefined,
     });
+    // DOB / passport live on the members table, not the extended profile.
+    updateMember.mutate({
+      memberId,
+      dateOfBirth: dateOfBirth || undefined,
+      passportExpiry: passportExpiry || undefined,
+    });
   };
 
   // Pre-fill when editing starts
@@ -315,7 +326,8 @@ export default function MemberPortalEnhancedPage() {
         personalAssistantContact?: string | null; familyOfficeContact?: string | null;
         anniversaryDate?: string | null; conciergeNotes?: string | null;
       };
-      setDateOfBirth(p.dateOfBirth ?? "");
+      setDateOfBirth(memberRecord?.dateOfBirth ? String(memberRecord.dateOfBirth).slice(0, 10) : (p.dateOfBirth ?? ""));
+      setPassportExpiry(memberRecord?.passportExpiry ? String(memberRecord.passportExpiry).slice(0, 10) : (p.passportExpiry ?? ""));
       setPassportExpiry(p.passportExpiry ?? "");
       setDietaryRequirements(p.dietaryRequirements ?? "");
       setTravelStyle(p.travelStyle ?? "");

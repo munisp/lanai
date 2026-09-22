@@ -15,6 +15,7 @@ import {
   fetchDashboardStats, fetchRecentNotes, stageLabel, stageColor,
   timeAgo, formatCurrency, type CRMOpportunity
 } from "@/lib/crmApi";
+import { trpc } from "@/lib/trpc";
 
 interface StatCard { label: string; value: string | number; note?: string; icon: React.ElementType; color: string; }
 
@@ -45,40 +46,55 @@ export default function Dashboard() {
   const [stats, setStats] = useState<{ activeClients: number; openRequests: number; activeMembers: number; pipelineValue: number; recentOpportunities: CRMOpportunity[] } | null>(null);
   const [notes, setNotes] = useState<{ id: string; title: string; createdAt: string }[]>([]);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [usePlatform, setUsePlatform] = useState(false);
+
+  const { data: platformMembers } = trpc.members.list.useQuery(undefined, { enabled: true });
+  const { data: platformTasks } = trpc.tasks.myTasks.useQuery({ status: "open" }, { enabled: true });
+  const { data: todaySnapshot } = trpc.revenueAnalytics.todaySnapshot.useQuery(undefined, { enabled: true });
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setUsePlatform(false);
     try {
       const [statsData, notesData] = await Promise.all([
         fetchDashboardStats(),
         fetchRecentNotes(6),
       ]);
-      setStats(statsData);
-      setNotes(notesData.notes);
+      if (statsData.activeClients > 0 || statsData.recentOpportunities.length > 0) {
+        setStats(statsData);
+        setNotes(notesData.notes);
+        setUsePlatform(false);
+      } else {
+        setUsePlatform(true);
+        const crmRetry = await fetchDashboardStats().catch(() => null);
+        if (crmRetry && (crmRetry.activeClients > 0 || crmRetry.recentOpportunities.length > 0)) {
+          setStats(crmRetry);
+          setNotes(notesData.notes);
+          setUsePlatform(false);
+        }
+      }
       setLastRefresh(new Date());
     } catch (e) {
+      setUsePlatform(true);
       setError(e instanceof Error ? e.message : "Failed to load CRM data");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    const h = new Date().getHours();
-    if (h < 12) setGreeting("Good morning");
-    else if (h < 18) setGreeting("Good afternoon");
-    else setGreeting("Good evening");
-    const t = setInterval(() => setTime(new Date()), 60000);
-    load();
-    return () => clearInterval(t);
-  }, [load]);
+  useEffect(() => { load(); }, []);
+
+  const platformActiveClients = usePlatform ? (platformMembers?.length ?? 0) : (stats?.activeClients ?? null);
+  const platformOpenRequests = usePlatform ? (platformTasks?.length ?? 0) : (stats?.openRequests ?? null);
+  const platformActiveMembers = usePlatform ? (platformMembers?.filter((m: any) => m.active !== false).length ?? 0) : (stats?.activeMembers ?? null);
+  const platformPipelineValue = usePlatform ? (todaySnapshot ? parseFloat(todaySnapshot.totalDailyRevenue ?? "0") : 0) : (stats?.pipelineValue ?? null);
 
   const statCards: StatCard[] = [
-    { label: "Active Clients",  value: loading ? "…" : (stats?.activeClients ?? "—"), note: "in CRM",       icon: Users,       color: "text-emerald-600" },
-    { label: "Open Requests",   value: loading ? "…" : (stats?.openRequests ?? "—"),  note: "in pipeline",  icon: Plane,       color: "text-amber-600" },
-    { label: "Active Members",  value: loading ? "…" : (stats?.activeMembers ?? "—"), note: "customers",    icon: Crown,       color: "text-purple-600" },
-    { label: "Pipeline Value",  value: loading ? "…" : (stats ? `£${(stats.pipelineValue / 1000).toFixed(0)}k` : "—"), note: "total value", icon: DollarSign, color: "text-teal-600" },
+    { label: "Active Clients",  value: loading ? "…" : (platformActiveClients ?? "—"), note: usePlatform ? "on platform" : "in CRM",       icon: Users,       color: "text-emerald-600" },
+    { label: "Open Requests",   value: loading ? "…" : (platformOpenRequests ?? "—"),  note: usePlatform ? "on platform" : "in pipeline",  icon: Plane,       color: "text-amber-600" },
+    { label: "Active Members",  value: loading ? "…" : (platformActiveMembers ?? "—"), note: usePlatform ? "on platform" : "customers",    icon: Crown,       color: "text-purple-600" },
+    { label: "Pipeline Value",  value: loading ? "…" : (platformPipelineValue !== null ? `£${(platformPipelineValue / 1000).toFixed(0)}k` : "—"), note: usePlatform ? "today's revenue" : "total value", icon: DollarSign, color: "text-teal-600" },
   ];
 
   return (
@@ -139,7 +155,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold" style={{ fontFamily:"'Playfair Display', serif" }}>
               Recent Pipeline Activity
-              {!loading && stats && <span className="ml-2 text-xs font-normal text-muted-foreground">(live from CRM)</span>}
+              {!loading && <span className="ml-2 text-xs font-normal text-muted-foreground">{usePlatform ? "(from platform)" : "(live from CRM)"}</span>}
             </h2>
             <Link href="/travel-requests"><button className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">View all <ArrowRight className="w-3 h-3" /></button></Link>
           </div>

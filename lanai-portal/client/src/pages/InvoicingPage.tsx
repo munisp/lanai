@@ -64,7 +64,7 @@ function InvoiceRow({ invoice, onView }: {
       <div className="flex items-center gap-4">
         <div className="text-right">
           <div className="font-bold text-sm" style={{ fontFamily: "'Playfair Display', serif" }}>
-            {invoice.currency} {parseFloat(invoice.totalAmount).toLocaleString()}
+            {invoice.currency} {parseFloat(invoice.totalAmount ?? "0").toLocaleString()}
           </div>
           <div className="text-xs text-muted-foreground">
             {new Date(invoice.createdAt).toLocaleDateString("en-GB")}
@@ -405,7 +405,7 @@ export default function InvoicingPage() {
                 <div className="flex items-center justify-between">
                   <StatusBadge status={viewingInvoice.status} />
                   <div className="text-2xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>
-                    {viewingInvoice.currency} {parseFloat(viewingInvoice.totalAmount).toLocaleString()}
+                    {viewingInvoice.currency} {parseFloat(viewingInvoice.totalAmount ?? "0").toLocaleString()}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4 text-sm">
@@ -426,7 +426,7 @@ export default function InvoicingPage() {
                           <div className="font-medium">{li.description}</div>
                           <div className="text-xs text-muted-foreground">Qty: {li.quantity} × £{li.unitPrice}</div>
                         </div>
-                        <div className="font-semibold font-mono">£{parseFloat(li.totalPrice).toLocaleString()}</div>
+                        <div className="font-semibold font-mono">£{parseFloat(li.totalPrice ?? "0").toLocaleString()}</div>
                       </div>
                     ))}
                   </div>

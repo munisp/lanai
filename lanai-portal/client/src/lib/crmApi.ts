@@ -1,26 +1,15 @@
 /**
  * Lanai Lifestyle CRM API Client
- * Connects to the live Twenty CRM GraphQL API via Vite proxy (/crm)
- * All data is real — fetched from the running Twenty instance.
+ *
+ * The portal pages (Dashboard, Clients, Members, Travel Requests) consume CRM
+ * shapes (CRMPerson / CRMOpportunity / CRMNote / CRMTask). These are sourced
+ * from the platform's own database via the `/api/crm/data` aggregator route
+ * (server/_core/crmData.ts), so the full workflow works without an external
+ * Twenty CRM. When an external CRM is configured it can still be used for
+ * writes via the GraphQL proxy.
  */
 
-const CRM_ENDPOINT = "/crm/graphql";
-// API token is proxied — the Vite proxy injects the Authorization header
-// so we don't expose the token in the browser bundle.
-
-async function gql<T = unknown>(query: string, variables?: Record<string, unknown>): Promise<T> {
-  const res = await fetch(CRM_ENDPOINT, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, variables }),
-  });
-  if (!res.ok) throw new Error(`CRM request failed: ${res.status}`);
-  const json = await res.json();
-  if (json.errors?.length) throw new Error(json.errors[0].message);
-  return json.data as T;
-}
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+const CRM_DATA_ENDPOINT = "/api/crm/data";
 
 export interface CRMPerson {
   id: string;
@@ -28,6 +17,7 @@ export interface CRMPerson {
   emails: { primaryEmail: string };
   phones: { primaryPhoneNumber: string };
   city: string;
+  tier?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -59,131 +49,87 @@ export interface CRMTask {
   assignee?: { id: string; name: { firstName: string; lastName: string } };
 }
 
+interface CrmDataResponse {
+  clients: { totalCount: number; clients: CRMPerson[] };
+  opportunities: { totalCount: number; opportunities: CRMOpportunity[] };
+  notes: { totalCount: number; notes: CRMNote[] };
+  tasks: { totalCount: number; tasks: CRMTask[] };
+  stats: {
+    activeClients: number;
+    openRequests: number;
+    activeMembers: number;
+    pipelineValue: number;
+    recentOpportunities: CRMOpportunity[];
+  };
+}
+
+async function fetchCrmData(): Promise<CrmDataResponse> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(CRM_DATA_ENDPOINT, { credentials: "include", signal: controller.signal });
+    if (!res.ok) throw new Error(`CRM data request failed: ${res.status}`);
+    return (await res.json()) as CrmDataResponse;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
 export async function fetchClients(first = 50): Promise<{ totalCount: number; clients: CRMPerson[] }> {
-  const data = await gql<{ people: { totalCount: number; edges: { node: CRMPerson }[] } }>(`
-    query GetClients($first: Int) {
-      people(first: $first, orderBy: { updatedAt: DescNullsLast }) {
-        totalCount
-        edges {
-          node {
-            id
-            name { firstName lastName }
-            emails { primaryEmail }
-            phones { primaryPhoneNumber }
-            city
-            createdAt
-            updatedAt
-          }
-        }
-      }
-    }
-  `, { first });
-  return {
-    totalCount: data.people.totalCount,
-    clients: data.people.edges.map((e) => e.node),
-  };
+  const data = await fetchCrmData();
+  return { totalCount: data.clients.totalCount, clients: data.clients.clients.slice(0, first) };
+}
+
+export async function fetchMembers(first = 50): Promise<{ totalCount: number; members: CRMPerson[] }> {
+  const data = await fetchCrmData();
+  return { totalCount: data.clients.totalCount, members: data.clients.clients.slice(0, first) };
 }
 
 export async function fetchOpportunities(first = 50): Promise<{ totalCount: number; opportunities: CRMOpportunity[] }> {
-  const data = await gql<{ opportunities: { totalCount: number; edges: { node: CRMOpportunity }[] } }>(`
-    query GetOpportunities($first: Int) {
-      opportunities(first: $first, orderBy: { updatedAt: DescNullsLast }) {
-        totalCount
-        edges {
-          node {
-            id
-            name
-            stage
-            amount { amountMicros currencyCode }
-            closeDate
-            createdAt
-            updatedAt
-            pointOfContact {
-              id
-              name { firstName lastName }
-            }
-          }
-        }
-      }
-    }
-  `, { first });
-  return {
-    totalCount: data.opportunities.totalCount,
-    opportunities: data.opportunities.edges.map((e) => e.node),
-  };
+  const data = await fetchCrmData();
+  return { totalCount: data.opportunities.totalCount, opportunities: data.opportunities.opportunities.slice(0, first) };
 }
 
 export async function fetchRecentNotes(first = 20): Promise<{ totalCount: number; notes: CRMNote[] }> {
-  const data = await gql<{ notes: { totalCount: number; edges: { node: CRMNote }[] } }>(`
-    query GetNotes($first: Int) {
-      notes(first: $first, orderBy: { createdAt: DescNullsLast }) {
-        totalCount
-        edges {
-          node {
-            id
-            title
-            createdAt
-            updatedAt
-          }
-        }
-      }
-    }
-  `, { first });
-  return {
-    totalCount: data.notes.totalCount,
-    notes: data.notes.edges.map((e) => e.node),
-  };
+  const data = await fetchCrmData();
+  return { totalCount: data.notes.totalCount, notes: data.notes.notes.slice(0, first) };
 }
 
 export async function fetchTasks(first = 20): Promise<{ totalCount: number; tasks: CRMTask[] }> {
-  const data = await gql<{ tasks: { totalCount: number; edges: { node: CRMTask }[] } }>(`
-    query GetTasks($first: Int) {
-      tasks(first: $first, orderBy: { createdAt: DescNullsLast }) {
-        totalCount
-        edges {
-          node {
-            id
-            title
-            status
-            dueAt
-            createdAt
-            assignee {
-              id
-              name { firstName lastName }
-            }
-          }
-        }
-      }
-    }
-  `, { first });
-  return {
-    totalCount: data.tasks.totalCount,
-    tasks: data.tasks.edges.map((e) => e.node),
-  };
+  const data = await fetchCrmData();
+  return { totalCount: data.tasks.totalCount, tasks: data.tasks.tasks.slice(0, first) };
 }
 
 export async function fetchDashboardStats() {
-  const [clientsRes, oppsRes, notesRes, tasksRes] = await Promise.all([
-    fetchClients(1),
-    fetchOpportunities(200),
-    fetchRecentNotes(1),
-    fetchTasks(1),
-  ]);
-
-  const opps = oppsRes.opportunities;
-  const pipelineValue = opps.reduce((sum, o) => sum + (o.amount?.amountMicros ?? 0) / 1_000_000, 0);
-  const openRequests = opps.filter((o) => ["NEW", "SCREENING", "PROPOSAL", "MEETING"].includes(o.stage)).length;
-  const activeMembers = opps.filter((o) => o.stage === "CUSTOMER").length;
-
+  const data = await fetchCrmData();
   return {
-    activeClients: clientsRes.totalCount,
-    openRequests,
-    activeMembers,
-    pipelineValue: Math.round(pipelineValue),
-    recentOpportunities: opps.slice(0, 8),
+    activeClients: data.stats.activeClients,
+    openRequests: data.stats.openRequests,
+    activeMembers: data.stats.activeMembers,
+    pipelineValue: data.stats.pipelineValue,
+    recentOpportunities: data.stats.recentOpportunities,
   };
+}
+
+// ─── Mutations (delegated to external CRM when configured) ───────────────────
+// Writes still target Twenty via the GraphQL proxy so integrations remain live.
+// Until the external CRM token is configured these are best-effort no-ops that
+// throw a clear error surfaced to the UI.
+
+const CRM_GQL_ENDPOINT = "/crm/graphql";
+
+async function gql<T = unknown>(query: string, variables?: Record<string, unknown>): Promise<T> {
+  const res = await fetch(CRM_GQL_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query, variables }),
+  });
+  if (!res.ok) throw new Error(`CRM request failed: ${res.status}`);
+  const json = await res.json();
+  if (json.errors?.length) throw new Error(json.errors[0].message);
+  return json.data as T;
 }
 
 export async function createPerson(data: {
@@ -256,9 +202,7 @@ export async function createNote(data: {
       }
     }
   `, {
-    data: {
-      title: data.title,
-    },
+    data: { title: data.title },
   });
   return result.createNote;
 }
@@ -279,6 +223,9 @@ export function stageLabel(stage: string): string {
     CUSTOMER: "Booking",
     CLOSED_WON: "Confirmed",
     CLOSED_LOST: "Closed",
+    BOOKED: "Booked",
+    IN_PROGRESS: "In Progress",
+    DONE: "Done",
   };
   return map[stage] ?? stage;
 }
@@ -290,6 +237,9 @@ export function stageColor(stage: string): string {
     MEETING: "bg-amber-100 text-amber-800",
     PROPOSAL: "bg-orange-100 text-orange-800",
     CUSTOMER: "bg-green-100 text-green-800",
+    BOOKED: "bg-emerald-100 text-emerald-800",
+    IN_PROGRESS: "bg-cyan-100 text-cyan-800",
+    DONE: "bg-gray-100 text-gray-800",
     CLOSED_WON: "bg-emerald-100 text-emerald-800",
     CLOSED_LOST: "bg-red-100 text-red-800",
   };

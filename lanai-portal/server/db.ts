@@ -20,6 +20,12 @@ import {
   ChatwootConfig,
   ChatwootConversation,
   ChatwootMessage,
+  travelRequests,
+  proposals,
+  InsertTravelRequest,
+  InsertProposal,
+  TravelRequest,
+  Proposal,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -167,13 +173,33 @@ export async function updateMemberLastSignedIn(memberId: number): Promise<void> 
     .where(eq(members.id, memberId));
 }
 
+type MemberUpdateInput = {
+  name?: string;
+  tier?: string;
+  crmPersonId?: string | null;
+  active?: boolean;
+  dateOfBirth?: string | Date | null;
+  passportExpiry?: string | Date | null;
+  nationality?: string;
+  phone?: string;
+  dietaryRequirements?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+};
+
 export async function updateMember(
   memberId: number,
-  data: Partial<Pick<Member, "name" | "tier" | "crmPersonId" | "active">>
+  data: MemberUpdateInput
 ): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(members).set({ ...data, updatedAt: new Date() }).where(eq(members.id, memberId));
+  const clean: Record<string, unknown> = { ...data, updatedAt: new Date() };
+  for (const key of ["dateOfBirth", "passportExpiry"] as const) {
+    const v = (data as Record<string, unknown>)[key];
+    if (typeof v === "string" && v.length > 0) clean[key] = new Date(v);
+    else if (v === "" || v === null || v === undefined) clean[key] = null;
+  }
+  await db.update(members).set(clean as Partial<Member>).where(eq(members.id, memberId));
 }
 
 // ─── Member Invitations ───────────────────────────────────────────────────────
@@ -336,4 +362,70 @@ export async function listChatwootMessages(conversationId: number): Promise<Chat
   if (!db) return [];
   const results = await db.select().from(chatwootMessages).where(eq(chatwootMessages.conversationId, conversationId)).orderBy(chatwootMessages.createdAt);
   return results;
+}
+
+// ─── Concierge: Travel Requests ───────────────────────────────────────────────
+
+export async function listTravelRequests(limit = 100): Promise<TravelRequest[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(travelRequests)
+    .orderBy(travelRequests.createdAt)
+    .limit(limit);
+}
+
+export async function getTravelRequest(id: number): Promise<TravelRequest | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(travelRequests).where(eq(travelRequests.id, id)).limit(1);
+  return result[0] ?? undefined;
+}
+
+export async function createTravelRequest(data: InsertTravelRequest): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(travelRequests).values(data).returning({ id: travelRequests.id });
+  return result[0]?.id ?? 0;
+}
+
+export async function updateTravelRequest(
+  id: number,
+  data: Partial<Pick<TravelRequest, "status" | "assignedToUserId" | "priority" | "notes">>
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(travelRequests).set({ ...data, updatedAt: new Date() }).where(eq(travelRequests.id, id));
+}
+
+// ─── Concierge: Proposals ─────────────────────────────────────────────────────
+
+export async function listProposals(limit = 100): Promise<Proposal[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(proposals).orderBy(proposals.createdAt).limit(limit);
+}
+
+export async function getProposal(id: number): Promise<Proposal | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(proposals).where(eq(proposals.id, id)).limit(1);
+  return result[0] ?? undefined;
+}
+
+export async function createProposal(data: InsertProposal): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(proposals).values(data).returning({ id: proposals.id });
+  return result[0]?.id ?? 0;
+}
+
+export async function updateProposal(
+  id: number,
+  data: Partial<Pick<Proposal, "status" | "totalPrice" | "currency" | "description" | "validUntil" | "sentAt" | "approvedAt" | "rejectedAt" | "rejectionReason">>
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(proposals).set({ ...data }).where(eq(proposals.id, id));
 }

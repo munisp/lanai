@@ -61,7 +61,7 @@ export function registerChatwootProxy(app: express.Express) {
   app.all("/api/chatwoot/*", async (req, res) => {
     try {
       // Extract the endpoint path after /api/chatwoot/
-      const endpoint = req.path.replace(/^\//, "");
+      const endpoint = req.path.replace(/^\/api\/chatwoot\/?/, "").replace(/^\//, "");
 
       // Enforce allowlist
       if (!isAllowed(endpoint)) {

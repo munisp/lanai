@@ -244,10 +244,20 @@ export const proposals = pgTable(
     validUntil: timestamp("validUntil"),
     sentAt: timestamp("sentAt"),
     approvedAt: timestamp("approvedAt"),
+    approvedByUserId: integer("approvedByUserId"),
+    signatureData: text("signatureData"),
     rejectedAt: timestamp("rejectedAt"),
     rejectionReason: text("rejectionReason"),
     version: integer("version").default(1).notNull(),
     parentProposalId: integer("parentProposalId"),
+    // Rich AI-generated proposal content (branded, imagery, maps)
+    aiContent: jsonb("aiContent"),
+    heroImageUrl: varchar("heroImageUrl", { length: 512 }),
+    mapEmbedUrl: varchar("mapEmbedUrl", { length: 512 }),
+    // Pricing, upgrades and margin for advisor/client review
+    pricingTiers: jsonb("pricingTiers"),
+    upgrades: jsonb("upgrades"),
+    marginPct: numeric("marginPct", { precision: 5, scale: 2 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
   },
@@ -259,6 +269,30 @@ export const proposals = pgTable(
 );
 export type Proposal = typeof proposals.$inferSelect;
 export type InsertProposal = typeof proposals.$inferInsert;
+
+// ─── Concierge: Custom Itineraries (advisor-built, member-facing) ────────────────
+
+export const customItineraries = pgTable(
+  "custom_itineraries",
+  {
+    id: serial("id").primaryKey(),
+    memberId: integer("member_id").notNull(),
+    advisorUserId: integer("advisor_user_id"),
+    title: varchar("title", { length: 255 }).notNull(),
+    destination: varchar("destination", { length: 255 }),
+    status: varchar("status", { length: 32 }).default("draft").notNull(),
+    days: jsonb("days").notNull().default([]),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("custom_itineraries_member_id_idx").on(t.memberId),
+    index("custom_itineraries_status_idx").on(t.status),
+  ]
+);
+export type CustomItinerary = typeof customItineraries.$inferSelect;
+export type InsertCustomItinerary = typeof customItineraries.$inferInsert;
 
 // ─── Concierge: Proposal Items (line items within a proposal) ─────────────────
 
@@ -365,6 +399,48 @@ export const suppliers = pgTable(
 );
 export type Supplier = typeof suppliers.$inferSelect;
 export type InsertSupplier = typeof suppliers.$inferInsert;
+
+// ─── Member Favourite Suppliers ───────────────────────────────────────────────
+
+export const favouriteSuppliers = pgTable(
+  "favourite_suppliers",
+  {
+    id: serial("id").primaryKey(),
+    memberId: integer("memberId").notNull(),
+    supplierId: integer("supplierId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("fav_suppliers_member_idx").on(t.memberId),
+    index("fav_suppliers_supplier_idx").on(t.supplierId),
+  ]
+);
+export type FavouriteSupplier = typeof favouriteSuppliers.$inferSelect;
+export type InsertFavouriteSupplier = typeof favouriteSuppliers.$inferInsert;
+
+// ─── Member Spending History (aggregated from bookings) ───────────────────────
+
+export const memberSpending = pgTable(
+  "member_spending",
+  {
+    id: serial("id").primaryKey(),
+    memberId: integer("memberId").notNull(),
+    bookingId: integer("bookingId"),
+    supplierId: integer("supplierId"),
+    category: varchar("category", { length: 128 }),
+    amount: numeric("amount", { precision: 12, scale: 2 }),
+    currency: varchar("currency", { length: 8 }).default("GBP"),
+    spentAt: timestamp("spentAt").defaultNow().notNull(),
+    description: varchar("description", { length: 512 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("member_spending_member_idx").on(t.memberId),
+    index("member_spending_spentAt_idx").on(t.spentAt),
+  ]
+);
+export type MemberSpending = typeof memberSpending.$inferSelect;
+export type InsertMemberSpending = typeof memberSpending.$inferInsert;
 
 // ─── Supplier Contacts ────────────────────────────────────────────────────────
 
@@ -1326,6 +1402,7 @@ export const tripTimeline = pgTable(
     bookingId: integer("bookingId"),
     title: varchar("title", { length: 255 }).notNull(),
     destination: varchar("destination", { length: 255 }),
+    tripCategory: varchar("tripCategory", { length: 64 }),
     departureDate: timestamp("departureDate"),
     returnDate: timestamp("returnDate"),
     totalSpend: numeric("totalSpend", { precision: 12, scale: 2 }),
@@ -1603,3 +1680,27 @@ export const chatwootMessages = pgTable(
 
 export type ChatwootMessage = typeof chatwootMessages.$inferSelect;
 export type InsertChatwootMessage = typeof chatwootMessages.$inferInsert;
+
+// ─── WhatsApp Conversations (native inbox, no external CRM) ──────────────────
+
+export const whatsappDirectionEnum = pgEnum("whatsapp_direction", ["inbound", "outbound"]);
+
+export const whatsappMessages = pgTable(
+  "whatsapp_messages",
+  {
+    id: serial("id").primaryKey(),
+    phone: varchar("phone", { length: 32 }).notNull(),
+    direction: whatsappDirectionEnum("direction").notNull(),
+    body: text("body").notNull(),
+    /** AI triage JSON for inbound messages (intent, urgency, draft_reply, etc.). */
+    triage: jsonb("triage"),
+    /** Free-form contact name if known. */
+    contactName: varchar("contactName", { length: 255 }),
+    read: boolean("read").default(false).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [index("whatsapp_messages_phone_idx").on(t.phone)]
+);
+
+export type WhatsappMessage = typeof whatsappMessages.$inferSelect;
+export type InsertWhatsappMessage = typeof whatsappMessages.$inferInsert;

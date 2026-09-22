@@ -1,6 +1,6 @@
 import {
   CheckSquare, Plus, Clock, User, AlertCircle, CheckCircle,
-  Plane, Anchor, Home, Utensils, Globe, Gift, Trash2, Play
+  Plane, Anchor, Home, Utensils, Globe, Gift, Trash2, Play, AlertTriangle
 } from "lucide-react";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
@@ -51,40 +51,36 @@ function PriorityBadge({ priority }: { priority: string }) {
 }
 
 // ─── Template Card ────────────────────────────────────────────────────────────
+type ChecklistItem = { item: string; required?: boolean } | string;
+
 function TemplateCard({ template, onInstantiate }: {
-  template: {
-    id: number; templateName: string; templateCategory: string; description?: string | null;
-    defaultPriority: string; estimatedHours?: string | null;
-    checklistItems?: string[] | null;
-  };
+  template: Record<string, any>;
   onInstantiate: (id: number) => void;
 }) {
-  const Icon = CAT_ICONS[template.templateCategory] ?? CheckSquare;
+  const category = template.templateType ?? "general";
+  const Icon = CAT_ICONS[category] ?? CheckSquare;
   const [expanded, setExpanded] = useState(false);
+  const checklist = ((template.checklistItems ?? []) as any[]).map((c: any) =>
+    typeof c === "string" ? c : c?.item ?? ""
+  ).filter(Boolean);
 
   return (
     <div className="lanai-card overflow-hidden">
       <div className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0", CAT_COLORS[template.templateCategory])}>
+            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0", CAT_COLORS[category])}>
               <Icon className="w-5 h-5" />
             </div>
             <div>
-              <div className="font-semibold text-foreground">{template.templateName}</div>
+              <div className="font-semibold text-foreground">{template.name}</div>
               <div className="text-xs text-muted-foreground capitalize mt-0.5">
-                {template.templateCategory.replace("_", " ")}
+                {category.replace("_", " ")}
               </div>
             </div>
           </div>
           <div className="flex flex-col items-end gap-1.5">
             <PriorityBadge priority={template.defaultPriority} />
-            {template.estimatedHours && (
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                {template.estimatedHours}h
-              </span>
-            )}
           </div>
         </div>
 
@@ -92,17 +88,17 @@ function TemplateCard({ template, onInstantiate }: {
           <p className="text-sm text-muted-foreground mt-3">{template.description}</p>
         )}
 
-        {template.checklistItems && template.checklistItems.length > 0 && (
+        {checklist.length > 0 && (
           <div className="mt-3">
             <button
               onClick={() => setExpanded(!expanded)}
               className="text-xs text-primary font-medium hover:underline"
             >
-              {expanded ? "Hide" : "Show"} checklist ({template.checklistItems.length} items)
+              {expanded ? "Hide" : "Show"} checklist ({checklist.length} items)
             </button>
             {expanded && (
               <ul className="mt-2 space-y-1">
-                {template.checklistItems.map((item, i) => (
+                {checklist.map((item: any, i: number) => (
                   <li key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
                     <CheckCircle className="w-3 h-3 text-muted-foreground/50 flex-shrink-0" />
                     {item}
@@ -130,11 +126,12 @@ function TemplateCard({ template, onInstantiate }: {
 }
 
 // ─── Active Task Row ──────────────────────────────────────────────────────────
-function ActiveTaskRow({ task }: {
+function ActiveTaskRow({ task, onComplete }: {
   task: {
     id: number; title: string; status: string; priority: string;
     dueAt?: Date | null; assigneeName?: string | null; completedAt?: Date | null;
   };
+  onComplete: (id: number) => void;
 }) {
   const statusColors: Record<string, string> = {
     pending: "bg-gray-100 text-gray-600",
@@ -173,6 +170,11 @@ function ActiveTaskRow({ task }: {
         <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium capitalize", statusColors[task.status] ?? "bg-gray-100 text-gray-600")}>
           {task.status.replace("_", " ")}
         </span>
+        {task.status !== "done" && task.status !== "completed" && (
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onComplete(task.id)}>
+            Mark done
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -281,17 +283,31 @@ function CreateTemplateDialog({ onCreated }: { onCreated: () => void }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function TaskTemplatesPage() {
-  const { data: templates, isLoading: templatesLoading, refetch: refetchTemplates } =
+  const { data: templates, isLoading: templatesLoading, refetch: refetchTemplates, error: templatesError } =
     trpc.taskTemplates.list.useQuery();
 
-  // Active tasks shown from platform tasks
-  const activeTasks: { id: number; title: string; status: string; priority: string; dueAt?: Date | null; assigneeName?: string | null; completedAt?: Date | null }[] = [];
-  const tasksLoading = false;
+  const { data: activeTasks, isLoading: tasksLoading, error: tasksError } = trpc.tasks.myTasks.useQuery({ status: "open" });
+
+  const completeTask = trpc.tasks.updateStatus.useMutation({
+    onSuccess: () => toast.success("Task marked done"),
+    onError: () => toast.error("Failed to mark task done"),
+  });
 
   const instantiate = trpc.taskTemplates.instantiateFromTemplate.useMutation({
     onSuccess: () => toast.success("Task created from template"),
     onError: () => toast.error("Failed to instantiate template"),
   });
+
+  if (templatesError || tasksError) {
+    return (
+      <div className="p-6 lg:p-8 animate-fade-in">
+        <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          <AlertTriangle className="w-5 h-5 shrink-0" />
+          <span>Failed to load data: {templatesError?.message ?? tasksError?.message ?? "Unknown error"}</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 lg:p-8 space-y-8 animate-fade-in">
@@ -324,14 +340,10 @@ export default function TaskTemplatesPage() {
             </div>
           ) : templates && templates.length > 0 ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {templates.map(t => (
+                {templates.map(t => (
                 <TemplateCard
                   key={t.id}
-                  template={t as unknown as {
-                    id: number; templateName: string; templateCategory: string; description?: string | null;
-                    defaultPriority: string; estimatedHours?: string | null;
-                    checklistItems?: string[] | null;
-                  }}
+                  template={t}
                   onInstantiate={id => instantiate.mutate({ templateId: id, assignedToUserId: 1, memberId: 1 })}
                 />
               ))}
@@ -353,11 +365,16 @@ export default function TaskTemplatesPage() {
                 {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16" />)}
               </div>
             ) : activeTasks && activeTasks.length > 0 ? (
-              activeTasks.map(task => (
-                <ActiveTaskRow key={task.id} task={task as {
-                  id: number; title: string; status: string; priority: string;
-                  dueAt?: Date | null; assigneeName?: string | null; completedAt?: Date | null;
-                }} />
+              activeTasks.map((task: any) => (
+                <ActiveTaskRow key={task.id} task={{
+                  id: task.id,
+                  title: task.title,
+                  status: task.status,
+                  priority: task.priority,
+                  dueAt: task.dueDate ?? null,
+                  assigneeName: task.assigneeName ?? null,
+                  completedAt: task.completedAt ?? null,
+                }} onComplete={(id) => completeTask.mutate({ id, status: "done" })} />
               ))
             ) : (
               <div className="p-12 text-center text-muted-foreground">

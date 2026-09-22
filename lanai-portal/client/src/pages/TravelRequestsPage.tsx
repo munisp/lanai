@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { fetchOpportunities, stageLabel, stageColor, timeAgo, formatCurrency, type CRMOpportunity } from "@/lib/crmApi";
 
-const STAGES = ["ALL", "NEW", "SCREENING", "MEETING", "PROPOSAL", "CUSTOMER", "CLOSED_WON", "CLOSED_LOST"];
+const STAGES = ["ALL", "NEW", "SCREENING", "MEETING", "PROPOSAL", "BOOKED", "CUSTOMER", "CLOSED_WON", "CLOSED_LOST"];
 
 export default function TravelRequestsPage() {
   const [search, setSearch] = useState("");

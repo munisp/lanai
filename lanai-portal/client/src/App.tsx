@@ -14,6 +14,8 @@ import ClientsPage from "./pages/ClientsPage";
 import TravelRequestsPage from "./pages/TravelRequestsPage";
 import MembersPage from "./pages/MembersPage";
 import ProposalEnginePage from "./pages/ProposalEnginePage";
+import CustomItinerariesPage from "./pages/CustomItinerariesPage";
+import WelcomeGiftsPage from "./pages/WelcomeGiftsPage";
 import IntelligencePage from "./pages/IntelligencePage";
 import MorningBriefingPage from "./pages/MorningBriefingPage";
 import SuppliersPage from "./pages/SuppliersPage";
@@ -36,6 +38,7 @@ import TripTimelinePage from "./pages/TripTimelinePage";
 import SupplierServicesPage from "./pages/SupplierServicesPage";
 import AiConciergePage from "./pages/AiConciergePage";
 import TaskTemplatesPage from "./pages/TaskTemplatesPage";
+import BookingsPage from "./pages/BookingsPage";
 import MemberPortalEnhancedPage from "./pages/MemberPortalEnhancedPage";
 import { Crown, Loader2 } from "lucide-react";
 import { Button } from "./components/ui/button";
@@ -80,8 +83,17 @@ function AdvisorPortalGuard({ children }: { children: React.ReactNode }) {
             style={{ background: "oklch(0.25 0.06 145)" }}
             onClick={() => { window.location.href = getLoginUrl(); }}
           >
-            Sign In
+            Sign In with Keycloak
           </Button>
+          {import.meta.env.VITE_DEV_LOGIN === "true" && (
+            <Button
+              variant="outline"
+              className="w-full mt-3 gap-2"
+              onClick={() => { window.location.href = "/api/oauth/dev-login"; }}
+            >
+              Demo Login (skip Keycloak)
+            </Button>
+          )}
           <p className="text-xs text-gray-400 mt-4">
             Member? Visit{" "}
             <a href="/client" className="underline hover:text-gray-600">
@@ -132,6 +144,8 @@ function AdvisorRouter() {
           <Route path="/members"         component={MembersPage} />
           <Route path="/member-management" component={MemberManagementPage} />
           <Route path="/proposals"       component={ProposalEnginePage} />
+          <Route path="/itineraries"     component={() => <CustomItinerariesPage />} />
+          <Route path="/welcome-gifts"   component={() => <WelcomeGiftsPage />} />
           <Route path="/intelligence"    component={IntelligencePage} />
           <Route path="/briefing"        component={MorningBriefingPage} />
           <Route path="/suppliers"           component={SuppliersPage} />
@@ -147,6 +161,7 @@ function AdvisorRouter() {
           <Route path="/trip-timeline">{() => <TripTimelinePage memberId={1} />}</Route>
           <Route path="/ai-concierge">{() => <AiConciergePage memberId={1} />}</Route>
           <Route path="/task-templates"       component={TaskTemplatesPage} />
+          <Route path="/bookings"             component={BookingsPage} />
           <Route path="/member/:id">{(params) => <MemberProfilePage memberId={Number(params.id) || 1} />}</Route>
           <Route path="/settings"             component={SettingsPage} />
           <Route path="/404"                  component={NotFound} />

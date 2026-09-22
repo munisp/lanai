@@ -101,15 +101,25 @@ Return a JSON object with these exact fields:
     {{"day": 2, "title": "...", "description": "..."}},
     {{"day": 3, "title": "...", "description": "..."}}
   ],
-  "included_experiences": ["...", "...", "..."],
-  "estimated_investment": "...",
-  "next_steps": "...",
-  "advisor_note": "..."
-}}
+   "included_experiences": ["...", "...", "..."],
+   "estimated_investment": "...",
+   "pricing_tiers": [
+     {{"name": "Essential", "description": "...", "price": "£X"}},
+     {{"name": "Signature", "description": "...", "price": "£Y"}},
+     {{"name": "Ultimate", "description": "...", "price": "£Z"}}
+   ],
+   "upgrades": [
+     {{"name": "Private seaplane transfer", "price": "£X", "description": "..."}},
+     {{"name": "Helicopter city tour", "price": "£Y", "description": "..."}}
+   ],
+   "margin_pct": 18,
+   "next_steps": "...",
+   "advisor_note": "..."
+ }}
 
 Write in a warm, sophisticated tone befitting a luxury concierge. Be specific and evocative."""
 
-    raw = ask_ollama(prompt, 1000)
+    raw = ask_ollama(prompt, 1400)
     result = parse_json_response(raw)
     if not result:
         result = {

@@ -9,7 +9,7 @@ import logging
 from typing import Optional, List, Dict, Any
 
 CRM_URL = "http://localhost:3000/graphql"
-TOKEN_FILE = "/home/ubuntu/twenty/api_token.txt"
+TOKEN_FILE = "/opt/lanai/twenty/api_token.txt"
 
 logger = logging.getLogger("lanai.crm")
 

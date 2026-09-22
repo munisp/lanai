@@ -4,9 +4,11 @@ import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { getSessionCookieOptions } from "./_core/cookies";
+import { ENV } from "./_core/env";
 import { systemRouter } from "./_core/systemRouter";
 import {
   adminProcedure,
+  anyAuthProcedure,
   memberProcedure,
   platinumMemberProcedure,
   protectedProcedure,
@@ -67,11 +69,15 @@ import {
   getInvitationByToken,
   getMemberByEmail,
   getPendingInvitations,
+  getDb,
   markInvitationAccepted,
   updateMember,
   updateMemberPin,
   updateUserRole,
 } from "./db";
+import { favouriteSuppliers, memberSpending, bookings, suppliers, proposals, members } from "../drizzle/schema";
+import { itinerariesRouter } from "./itinerariesRouter";
+import { eq, desc, and, sql, gte, lte } from "drizzle-orm";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -284,6 +290,30 @@ export const appRouter = router({
       return { success: true } as const;
     }),
 
+    /** Dev-only: bypass PIN login when DEV_LOGIN=true */
+    devLogin: publicProcedure
+      .input(z.object({ email: z.string().email() }).optional())
+      .mutation(async ({ input, ctx }) => {
+        if (!ENV.devLogin) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Dev login not available" });
+        }
+        const email = input?.email ?? "demo@lanai.com";
+        let member = await getMemberByEmail(email);
+        if (!member) {
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+          const [created] = await db.insert(members).values({
+            name: "Demo Member", email, tier: "platinum", active: true, onboardingComplete: true, pinHash: "",
+          }).returning();
+          member = created;
+        }
+        const token = nanoid(64);
+        const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+        await createMemberSession({ token, memberId: member.id, expiresAt });
+        setMemberSessionCookie(ctx.req, ctx.res, token);
+        return { id: member.id, email: member.email, name: member.name, tier: member.tier };
+      }),
+
     /**
      * Accepts an invitation token and sets the member's PIN.
      * Completes onboarding and creates the first session.
@@ -471,6 +501,155 @@ export const appRouter = router({
       // For now returns an empty list — documents are uploaded by advisors
       return { documents: [] as { name: string; type: string; url: string; date: string }[] };
     }),
+
+    /** Member: list their favourite suppliers (joined with supplier detail). */
+    favouriteSuppliers: memberProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return [];
+      return db
+        .select({
+          id: favouriteSuppliers.id,
+          supplierId: favouriteSuppliers.supplierId,
+          createdAt: favouriteSuppliers.createdAt,
+          name: suppliers.name,
+          category: suppliers.category,
+          country: suppliers.country,
+          city: suppliers.city,
+          rating: suppliers.rating,
+          preferredStatus: suppliers.preferredStatus,
+          logoUrl: suppliers.logoUrl,
+        })
+        .from(favouriteSuppliers)
+        .innerJoin(suppliers, eq(favouriteSuppliers.supplierId, suppliers.id))
+        .where(eq(favouriteSuppliers.memberId, ctx.member.id))
+        .orderBy(desc(favouriteSuppliers.createdAt));
+    }),
+
+    /** Member: add a supplier to favourites. */
+    addFavouriteSupplier: memberProcedure
+      .input(z.object({ supplierId: z.number().int().positive() }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) return { success: true };
+        const existing = await db
+          .select({ id: favouriteSuppliers.id })
+          .from(favouriteSuppliers)
+          .where(and(
+            eq(favouriteSuppliers.memberId, ctx.member.id),
+            eq(favouriteSuppliers.supplierId, input.supplierId),
+          ))
+          .limit(1);
+        if (existing.length === 0) {
+          await db.insert(favouriteSuppliers).values({
+            memberId: ctx.member.id,
+            supplierId: input.supplierId,
+          });
+        }
+        return { success: true };
+      }),
+
+    /** Member: remove a supplier from favourites. */
+    removeFavouriteSupplier: memberProcedure
+      .input(z.object({ supplierId: z.number().int().positive() }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) return { success: true };
+        await db
+          .delete(favouriteSuppliers)
+          .where(and(
+            eq(favouriteSuppliers.memberId, ctx.member.id),
+            eq(favouriteSuppliers.supplierId, input.supplierId),
+          ));
+        return { success: true };
+      }),
+
+    /** Member: browse the supplier directory (active suppliers). */
+    suppliersDirectory: memberProcedure
+      .input(z.object({ category: z.string().optional() }).optional())
+      .query(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const conditions = [eq(suppliers.isActive, true)];
+        if (input?.category) conditions.push(eq(suppliers.category, input.category));
+        return db
+          .select({
+            id: suppliers.id,
+            name: suppliers.name,
+            category: suppliers.category,
+            country: suppliers.country,
+            city: suppliers.city,
+            rating: suppliers.rating,
+            preferredStatus: suppliers.preferredStatus,
+            logoUrl: suppliers.logoUrl,
+          })
+          .from(suppliers)
+          .where(and(...conditions))
+          .orderBy(suppliers.name);
+      }),
+
+    /**
+     * Member: aggregated spending history.
+     * Returns totals (lifetime, this year, by category) plus recent transactions.
+     */
+    spendingHistory: memberProcedure
+      .input(z.object({ limit: z.number().int().positive().default(20) }).optional())
+      .query(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) return { total: "0", byCategory: [], recent: [], yearTotal: "0" };
+        const memberId = ctx.member.id;
+        const [totals] = await db
+          .select({
+            total: sql<string>`coalesce(sum(${memberSpending.amount}), 0)`,
+            yearTotal: sql<string>`coalesce(sum(case when extract(year from ${memberSpending.spentAt}) = extract(year from now()) then ${memberSpending.amount} else 0 end), 0)`,
+          })
+          .from(memberSpending)
+          .where(eq(memberSpending.memberId, memberId));
+        const byCategory = await db
+          .select({
+            category: memberSpending.category,
+            total: sql<string>`coalesce(sum(${memberSpending.amount}), 0)`,
+          })
+          .from(memberSpending)
+          .where(eq(memberSpending.memberId, memberId))
+          .groupBy(memberSpending.category)
+          .orderBy(desc(sql`sum(${memberSpending.amount})`));
+        const recent = await db
+          .select()
+          .from(memberSpending)
+          .where(eq(memberSpending.memberId, memberId))
+          .orderBy(desc(memberSpending.spentAt))
+          .limit(input?.limit ?? 20);
+        return { total: totals.total, yearTotal: totals.yearTotal, byCategory, recent };
+      }),
+
+    /**
+     * Member: list proposals shared with them by their advisor.
+     * Surfaces status (draft/sent/approved/rejected) and key details so the
+     * member can review and respond from the portal.
+     */
+    myProposals: memberProcedure
+      .input(z.object({ status: z.enum(["draft", "sent", "approved", "rejected"]).optional() }).optional())
+      .query(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const conditions = [eq(proposals.memberId, ctx.member.id)];
+        if (input?.status) conditions.push(eq(proposals.status, input.status));
+        return db
+          .select({
+            id: proposals.id,
+            title: proposals.title,
+            status: proposals.status,
+            marginPct: proposals.marginPct,
+            totalPrice: proposals.totalPrice,
+            sentAt: proposals.sentAt,
+            approvedAt: proposals.approvedAt,
+            rejectedAt: proposals.rejectedAt,
+            createdAt: proposals.createdAt,
+          })
+          .from(proposals)
+          .where(and(...conditions))
+          .orderBy(desc(proposals.createdAt));
+      }),
   }),
 
   // ── Advisor: member management ──────────────────────────────────────────────
@@ -583,6 +762,43 @@ export const appRouter = router({
         await updateMember(memberId, data);
         return { success: true };
       }),
+
+    /** Get a single member's full record (incl. dateOfBirth, passportExpiry). */
+    fetchById: anyAuthProcedure
+      .input(z.object({ memberId: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const { getMemberById } = await import("./db");
+        const m = await getMemberById(input.memberId);
+        if (!m) throw new TRPCError({ code: "NOT_FOUND", message: "Member not found" });
+        return m;
+      }),
+
+    /** Update personal/identity fields on a member (advisor or the member themselves). */
+    updateIdentity: anyAuthProcedure
+      .input(
+        z.object({
+          memberId: z.number().int().positive(),
+          dateOfBirth: z.string().optional(),
+          passportExpiry: z.string().optional(),
+          nationality: z.string().optional(),
+          phone: z.string().optional(),
+          dietaryRequirements: z.string().optional(),
+          emergencyContactName: z.string().optional(),
+          emergencyContactPhone: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const { getMemberById } = await import("./db");
+        const m = await getMemberById(input.memberId);
+        if (!m) throw new TRPCError({ code: "NOT_FOUND", message: "Member not found" });
+        // A member may only edit their own record; advisors may edit any.
+        if (ctx.member && ctx.member.id !== input.memberId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You may only edit your own profile" });
+        }
+        const { memberId: _id, ...data } = input;
+        await updateMember(input.memberId, data);
+        return { success: true };
+      }),
   }),
 
   // ── Advisor: role management (senior_advisor / admin only) ──────────────────
@@ -620,6 +836,7 @@ export const appRouter = router({
   // ── Travel, Proposals, Bookings, Suppliers, Documents ─────────────────────
   travelRequests: travelRequestsRouter,
   proposals: proposalsRouter,
+  itineraries: itinerariesRouter,
   proposalItems: proposalItemsRouter,
   bookings: bookingsRouter,
   suppliers: suppliersRouter,

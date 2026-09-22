@@ -10,7 +10,7 @@ import logging
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify
 
-sys.path.insert(0, '/home/ubuntu/lanai_ai')
+sys.path.insert(0, '/opt/lanai/lanai_ai')
 from core.ollama_client import ask_json, ask, health_check
 from core.crm_connector import (get_people, get_members, get_travel_requests,
                                   get_opportunities, create_note, create_task, gql)
@@ -22,7 +22,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
-        logging.FileHandler("/home/ubuntu/lanai_ai/logs/briefing.log"),
+        logging.FileHandler("/opt/lanai/lanai_ai/logs/briefing.log"),
         logging.StreamHandler()
     ]
 )

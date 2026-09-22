@@ -57,6 +57,16 @@ const requireMember = t.middleware(async ({ ctx, next }) => {
 /** Any authenticated member (client-portal user). */
 export const memberProcedure = t.procedure.use(requireMember);
 
+/** Either an authenticated advisor OR member. ctx.user or ctx.member is present. */
+export const anyAuthProcedure = t.procedure.use(
+  t.middleware(async ({ ctx, next }) => {
+    if (!ctx.user && !ctx.member) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+    }
+    return next({ ctx });
+  })
+);
+
 /** Platinum-tier member only — document vault, priority messaging. */
 export const platinumMemberProcedure = t.procedure.use(
   t.middleware(async ({ ctx, next }) => {

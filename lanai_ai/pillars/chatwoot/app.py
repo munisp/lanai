@@ -20,7 +20,7 @@ import hmac
 from datetime import datetime
 from flask import Flask, request, jsonify
 
-sys.path.insert(0, '/home/ubuntu/lanai_ai')
+sys.path.insert(0, '/opt/lanai/lanai_ai')
 from core.ollama_client import ask_json, health_check
 from core.crm_connector import (find_person_by_phone, create_person,
                                   create_note, create_task, get_people,
@@ -39,7 +39,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
-        logging.FileHandler("/home/ubuntu/lanai_ai/logs/chatwoot.log"),
+        logging.FileHandler("/opt/lanai/lanai_ai/logs/chatwoot.log"),
         logging.StreamHandler()
     ]
 )

@@ -290,7 +290,7 @@ describe("2. Family Members", () => {
 
   it("advisor: can remove a family member", async () => {
     const caller = appRouter.createCaller(makeAdvisorCtx());
-    const result = await caller.familyMembers.remove({ id: 99 });
+    const result = await caller.familyMembers.remove({ id: 99, memberId: 10 });
     expect(result.success).toBe(true);
   });
 

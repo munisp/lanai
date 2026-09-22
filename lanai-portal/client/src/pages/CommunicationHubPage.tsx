@@ -235,6 +235,53 @@ function LogCommDialog({ memberId, onLogged }: { memberId: number; onLogged: () 
   );
 }
 
+// ─── Email Member Dialog ──────────────────────────────────────────────────────
+function EmailMemberDialog({ memberId, onSent }: { memberId: number; onSent: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+
+  const sendEmail = trpc.communicationHub.sendEmail.useMutation({
+    onSuccess: () => { toast.success("Email sent to member"); setOpen(false); setSubject(""); setBody(""); onSent(); },
+    onError: (e) => toast.error(`Could not send email: ${e.message}`),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="gap-2">
+          <Mail className="w-4 h-4" /> Email Member
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle style={{ fontFamily: "'Playfair Display', serif" }}>Send Email to Member</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-2">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Subject</label>
+            <Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="e.g. Your curated Bali itinerary" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Message</label>
+            <Textarea value={body} onChange={e => setBody(e.target.value)} placeholder="Write your message…" className="min-h-32" />
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => sendEmail.mutate({ memberId, subject, body })}
+              disabled={sendEmail.isPending || !subject.trim() || !body.trim()}
+              className="text-white" style={{ background: "oklch(0.35 0.09 145)" }}
+            >
+              {sendEmail.isPending ? "Sending…" : "Send Email"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function CommunicationHubPage({ memberId }: { memberId?: number }) {
   const id = memberId ?? 1;
@@ -244,6 +291,7 @@ export default function CommunicationHubPage({ memberId }: { memberId?: number }
   const { data: timeline, isLoading, refetch } = trpc.communicationHub.getForMember.useQuery({
     memberId: id,
     communicationType: typeFilter !== "all" ? typeFilter as "whatsapp" | "email" | "phone_call" | "internal_note" | "portal_message" : undefined,
+    limit: 100,
   });
 
   const { data: followUps } = trpc.communicationHub.pendingFollowUps.useQuery({ daysAhead: 7 });
@@ -267,6 +315,7 @@ export default function CommunicationHubPage({ memberId }: { memberId?: number }
           <p className="text-muted-foreground mt-1">Unified timeline: WhatsApp, email, calls, and internal notes</p>
         </div>
         <LogCommDialog memberId={id} onLogged={refetch} />
+        <EmailMemberDialog memberId={id} onSent={refetch} />
       </div>
       <hr className="lanai-divider" />
 

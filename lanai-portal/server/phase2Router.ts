@@ -24,9 +24,12 @@ import {
   protectedProcedure,
   adminProcedure,
   memberProcedure,
+  anyAuthProcedure,
   platinumMemberProcedure,
 } from "./_core/trpc";
 import { getDb } from "./db";
+import { invokeLLM } from "./_core/llm";
+import { sendMemberEmail } from "./email";
 import {
   memberProfiles,
   memberFamilyMembers,
@@ -47,6 +50,8 @@ import {
   travelRequests,
   advisorTasks,
   memberPreferences,
+  notifications,
+  users,
 } from "../drizzle/schema";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -62,26 +67,27 @@ function generateInvoiceNumber(): string {
 // ─── 1. Extended Member Profiles ─────────────────────────────────────────────
 
 export const memberProfileRouter = router({
-  /** Advisor: get full extended profile for a member */
-  get: protectedProcedure
-    .input(z.object({ memberId: z.number().int().positive() }))
-    .query(async ({ input }) => {
+  /** Advisor or member: get extended profile (memberId optional for members) */
+  get: anyAuthProcedure
+    .input(z.object({ memberId: z.number().int().positive().optional() }))
+    .query(async ({ input, ctx }) => {
+      const memberId = input.memberId ?? ctx.member!.id;
       const db = await getDb();
       if (!db) {
-        return { memberId: input.memberId, frequentFlyerNumbers: [], hotelLoyaltyNumbers: [] };
+        return { memberId, frequentFlyerNumbers: [], hotelLoyaltyNumbers: [] };
       }
       const [profile] = await db
         .select()
         .from(memberProfiles)
-        .where(eq(memberProfiles.memberId, input.memberId));
+        .where(eq(memberProfiles.memberId, memberId));
       return profile ?? null;
     }),
 
-  /** Advisor: upsert extended profile */
-  upsert: protectedProcedure
+  /** Advisor or member: upsert extended profile (memberId optional for members) */
+  upsert: anyAuthProcedure
     .input(
       z.object({
-        memberId: z.number().int().positive(),
+        memberId: z.number().int().positive().optional(),
         frequentFlyerNumbers: z.array(z.object({ airline: z.string(), number: z.string() })).optional(),
         hotelLoyaltyNumbers: z.array(z.object({ chain: z.string(), number: z.string(), tier: z.string().optional() })).optional(),
         visaExpiry: z.array(z.object({ country: z.string(), expiry: z.string() })).optional(),
@@ -111,10 +117,22 @@ export const memberProfileRouter = router({
         conciergeNotes: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
-      if (!db) return { success: true, memberId: input.memberId };
-      const { memberId, ...data } = input;
+      const memberId = input.memberId ?? ctx.member!.id;
+      if (!db) return { success: true, memberId };
+      const { memberId: _ignored, ...raw } = input;
+      // Coerce string date fields to Date (drizzle expects Date for date columns).
+      const data: Record<string, unknown> = { ...(raw as Record<string, unknown>) };
+      for (const key of Object.keys(data)) {
+        const v = data[key];
+        if (
+          (key.toLowerCase().includes("date") || key.toLowerCase().includes("expiry")) &&
+          typeof v === "string"
+        ) {
+          data[key] = v.length > 0 ? new Date(v) : null;
+        }
+      }
       const existing = await db
         .select({ id: memberProfiles.id })
         .from(memberProfiles)
@@ -170,22 +188,23 @@ export const memberProfileRouter = router({
 // ─── 2. Family Members ────────────────────────────────────────────────────────
 
 export const familyMembersRouter = router({
-  list: protectedProcedure
-    .input(z.object({ memberId: z.number().int().positive() }))
-    .query(async ({ input }) => {
+  list: anyAuthProcedure
+    .input(z.object({ memberId: z.number().int().positive().optional() }))
+    .query(async ({ input, ctx }) => {
+      const memberId = input.memberId ?? ctx.member!.id;
       const db = await getDb();
       if (!db) return [];
       return db
         .select()
         .from(memberFamilyMembers)
-        .where(eq(memberFamilyMembers.memberId, input.memberId))
+        .where(eq(memberFamilyMembers.memberId, memberId))
         .orderBy(asc(memberFamilyMembers.name));
     }),
 
-  add: protectedProcedure
+  add: anyAuthProcedure
     .input(
       z.object({
-        memberId: z.number().int().positive(),
+        memberId: z.number().int().positive().optional(),
         name: z.string().min(1),
         relationship: z.string().min(1),
         dateOfBirth: z.string().optional(),
@@ -196,15 +215,22 @@ export const familyMembersRouter = router({
         notes: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const memberId = input.memberId ?? ctx.member!.id;
       const db = await getDb();
-      if (!db) return { id: 1, ...input };
+      if (!db) return { id: 1, memberId, name: input.name, relationship: input.relationship };
       const [created] = await db
         .insert(memberFamilyMembers)
         .values({
-          ...input,
+          memberId,
+          name: input.name,
+          relationship: input.relationship,
           dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : undefined,
+          passportNumber: input.passportNumber,
           passportExpiry: input.passportExpiry ? new Date(input.passportExpiry) : undefined,
+          nationality: input.nationality,
+          dietaryRequirements: input.dietaryRequirements,
+          notes: input.notes,
         })
         .returning();
       return created;
@@ -232,12 +258,14 @@ export const familyMembersRouter = router({
       return { success: true };
     }),
 
-  remove: protectedProcedure
-    .input(z.object({ id: z.number().int().positive() }))
-    .mutation(async ({ input }) => {
+  remove: anyAuthProcedure
+    .input(z.object({ id: z.number().int().positive(), memberId: z.number().int().positive().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      const memberId = input.memberId ?? ctx.member?.id;
+      if (!memberId) throw new TRPCError({ code: "BAD_REQUEST", message: "memberId is required" });
       const db = await getDb();
       if (!db) return { success: true };
-      await db.delete(memberFamilyMembers).where(eq(memberFamilyMembers.id, input.id));
+      await db.delete(memberFamilyMembers).where(and(eq(memberFamilyMembers.id, input.id), eq(memberFamilyMembers.memberId, memberId)));
       return { success: true };
     }),
 
@@ -640,6 +668,17 @@ export const celebrationsRouter = router({
         .orderBy(asc(celebrations.celebrationDate));
     }),
 
+  /**
+   * Celebration reminder sender — invoked manually by an advisor (the daily
+   * cron calls system.runDailyReminders). Delegates to the shared runner.
+   */
+  runReminders: protectedProcedure
+    .input(z.object({ dryRun: z.boolean().default(false) }).optional())
+    .mutation(async ({ input }) => {
+      const { runCelebrationReminders } = await import("./reminderRunner");
+      return runCelebrationReminders(input?.dryRun ?? false);
+    }),
+
   add: protectedProcedure
     .input(
       z.object({
@@ -766,9 +805,93 @@ export const npsRouter = router({
     const npsScore = total > 0 ? Math.round(((promoters - detractors) / total) * 100) : 0;
     return { promoters, passives, detractors, npsScore, total };
   }),
+
+  /**
+   * NPS detractor follow-up sender — invoked by a daily cron (or manually).
+   * Finds NPS responses flagged for follow-up that haven't been actioned yet
+   * and raises an in-app notification for the assigned advisor.
+   */
+  runFollowUps: protectedProcedure
+    .input(z.object({ dryRun: z.boolean().default(false) }).optional())
+    .mutation(async ({ input }) => {
+      const { runNpsFollowUps } = await import("./reminderRunner");
+      return runNpsFollowUps(input?.dryRun ?? false);
+    }),
 });
 
 // ─── 7. Communication Timeline ────────────────────────────────────────────────
+
+/**
+ * AI enrichment for a logged communication: produces a concise summary and a
+ * sentiment label. Uses the configured LLM when available, and gracefully falls
+ * back to a deterministic heuristic so the feature always works (e.g. offline).
+ */
+async function enrichCommunication(
+  text: string,
+  type: string
+): Promise<{ summary: string; sentiment: "positive" | "neutral" | "negative" | "urgent" }> {
+  try {
+    const res = await invokeLLM({
+      model: "gpt-4o-mini",
+      maxTokens: 200,
+      responseFormat: {
+        type: "json_schema",
+        json_schema: {
+          name: "communication_enrichment",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              summary: { type: "string" },
+              sentiment: { type: "string", enum: ["positive", "neutral", "negative", "urgent"] },
+            },
+            required: ["summary", "sentiment"],
+            additionalProperties: false,
+          },
+        },
+      },
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a concierge communication analyst. Summarise the message in one concise sentence and classify its sentiment. For time-critical or complaint messages use 'urgent'.",
+        },
+        {
+          role: "user",
+          content: `Channel: ${type}\nMessage:\n${text}`,
+        },
+      ],
+    });
+    const content = res.choices?.[0]?.message?.content;
+    if (typeof content === "string") {
+      const parsed = JSON.parse(content) as {
+        summary?: string;
+        sentiment?: string;
+      };
+      const sentiment = (["positive", "neutral", "negative", "urgent"].includes(parsed.sentiment ?? "")
+        ? parsed.sentiment
+        : "neutral") as "positive" | "neutral" | "negative" | "urgent";
+      return { summary: parsed.summary?.slice(0, 280) ?? text.slice(0, 140), sentiment };
+    }
+  } catch {
+    // LLM unavailable — fall through to heuristic.
+  }
+  return heuristicEnrichment(text);
+}
+
+function heuristicEnrichment(text: string): {
+  summary: string;
+  sentiment: "positive" | "neutral" | "negative" | "urgent";
+} {
+  const lower = text.toLowerCase();
+  const urgentWords = ["urgent", "asap", "immediately", "cancel", "complaint", "problem", "issue", "error"];
+  const positiveWords = ["thank", "great", "wonderful", "love", "perfect", "amazing", "happy", "excellent"];
+  let sentiment: "positive" | "neutral" | "negative" | "urgent" = "neutral";
+  if (urgentWords.some(w => lower.includes(w))) sentiment = "urgent";
+  else if (positiveWords.some(w => lower.includes(w))) sentiment = "positive";
+  const firstSentence = text.split(/(?<=[.!?])\s/)[0] ?? text;
+  return { summary: firstSentence.slice(0, 140), sentiment };
+}
 
 export const communicationHubRouter = router({
   /** Log a communication entry (email, call, WhatsApp, note) */
@@ -795,15 +918,76 @@ export const communicationHubRouter = router({
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return { id: 1, ...input };
+
+      const sourceText = input.transcription ?? input.body ?? "";
+      let summary = input.summary;
+      let sentiment = input.sentiment;
+      if (sourceText && (sourceText.length > 40 || input.communicationType === "phone_call")) {
+        const enrichment = await enrichCommunication(sourceText, input.communicationType);
+        summary = summary ?? enrichment.summary;
+        sentiment = sentiment ?? enrichment.sentiment;
+      }
+
       const [created] = await db
         .insert(communicationTimeline)
         .values({
           ...input,
+          summary: summary ?? null,
+          sentiment: sentiment ?? null,
           advisorUserId: ctx.user.id,
           followUpDueAt: input.followUpDueAt ? new Date(input.followUpDueAt) : undefined,
         })
         .returning();
       return created;
+    }),
+
+  /** Send an email to a member and log it in the communication timeline. */
+  sendEmail: protectedProcedure
+    .input(
+      z.object({
+        memberId: z.number().int().positive(),
+        subject: z.string().min(1),
+        body: z.string().min(1),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) return { id: 1, sent: false };
+      const [member] = await db
+        .select({ id: members.id, name: members.name, email: members.email })
+        .from(members)
+        .where(eq(members.id, input.memberId))
+        .limit(1);
+      if (!member || !member.email) throw new Error("Member has no email address on file");
+
+      let emailId: string | null = null;
+      try {
+        const res = await sendMemberEmail({
+          toEmail: member.email,
+          toName: member.name,
+          subject: input.subject,
+          html: `<div style="font-family:Georgia,serif;color:#222;line-height:1.6;max-width:600px;">${input.body.replace(/\n/g, "<br/>")}</div>`,
+          text: input.body,
+        });
+        emailId = res.id;
+      } catch (err) {
+        throw new Error(`Email send failed: ${(err as Error).message}`);
+      }
+
+      const [created] = await db
+        .insert(communicationTimeline)
+        .values({
+          memberId: member.id,
+          communicationType: "email",
+          direction: "outbound",
+          subject: input.subject,
+          body: input.body,
+          advisorUserId: ctx.user.id,
+          sentiment: "neutral",
+        })
+        .returning();
+
+      return { id: created.id, emailId, sent: true };
     }),
 
   /** Get full communication timeline for a member */
@@ -990,6 +1174,7 @@ export const tripTimelineRouter = router({
         bookingId: z.number().int().positive().optional(),
         title: z.string().min(1),
         destination: z.string().optional(),
+        tripCategory: z.string().optional(),
         departureDate: z.string().optional(),
         returnDate: z.string().optional(),
         totalSpend: z.string().optional(),
@@ -1116,10 +1301,17 @@ export const revenueAnalyticsRouter = router({
         activeRequestsCount: 0,
       };
     }
-    const [snapshot] = await db
+    let [snapshot] = await db
       .select()
       .from(revenueSnapshots)
       .where(eq(revenueSnapshots.snapshotDate, today));
+    if (!snapshot) {
+      [snapshot] = await db
+        .select()
+        .from(revenueSnapshots)
+        .orderBy(desc(revenueSnapshots.snapshotDate))
+        .limit(1);
+    }
     return snapshot ?? {
       snapshotDate: today,
       totalDailyRevenue: "0",
@@ -1202,7 +1394,7 @@ export const revenueAnalyticsRouter = router({
   /** Admin: get membership fees collected to date */
   membershipFeesSummary: adminProcedure.query(async () => {
     const db = await getDb();
-    if (!db) return { total: "0", platinum: "0", gold: "0", silver: "0" };
+    if (!db) return { total: "0", platinum: "0", gold: "0", silver: "0", platinumCount: 0, goldCount: 0, silverCount: 0 };
     const profiles = await db
       .select({
         tier: members.tier,
@@ -1210,19 +1402,22 @@ export const revenueAnalyticsRouter = router({
       })
       .from(memberProfiles)
       .innerJoin(members, eq(memberProfiles.memberId, members.id));
-    const result = { total: 0, platinum: 0, gold: 0, silver: 0 };
+    const result = { total: 0, platinum: 0, gold: 0, silver: 0, platinumCount: 0, goldCount: 0, silverCount: 0 };
     for (const p of profiles) {
       const amount = parseFloat(p.fees ?? "0");
       result.total += amount;
-      if (p.tier === "platinum") result.platinum += amount;
-      else if (p.tier === "gold") result.gold += amount;
-      else if (p.tier === "silver") result.silver += amount;
+      if (p.tier === "platinum") { result.platinum += amount; result.platinumCount++; }
+      else if (p.tier === "gold") { result.gold += amount; result.goldCount++; }
+      else if (p.tier === "silver") { result.silver += amount; result.silverCount++; }
     }
     return {
       total: String(result.total.toFixed(2)),
       platinum: String(result.platinum.toFixed(2)),
       gold: String(result.gold.toFixed(2)),
       silver: String(result.silver.toFixed(2)),
+      platinumCount: result.platinumCount,
+      goldCount: result.goldCount,
+      silverCount: result.silverCount,
     };
   }),
 });
@@ -1231,7 +1426,7 @@ export const revenueAnalyticsRouter = router({
 
 export const aiConciergeRouter = router({
   /** Generate destination recommendations based on member profile & history */
-  recommendDestinations: memberProcedure
+  recommendDestinations: anyAuthProcedure
     .input(
       z.object({
         travelStyle: z.array(z.string()).optional(),
@@ -1269,7 +1464,7 @@ export const aiConciergeRouter = router({
           experiences: ["Private tea ceremony", "Bullet train in first class", "Kaiseki dinner"],
         },
       ];
-      return { memberId: ctx.member.id, tier: ctx.member.tier, recommendations };
+      return { memberId: ctx.member?.id ?? ctx.user?.id ?? 0, tier: ctx.member?.tier ?? "advisor", recommendations };
     }),
 
   /** Generate upgrade suggestions for an existing proposal */
@@ -1374,12 +1569,19 @@ export const tripTimelinePatchRouter = router({
     .input(z.object({ memberId: z.number().int().positive() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { totalTrips: 0, totalSpend: "0", avgSatisfaction: "0", topDestination: null };
+      if (!db) return { totalTrips: 0, totalSpend: "0", totalNights: 0, avgSatisfaction: "0", topDestination: null };
       const trips = await db
         .select()
         .from(tripTimeline)
         .where(eq(tripTimeline.memberId, input.memberId));
       const totalSpend = trips.reduce((sum, t) => sum + parseFloat(t.totalSpend ?? "0"), 0);
+      let totalNights = 0;
+      for (const t of trips) {
+        if (t.departureDate && t.returnDate) {
+          const diff = new Date(t.returnDate).getTime() - new Date(t.departureDate).getTime();
+          if (diff > 0) totalNights += Math.ceil(diff / (1000 * 60 * 60 * 24));
+        }
+      }
       const withScores = trips.filter(t => t.satisfactionScore != null);
       const avgSatisfaction = withScores.length > 0
         ? (withScores.reduce((sum, t) => sum + (t.satisfactionScore ?? 0), 0) / withScores.length).toFixed(1)
@@ -1389,7 +1591,7 @@ export const tripTimelinePatchRouter = router({
         if (t.destination) destCounts[t.destination] = (destCounts[t.destination] ?? 0) + 1;
       }
       const topDestination = Object.entries(destCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-      return { totalTrips: trips.length, totalSpend: totalSpend.toFixed(2), avgSatisfaction, topDestination };
+      return { totalTrips: trips.length, totalSpend: totalSpend.toFixed(2), totalNights, avgSatisfaction, topDestination };
     }),
 });
 
@@ -1406,26 +1608,48 @@ export const npsPatchRouter = router({
 });
 
 export const aiConciergePatchRouter = router({
-  chat: memberProcedure
+  chat: anyAuthProcedure
     .input(z.object({
       message: z.string().min(1),
       history: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string() })).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const responses: Record<string, string> = {
-        default: "Thank you for your message. I'm your Lanai AI Concierge. How can I help you plan your next extraordinary experience?",
-        hotel: "I'd be delighted to recommend some exceptional hotels. Based on your preferences, I suggest the Aman Tokyo or Four Seasons Bali.",
-        flight: "For your travel, I recommend booking first class with British Airways or Emirates for the finest in-flight experience.",
-        restaurant: "I can arrange reservations at some of the world's finest restaurants. Shall I book Alain Ducasse or Nobu for your visit?",
-        villa: "Our curated villa collection includes stunning properties in Tuscany, Mykonos, and the Maldives. Which destination interests you?",
+      const fallbackReply = (msg: string): string => {
+        const responses: Record<string, string> = {
+          default: "Thank you for your message. I'm your Lanai AI Concierge. How can I help you plan your next extraordinary experience?",
+          hotel: "I'd be delighted to recommend some exceptional hotels. Based on your preferences, I suggest the Aman Tokyo or Four Seasons Bali.",
+          flight: "For your travel, I recommend booking first class with British Airways or Emirates for the finest in-flight experience.",
+          restaurant: "I can arrange reservations at some of the world's finest restaurants. Shall I book Alain Ducasse or Nobu for your visit?",
+          villa: "Our curated villa collection includes stunning properties in Tuscany, Mykonos, and the Maldives. Which destination interests you?",
+        };
+        const lower = msg.toLowerCase();
+        return lower.includes("hotel") ? responses.hotel
+          : lower.includes("flight") ? responses.flight
+          : lower.includes("restaurant") ? responses.restaurant
+          : lower.includes("villa") ? responses.villa
+          : responses.default;
       };
-      const msg = input.message.toLowerCase();
-      const reply = msg.includes("hotel") ? responses.hotel
-        : msg.includes("flight") ? responses.flight
-        : msg.includes("restaurant") ? responses.restaurant
-        : msg.includes("villa") ? responses.villa
-        : responses.default;
-      return { memberId: ctx.member.id, reply, suggestedActions: ["Browse destinations", "View proposals", "Contact advisor"] };
+      const history = (input.history ?? []).slice(-10);
+      try {
+        const res = await invokeLLM({
+          model: "gpt-4o-mini",
+          maxTokens: 300,
+          timeoutMs: 15000,
+          messages: [
+            { role: "system", content: "You are an expert luxury travel concierge for Lanai Lifestyle. Respond helpfully and concisely with personalised travel recommendations, destination advice, and upgrade suggestions. Keep responses under 3 sentences." },
+            ...history.map(h => ({ role: h.role as "user" | "assistant", content: h.content })),
+            { role: "user", content: input.message },
+          ],
+        });
+        const reply = res.choices?.[0]?.message?.content;
+        if (typeof reply === "string" && reply.trim().length > 0) {
+          return { memberId: ctx.member?.id ?? ctx.user?.id ?? 0, reply: reply.trim(), suggestedActions: ["Browse destinations", "View proposals", "Contact advisor"] };
+        }
+      } catch {
+        // LLM unavailable — fall through to canned fallback
+      }
+      const reply = fallbackReply(input.message);
+      return { memberId: ctx.member?.id ?? ctx.user?.id ?? 0, reply, suggestedActions: ["Browse destinations", "View proposals", "Contact advisor"] };
     }),
   generateFollowUpCampaigns: protectedProcedure
     .input(z.object({ memberId: z.number().int().positive() }))

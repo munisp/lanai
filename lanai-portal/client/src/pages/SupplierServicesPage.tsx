@@ -15,11 +15,28 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 // ─── Service Card ─────────────────────────────────────────────────────────────
+function catFromServiceType(serviceType: string): string {
+  const mapping: Record<string, string> = {
+    hotel_room: "hotel_room", hotel: "hotel_room", "hotel suite": "hotel_room",
+    villa: "villa_rental",
+    yacht: "yacht_charter",
+    private_jet: "private_jet", jet: "private_jet",
+    transfer: "transfer",
+    dining: "dining", restaurant: "dining",
+    spa: "spa",
+    experience: "experience",
+  };
+  const key = serviceType.toLowerCase();
+  for (const [prefix, cat] of Object.entries(mapping)) {
+    if (key.startsWith(prefix)) return cat;
+  }
+  return "other";
+}
+
 function ServiceCard({ service }: {
   service: {
-    id: number; serviceName: string; serviceCategory: string; description?: string | null;
-    basePrice?: string | null; currency?: string | null; isAvailable?: boolean | null;
-    supplierName?: string | null;
+    id: number; serviceType: string; description?: string | null;
+    basePrice?: string | null; currency?: string | null; isActive?: boolean | null;
   };
 }) {
   const catColors: Record<string, string> = {
@@ -33,23 +50,21 @@ function ServiceCard({ service }: {
     experience: "bg-teal-50 text-teal-700",
     other: "bg-gray-50 text-gray-700",
   };
+  const category = catFromServiceType(service.serviceType);
 
   return (
     <div className="lanai-card p-5 space-y-3">
       <div className="flex items-start justify-between">
         <div>
-          <div className="font-semibold text-foreground">{service.serviceName}</div>
-          {service.supplierName && (
-            <div className="text-xs text-muted-foreground mt-0.5">{service.supplierName}</div>
-          )}
+          <div className="font-semibold text-foreground">{service.serviceType}</div>
         </div>
         <div className="flex flex-col items-end gap-1">
-          <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium capitalize", catColors[service.serviceCategory] ?? "bg-gray-100 text-gray-600")}>
-            {service.serviceCategory.replace("_", " ")}
+            <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium capitalize", catColors[category] ?? "bg-gray-100 text-gray-600")}>
+            {category.replace("_", " ")}
           </span>
-          {service.isAvailable !== null && (
-            <span className={cn("text-xs", service.isAvailable ? "text-emerald-600" : "text-red-500")}>
-              {service.isAvailable ? "● Available" : "● Unavailable"}
+          {service.isActive !== null && (
+            <span className={cn("text-xs", service.isActive ? "text-emerald-600" : "text-red-500")}>
+              {service.isActive ? "● Available" : "● Unavailable"}
             </span>
           )}
         </div>
@@ -58,9 +73,9 @@ function ServiceCard({ service }: {
         <p className="text-xs text-muted-foreground line-clamp-2">{service.description}</p>
       )}
       {service.basePrice && (
-        <div className="text-sm font-semibold" style={{ color: "oklch(0.35 0.09 145)" }}>
-          From {service.currency ?? "£"}{parseFloat(service.basePrice).toLocaleString()}
-        </div>
+          <div className="text-sm font-semibold" style={{ color: "oklch(0.35 0.09 145)" }}>
+            From {service.currency ?? "£"}{(service.basePrice != null && !Number.isNaN(parseFloat(service.basePrice))) ? parseFloat(service.basePrice).toLocaleString() : "—"}
+          </div>
       )}
     </div>
   );
@@ -347,9 +362,8 @@ export default function SupplierServicesPage() {
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredServices.map(s => (
                 <ServiceCard key={s.id} service={s as unknown as {
-                  id: number; serviceName: string; serviceCategory: string; description?: string | null;
-                  basePrice?: string | null; currency?: string | null; isAvailable?: boolean | null;
-                  supplierName?: string | null;
+                  id: number; serviceType: string; description?: string | null;
+                  basePrice?: string | null; currency?: string | null; isActive?: boolean | null;
                 }} />
               ))}
             </div>

@@ -138,3 +138,36 @@ Lanai Lifestyle · Private Client Services
 
   return { id: data!.id };
 }
+
+export interface SendMemberEmailParams {
+  toEmail: string;
+  toName: string;
+  subject: string;
+  html: string;
+  text?: string;
+  replyTo?: string;
+}
+
+/**
+ * Sends a generic member email (proposals, confirmations, updates) via Resend
+ * and returns the provider message id. Throws if Resend is not configured.
+ */
+export async function sendMemberEmail(
+  params: SendMemberEmailParams
+): Promise<{ id: string }> {
+  const resend = getResend();
+  const { data, error } = await resend.emails.send({
+    from: FROM_EMAIL,
+    to: [params.toEmail],
+    replyTo: params.replyTo,
+    subject: params.subject,
+    html: params.html,
+    text: params.text ?? params.html.replace(/<[^>]+>/g, ""),
+  });
+
+  if (error) {
+    throw new Error(`Failed to send member email: ${error.message}`);
+  }
+
+  return { id: data!.id };
+}

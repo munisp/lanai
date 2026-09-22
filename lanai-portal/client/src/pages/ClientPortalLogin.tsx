@@ -16,6 +16,7 @@ export default function ClientPortalLogin() {
   const [email, setEmail] = useState("");
   const [pin, setPin] = useState("");
   const [showPin, setShowPin] = useState(false);
+  const isDev = import.meta.env.VITE_DEV_LOGIN === "true";
 
   const utils = trpc.useUtils();
 
@@ -32,7 +33,14 @@ export default function ClientPortalLogin() {
     loginMutation.mutate({ email, pin });
   };
 
-  const isLoading = loginMutation.isPending;
+  const devLoginMutation = trpc.memberAuth.devLogin.useMutation({
+    onSuccess: async () => {
+      await utils.memberAuth.me.invalidate();
+      navigate("/client/dashboard");
+    },
+  });
+
+  const isLoading = loginMutation.isPending || devLoginMutation.isPending;
   const error = loginMutation.error?.message;
 
   return (
@@ -165,6 +173,21 @@ export default function ClientPortalLogin() {
                 "Sign In"
               )}
             </Button>
+            {isDev && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={devLoginMutation.isPending}
+                className="w-full gap-2 mt-3"
+                onClick={() => devLoginMutation.mutate({ email: email || "demo@lanai.com" })}
+              >
+                {devLoginMutation.isPending ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Signing in…</>
+                ) : (
+                  "Demo Login (skip PIN)"
+                )}
+              </Button>
+            )}
           </form>
 
           <div className="mt-8 pt-6 border-t border-gray-200 space-y-3">

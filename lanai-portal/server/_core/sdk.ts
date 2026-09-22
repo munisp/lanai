@@ -145,6 +145,74 @@ class SDKServer {
     } as GetUserInfoResponse;
   }
 
+  /**
+   * Whether the configured OAuth server is a Keycloak OIDC provider
+   * (realm + client secret present). When true, login flows use the
+   * Keycloak OIDC token/userinfo endpoints instead of the Manus API.
+   */
+  isKeycloak(): boolean {
+    return Boolean(ENV.keycloakRealm && ENV.keycloakClientId && ENV.keycloakClientSecret);
+  }
+
+  /** Build the Keycloak issuer URL from the configured realm. */
+  private keycloakIssuer(): string {
+    const base = ENV.oAuthServerUrl.replace(/\/+$/, "");
+    return `${base}/realms/${ENV.keycloakRealm}`;
+  }
+
+  /**
+   * Exchange an OAuth authorization code for tokens using Keycloak's
+   * OIDC token endpoint. `redirectUri` must match the one used at login.
+   */
+  async exchangeKeycloakCode(
+    code: string,
+    redirectUri: string
+  ): Promise<{ accessToken: string; idToken: string }> {
+    const tokenUrl = `${this.keycloakIssuer()}/protocol/openid-connect/token`;
+    const body = new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: ENV.keycloakClientId,
+      client_secret: ENV.keycloakClientSecret,
+      code,
+      redirect_uri: redirectUri,
+    });
+    const { data } = await this.client.post(tokenUrl, body.toString(), {
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    });
+    return { accessToken: data.access_token, idToken: data.id_token };
+  }
+
+  /**
+   * Resolve user info from a Keycloak access token. Decodes the JWT
+   * claims (sub, name, email, preferred_username) without extra round-trips.
+   */
+  async getKeycloakUserInfo(accessToken: string): Promise<GetUserInfoResponse> {
+    const secretKey = this.getSessionSecret();
+    let claims: Record<string, any> = {};
+    try {
+      const { payload } = await jwtVerify(accessToken, secretKey, { algorithms: ["HS256", "RS256", "ES256"] });
+      claims = payload as Record<string, any>;
+    } catch {
+      // Access token may be RSA-signed; fall back to the userinfo endpoint.
+      const userInfoUrl = `${this.keycloakIssuer()}/protocol/openid-connect/userinfo`;
+      const { data } = await this.client.get(userInfoUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      claims = data as Record<string, any>;
+    }
+    const openId = (claims.sub ?? claims.preferred_username ?? claims.email) as string;
+    const name = (claims.name ?? claims.preferred_username ?? openId) as string;
+    const email = (claims.email ?? `${openId}@placeholder.lanai`) as string;
+    const loginMethod = (claims.preferred_username ? "keycloak" : "keycloak") as string;
+    return {
+      openId,
+      name,
+      email,
+      platform: loginMethod,
+      loginMethod,
+    } as unknown as GetUserInfoResponse;
+  }
+
   private parseCookies(cookieHeader: string | undefined) {
     if (!cookieHeader) {
       return new Map<string, string>();

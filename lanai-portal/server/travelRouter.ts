@@ -7,6 +7,7 @@
 import { z } from "zod";
 import { eq, and, desc } from "drizzle-orm";
 import { router, protectedProcedure, memberProcedure } from "./_core/trpc";
+import { TRPCError } from "@trpc/server";
 import { getDb } from "./db";
 import {
   travelRequests,
@@ -14,6 +15,8 @@ import {
   bookings,
   suppliers,
   documents,
+  advisorTasks,
+  taskTemplates,
 } from "../drizzle/schema";
 import { Fluvio, Dapr, Permify, TigerBeetle } from "./_core/infrastructure";
 
@@ -164,6 +167,55 @@ export const proposalsRouter = router({
       return { success: true };
     }),
 
+  /** Advisor records the member's digital approval (with signature). */
+  approve: protectedProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        signatureData: z.string().optional(),
+        approvedByUserId: z.number().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      const patch: Record<string, unknown> = {
+        status: "approved",
+        approvedAt: new Date(),
+        approvedByUserId: input.approvedByUserId ?? ctx.user?.id ?? null,
+        signatureData: input.signatureData ?? null,
+        updatedAt: new Date(),
+      };
+      if (!db) {
+        const p = _store.proposals.find((p: any) => p.id === input.id);
+        if (p) Object.assign(p, patch);
+      } else {
+        await db.update(proposals).set(patch).where(eq(proposals.id, input.id));
+      }
+      await Fluvio.produce("proposals", JSON.stringify({ event: "approved", id: input.id }));
+      return { success: true };
+    }),
+
+  /** Advisor records a rejection with a reason. */
+  reject: protectedProcedure
+    .input(z.object({ id: z.number(), reason: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      const patch: Record<string, unknown> = {
+        status: "rejected",
+        rejectedAt: new Date(),
+        rejectionReason: input.reason ?? null,
+        updatedAt: new Date(),
+      };
+      if (!db) {
+        const p = _store.proposals.find((p: any) => p.id === input.id);
+        if (p) Object.assign(p, patch);
+      } else {
+        await db.update(proposals).set(patch).where(eq(proposals.id, input.id));
+      }
+      await Fluvio.produce("proposals", JSON.stringify({ event: "rejected", id: input.id }));
+      return { success: true };
+    }),
+
   /** Member approves or rejects a proposal */
   respond: memberProcedure
     .input(
@@ -215,6 +267,122 @@ export const proposalsRouter = router({
       .where(eq(proposals.memberId, ctx.member.id))
       .orderBy(desc(proposals.createdAt));
   }),
+
+  /** Advisor: generate a rich AI proposal and persist it to the client file. */
+  generateFromAI: protectedProcedure
+    .input(
+      z.object({
+        travelRequestId: z.number(),
+        memberId: z.number(),
+        clientName: z.string().min(1),
+        destination: z.string().min(1),
+        tripType: z.string().optional(),
+        budget: z.string().optional(),
+        dates: z.string().optional(),
+        preferences: z.string().optional(),
+        specialRequirements: z.string().optional(),
+        heroImageUrl: z.string().url().optional(),
+        mapEmbedUrl: z.string().url().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const aiUrl = process.env.AI_PROPOSALS_URL ?? "http://localhost:5556";
+      let ai: any = null;
+      try {
+        const res = await fetch(`${aiUrl}/api/generate-proposal`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            client_name: input.clientName,
+            destination: input.destination,
+            travel_type: input.tripType ?? "luxury travel",
+            budget: input.budget ?? "",
+            dates: input.dates ?? "",
+            preferences: input.preferences ?? "",
+            special_requirements: input.specialRequirements ?? "",
+          }),
+          signal: AbortSignal.timeout(120000),
+        });
+        if (res.ok) ai = await res.json();
+      } catch (err) {
+        console.warn("[Proposals] AI generation failed, using structured fallback", String(err));
+      }
+      if (!ai) {
+        ai = {
+          proposal_title: `A Private ${input.destination} Experience — ${input.clientName}`,
+          executive_summary: `We have curated an exceptional luxury journey to ${input.destination} tailored exclusively for you.`,
+          why_this_destination: `${input.destination} offers an unparalleled combination of luxury, culture, and natural beauty.`,
+          accommodation: { name: "Private Villa / Boutique Resort", description: "Handpicked for privacy and exceptional service.", why_chosen: "Matches your preference for intimate, exclusive settings." },
+          day_by_day: [
+            { day: 1, title: "Arrival & Welcome", description: "Private transfer, welcome dinner." },
+            { day: 2, title: "Exploration", description: "Guided private experiences." },
+            { day: 3, title: "Leisure & Departure", description: "Relaxation and farewell." },
+          ],
+          included_experiences: ["Private transfers", "Daily breakfast", "Curated excursions"],
+          estimated_investment: input.budget || "To be confirmed",
+          next_steps: "Please review and let us know if you'd like to adjust any element.",
+          advisor_note: `This proposal has been personally curated for you, ${input.clientName}.`,
+        };
+      }
+      const title = ai.proposal_title ?? `Proposal — ${input.destination}`;
+      const db = await getDb();
+
+      // Derive pricing tiers / upgrades / margin so the client UI always has
+      // structured commercial detail, even when the model omits them.
+      const basePrice = (() => {
+        const digits = String(ai.estimated_investment ?? input.budget ?? "").replace(/[^0-9.]/g, "");
+        const n = parseFloat(digits);
+        return Number.isFinite(n) && n > 0 ? n : 0;
+      })();
+      const pricingTiers = ai.pricing_tiers ?? (basePrice > 0
+        ? [
+            { name: "Essential", description: "Curated core experience", price: `£${Math.round(basePrice).toLocaleString()}` },
+            { name: "Signature", description: "Enhanced inclusions & upgrades", price: `£${Math.round(basePrice * 1.25).toLocaleString()}` },
+            { name: "Ultimate", description: "Fully bespoke, no compromise", price: `£${Math.round(basePrice * 1.6).toLocaleString()}` },
+          ]
+        : null);
+      const upgrades = ai.upgrades ?? (Array.isArray(ai.included_experiences) && ai.included_experiences.length
+        ? ai.included_experiences.slice(0, 3).map((e: string) => ({ name: e, description: "Available as a premium add-on" }))
+        : null);
+      const marginPct = ai.margin_pct != null ? String(ai.margin_pct) : "18";
+
+      const row = {
+        travelRequestId: input.travelRequestId,
+        memberId: input.memberId,
+        createdByUserId: ctx.user?.id ?? null,
+        title,
+        description: ai.executive_summary ?? null,
+        aiGenerated: true,
+        aiModel: "lanai-ai-proposals",
+        status: "draft" as const,
+        totalPrice: ai.estimated_investment ? String(ai.estimated_investment).replace(/[^0-9.]/g, "") || null : null,
+        currency: "GBP",
+        aiContent: ai,
+        heroImageUrl: input.heroImageUrl ?? null,
+        mapEmbedUrl: input.mapEmbedUrl ?? null,
+        pricingTiers,
+        upgrades,
+        marginPct,
+      };
+      if (!db) {
+        const id = _store.nextId();
+        _store.proposals.push({ id, ...row, createdAt: new Date(), updatedAt: new Date() });
+        return { id, aiContent: ai };
+      }
+      const [inserted] = await db.insert(proposals).values(row).returning({ id: proposals.id });
+      await Fluvio.produce("proposals", JSON.stringify({ event: "ai_created", id: inserted.id }));
+      return { id: inserted.id, aiContent: ai };
+    }),
+
+  /** Get a single proposal with its full AI content */
+  get: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return _store.proposals.find((p: any) => p.id === input.id) ?? null;
+      const [p] = await db.select().from(proposals).where(eq(proposals.id, input.id));
+      return p ?? null;
+    }),
 });
 
 // ── Bookings ─────────────────────────────────────────────────────────────────
@@ -269,6 +437,69 @@ export const bookingsRouter = router({
         await db.update(bookings).set({ commissionReceived: true, updatedAt: new Date() }).where(eq(bookings.id, input.id));
       }
       await Fluvio.produce("bookings", JSON.stringify({ event: "commission_received", id: input.id }));
+      return { success: true };
+    }),
+
+  /** Advisor updates a booking's status. When the status changes, any task
+   *  templates configured with triggerOnBookingStatus = <new status> are
+   *  automatically instantiated as advisor tasks (concierge workflow). */
+  updateStatus: protectedProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        status: z.enum(["pending", "confirmed", "in_progress", "completed", "cancelled"]),
+        assignedToUserId: z.number().int().positive().optional(),
+        notes: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      const now = new Date();
+      if (!db) {
+        const b = _store.bookings.find((b: any) => b.id === input.id);
+        if (b) { b.status = input.status; b.updatedAt = now; }
+      } else {
+        const [current] = await db
+          .select({ memberId: bookings.memberId, status: bookings.status })
+          .from(bookings)
+          .where(eq(bookings.id, input.id));
+        if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Booking not found" });
+
+        const patch: Record<string, unknown> = { status: input.status, updatedAt: now };
+        if (input.notes !== undefined) patch.notes = input.notes;
+        if (input.status === "confirmed") patch.confirmedAt = now;
+        if (input.status === "cancelled") patch.cancelledAt = now;
+        await db.update(bookings).set(patch).where(eq(bookings.id, input.id));
+
+        // Auto-create concierge tasks from templates triggered by this status.
+        if (current.status !== input.status) {
+          const triggers = await db
+            .select()
+            .from(taskTemplates)
+            .where(
+              and(
+                eq(taskTemplates.isActive, true),
+                eq(taskTemplates.triggerOnBookingStatus, input.status)
+              )
+            );
+          for (const tpl of triggers) {
+            const due = new Date();
+            due.setDate(due.getDate() + (tpl.defaultDueDaysFromTrigger ?? 1));
+            await db.insert(advisorTasks).values({
+              assignedToUserId: input.assignedToUserId ?? ctx.user.id,
+              createdByUserId: ctx.user.id,
+              memberId: current.memberId,
+              bookingId: input.id,
+              title: tpl.name,
+              description: tpl.description ?? "",
+              status: "open",
+              priority: tpl.defaultPriority,
+              dueDate: due,
+            });
+          }
+        }
+      }
+      await Fluvio.produce("bookings", JSON.stringify({ event: "status_changed", id: input.id, status: input.status }));
       return { success: true };
     }),
 

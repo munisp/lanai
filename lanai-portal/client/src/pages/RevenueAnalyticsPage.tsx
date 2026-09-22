@@ -50,7 +50,7 @@ function StatCard({
 function CategoryBar({ label, value, total, icon: Icon, color }: {
   label: string; value: number; total: number; icon: React.ElementType; color: string;
 }) {
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+  const pct = total > 0 ? ((value / total) * 100).toFixed(1) : "0";
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-sm">
@@ -244,9 +244,9 @@ export default function RevenueAnalyticsPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              <TierCard tier="platinum" amount={(membershipData as { platinum?: string })?.platinum ?? "0"} count={0} />
-              <TierCard tier="gold" amount={(membershipData as { gold?: string })?.gold ?? "0"} count={0} />
-              <TierCard tier="silver" amount={(membershipData as { silver?: string })?.silver ?? "0"} count={0} />
+              <TierCard tier="platinum" amount={(membershipData as { platinum?: string; platinumCount?: number })?.platinum ?? "0"} count={(membershipData as { platinumCount?: number })?.platinumCount ?? 0} />
+              <TierCard tier="gold" amount={(membershipData as { gold?: string; goldCount?: number })?.gold ?? "0"} count={(membershipData as { goldCount?: number })?.goldCount ?? 0} />
+              <TierCard tier="silver" amount={(membershipData as { silver?: string; silverCount?: number })?.silver ?? "0"} count={(membershipData as { silverCount?: number })?.silverCount ?? 0} />
               <div className="pt-3 border-t border-border flex items-center justify-between">
                 <span className="text-sm font-semibold">Total Fees</span>
                 <span className="text-xl font-bold" style={{ fontFamily: "'Playfair Display', serif", color: "oklch(0.35 0.09 145)" }}>

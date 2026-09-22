@@ -13,17 +13,18 @@ import { useLocation } from "wouter";
 import {
   Crown, Plane, MapPin, Calendar, Plus, Send, LogOut,
   FileText, MessageCircle, ChevronRight, Loader2, CheckCircle,
-  Lock, ExternalLink, CreditCard,
+  Lock, ExternalLink, CreditCard, Heart, Star, TrendingUp, Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import { stageLabel, stageColor, formatCurrency, type CRMOpportunity } from "@/lib/crmApi";
 import MemberBillingPage from "./MemberBillingPage";
 
-type Tab = "trips" | "request" | "documents" | "messages" | "billing";
+type Tab = "trips" | "request" | "documents" | "messages" | "billing" | "favourites" | "spending" | "proposals" | "itineraries";
 type ChatMsg = { id: string; from: "advisor" | "client"; text: string; time: string };
 
 export default function ClientPortalDashboard() {
@@ -73,6 +74,44 @@ export default function ClientPortalDashboard() {
     { enabled: !!member && isPlatinum }
   );
 
+  // ── Favourites (member-scoped) ───────────────────────────────────────────
+  const { data: favourites, isLoading: loadingFavs, refetch: refetchFavs } = trpc.memberPortal.favouriteSuppliers.useQuery(
+    undefined,
+    { enabled: !!member }
+  );
+  const { data: supplierDir } = trpc.memberPortal.suppliersDirectory.useQuery(
+    { category: undefined },
+    { enabled: !!member && activeTab === "favourites" }
+  );
+  const addFav = trpc.memberPortal.addFavouriteSupplier.useMutation({
+    onSuccess: () => { utils.memberPortal.favouriteSuppliers.invalidate(); refetchFavs(); },
+  });
+  const removeFav = trpc.memberPortal.removeFavouriteSupplier.useMutation({
+    onSuccess: () => { utils.memberPortal.favouriteSuppliers.invalidate(); refetchFavs(); },
+  });
+
+  // ── Spending history (member-scoped) ─────────────────────────────────────
+  const { data: spending, isLoading: loadingSpend, refetch: refetchSpend } = trpc.memberPortal.spendingHistory.useQuery(
+    { limit: 20 },
+    { enabled: !!member && activeTab === "spending" }
+  );
+
+  // ── Proposals (member-scoped) ───────────────────────────────────────────────
+  const { data: proposals, isLoading: loadingProposals, refetch: refetchProposals } = trpc.memberPortal.myProposals.useQuery(
+    undefined,
+    { enabled: !!member && activeTab === "proposals" }
+  );
+  const respondProposal = trpc.proposals.respond.useMutation({
+    onSuccess: () => { toast.success("Thank you — your response has been recorded"); refetchProposals(); },
+    onError: (e) => toast.error(`Could not respond: ${e.message}`),
+  });
+
+  // ── Itineraries (member-scoped) ─────────────────────────────────────────────
+  const { data: itineraries, isLoading: loadingItins } = trpc.itineraries.myItineraries.useQuery(
+    undefined,
+    { enabled: !!member && activeTab === "itineraries" }
+  );
+
   // ── Chat (in-memory for now — WhatsApp deep-link is the real channel) ─────
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([
     { id: "1", from: "advisor", text: "Good morning! Your advisor is here to help. Send a message and we'll respond shortly.", time: "9:00 AM" },
@@ -116,9 +155,13 @@ export default function ClientPortalDashboard() {
 
   const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: "trips", label: "My Trips", icon: Plane },
+    { id: "favourites", label: "Favourites", icon: Heart },
+    { id: "spending", label: "Spending", icon: TrendingUp },
     { id: "request", label: "New Request", icon: Plus },
     { id: "documents", label: "Documents", icon: FileText },
     { id: "messages", label: "Messages", icon: MessageCircle },
+    { id: "proposals", label: "Proposals", icon: FileText },
+    { id: "itineraries", label: "Itineraries", icon: MapPin },
     { id: "billing", label: "Billing", icon: CreditCard },
   ];
 
@@ -274,6 +317,167 @@ export default function ClientPortalDashboard() {
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Favourites ─────────────────────────────────────────────── */}
+        {activeTab === "favourites" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900" style={{ fontFamily: "'Playfair Display', serif" }}>
+                Your Favourite Suppliers
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">Suppliers you love for future journeys.</p>
+            </div>
+
+            {loadingFavs ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              </div>
+            ) : !favourites || favourites.length === 0 ? (
+              <div className="text-center py-16 text-gray-400">
+                <Heart className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p>No favourites yet. Browse the directory below to add some.</p>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {favourites.map((s: any) => (
+                  <div key={s.id} className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center shrink-0 overflow-hidden">
+                      {s.logoUrl ? (
+                        <img src={s.logoUrl} alt={s.name} className="w-full h-full object-contain" />
+                      ) : (
+                        <Building2 className="w-5 h-5 text-gray-400" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-gray-900 truncate">{s.name}</p>
+                        {s.preferredStatus && (
+                          <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold">Preferred</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400">{s.category}{s.country ? ` · ${s.country}` : ""}</p>
+                      {s.rating ? (
+                        <div className="flex items-center gap-0.5 mt-0.5">
+                          {Array.from({ length: s.rating }).map((_, i) => (
+                            <Star key={i} className="w-3 h-3 fill-amber-400 text-amber-400" />
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-gray-400 hover:text-red-500 shrink-0"
+                      onClick={() => removeFav.mutate({ supplierId: s.supplierId })}
+                      disabled={removeFav.isPending}
+                    >
+                      <Heart className="w-4 h-4 fill-red-500 text-red-500" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Browse directory */}
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <h3 className="text-sm font-semibold text-gray-900 mb-3">Browse Supplier Directory</h3>
+              {!supplierDir || supplierDir.length === 0 ? (
+                <p className="text-sm text-gray-400">No suppliers available.</p>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {supplierDir.map((s: any) => {
+                    const isFav = (favourites ?? []).some((f: any) => f.supplierId === s.id);
+                    return (
+                      <div key={s.id} className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{s.name}</p>
+                          <p className="text-xs text-gray-400">{s.category}</p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn("shrink-0 gap-1", isFav ? "text-red-500" : "text-gray-500")}
+                          onClick={() => isFav ? removeFav.mutate({ supplierId: s.id }) : addFav.mutate({ supplierId: s.id })}
+                          disabled={addFav.isPending || removeFav.isPending}
+                        >
+                          <Heart className={cn("w-4 h-4", isFav && "fill-red-500")} />
+                          {isFav ? "Saved" : "Add"}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Spending ────────────────────────────────────────────────── */}
+        {activeTab === "spending" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900" style={{ fontFamily: "'Playfair Display', serif" }}>
+                Your Spending History
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">A lifetime view of your curated experiences with Lanai.</p>
+            </div>
+
+            {loadingSpend ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              </div>
+            ) : !spending ? (
+              <div className="text-center py-16 text-gray-400">
+                <TrendingUp className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p>No spending recorded yet.</p>
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="bg-white rounded-xl border border-gray-200 p-5">
+                    <p className="text-xs text-gray-400 uppercase tracking-wider">Lifetime Spend</p>
+                    <p className="text-2xl font-bold text-gray-900 mt-1">£{Number(spending.total).toLocaleString()}</p>
+                  </div>
+                  <div className="bg-white rounded-xl border border-gray-200 p-5">
+                    <p className="text-xs text-gray-400 uppercase tracking-wider">This Year</p>
+                    <p className="text-2xl font-bold text-gray-900 mt-1">£{Number(spending.yearTotal).toLocaleString()}</p>
+                  </div>
+                </div>
+
+                {spending.byCategory?.length > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-200 p-5">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-3">By Category</h3>
+                    <div className="space-y-2">
+                      {spending.byCategory.map((c: any) => (
+                        <div key={c.category} className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">{c.category}</span>
+                          <span className="font-medium text-gray-900">£{Number(c.total).toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {spending.recent?.length > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-200 p-5">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-3">Recent Transactions</h3>
+                    <div className="space-y-2">
+                      {spending.recent.map((t: any, i: number) => (
+                        <div key={i} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{t.description}</p>
+                            <p className="text-xs text-gray-400">{t.category} · {new Date(t.spentAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p>
+                          </div>
+                          <span className="text-sm font-semibold text-gray-900">£{Number(t.amount).toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -546,6 +750,170 @@ export default function ClientPortalDashboard() {
                 </Button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ── Proposals ─────────────────────────────────────────────────── */}
+        {activeTab === "proposals" && (
+          <div className="space-y-4">
+            <div>
+              <h2
+                className="text-lg font-semibold text-gray-900"
+                style={{ fontFamily: "'Playfair Display', serif" }}
+              >
+                Your Proposals
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Review itineraries crafted for you and approve to begin preparations.
+              </p>
+            </div>
+
+            {loadingProposals ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              </div>
+            ) : !proposals || proposals.length === 0 ? (
+              <div className="text-center py-16 text-gray-400">
+                <FileText className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p>No proposals yet. Your advisor will share curated itineraries here.</p>
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                {proposals.map((p: any) => {
+                  const statusColor =
+                    p.status === "approved" ? "oklch(0.55 0.15 145)"
+                      : p.status === "sent" ? "oklch(0.6 0.12 220)"
+                      : p.status === "rejected" ? "oklch(0.6 0.2 25)"
+                      : "oklch(0.6 0 0)";
+                  return (
+                    <div
+                      key={p.id}
+                      className="bg-white rounded-xl border border-gray-200 p-5"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <h3 className="font-semibold text-gray-900">{p.title}</h3>
+                          <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                            <span
+                              className="px-2 py-0.5 rounded-full font-medium capitalize"
+                              style={{ background: statusColor + "20", color: statusColor }}
+                            >
+                              {p.status}
+                            </span>
+                            {p.totalPrice && (
+                              <span className="font-mono font-medium" style={{ color: "oklch(0.35 0.09 145)" }}>
+                                £{Number(p.totalPrice).toLocaleString()}
+                              </span>
+                            )}
+                            {p.marginPct != null && (
+                              <span className="text-gray-400">Advisor margin {p.marginPct}%</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {p.status === "sent" && (
+                        <div className="mt-4 pt-4 border-t border-gray-100 flex gap-2">
+                          <Button
+                            size="sm"
+                            className="text-white gap-1.5"
+                            style={{ background: "oklch(0.25 0.06 145)" }}
+                            onClick={() => respondProposal.mutate({ id: p.id, decision: "approved" })}
+                            disabled={respondProposal.isPending}
+                          >
+                            <CheckCircle className="w-4 h-4" /> Approve Proposal
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5 text-red-600 border-red-200"
+                            onClick={() => {
+                              const reason = window.prompt("Let us know what to adjust (optional):");
+                              if (reason !== null) respondProposal.mutate({ id: p.id, decision: "rejected" });
+                            }}
+                            disabled={respondProposal.isPending}
+                          >
+                            Request Changes
+                          </Button>
+                        </div>
+                      )}
+                      {p.status === "approved" && p.approvedAt && (
+                        <p className="mt-3 pt-3 border-t border-gray-100 text-xs text-green-600">
+                          ✓ Approved on {new Date(p.approvedAt).toLocaleDateString("en-GB")} — your advisor is now making arrangements.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Itineraries ─────────────────────────────────────────────── */}
+        {activeTab === "itineraries" && (
+          <div className="space-y-4">
+            <div>
+              <h2
+                className="text-lg font-semibold text-gray-900"
+                style={{ fontFamily: "'Playfair Display', serif" }}
+              >
+                Your Itineraries
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Curated day-by-day journeys prepared by your advisor.
+              </p>
+            </div>
+
+            {loadingItins ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              </div>
+            ) : !itineraries || itineraries.length === 0 ? (
+              <div className="text-center py-16 text-gray-400">
+                <MapPin className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p>No itineraries shared yet.</p>
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                {itineraries.map((it: any) => (
+                  <div key={it.id} className="bg-white rounded-xl border border-gray-200 p-5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h3 className="font-semibold text-gray-900">{it.title}</h3>
+                        {it.destination && (
+                          <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                            <MapPin className="w-3 h-3" />{it.destination}
+                          </p>
+                        )}
+                      </div>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-50 text-emerald-700 capitalize">
+                        {it.status}
+                      </span>
+                    </div>
+                    <div className="mt-3 space-y-3">
+                      {(it.days ?? []).map((day: any, di: number) => (
+                        <div key={di} className="border-l-2 border-gray-100 pl-3">
+                          <p className="text-sm font-medium text-gray-800">
+                            Day {day.day}{day.title ? ` — ${day.title}` : ""}
+                          </p>
+                          <ul className="mt-1 space-y-1">
+                            {day.activities?.map((a: any, ai: number) => (
+                              <li key={ai} className="text-xs text-gray-500 flex gap-2">
+                                {a.time && <span className="font-mono text-gray-400">{a.time}</span>}
+                                <span>{a.title}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                    {it.notes && (
+                      <p className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400">{it.notes}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

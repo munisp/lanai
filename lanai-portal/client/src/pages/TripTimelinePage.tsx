@@ -27,17 +27,19 @@ const CAT_COLORS: Record<string, string> = {
 // ─── Trip Card ────────────────────────────────────────────────────────────────
 function TripCard({ trip }: {
   trip: {
-    id: number; destination: string; tripCategory: string; startDate: string; endDate: string;
+    id: number; destination: string; tripCategory: string; departureDate?: string | null; returnDate?: string | null;
     totalSpend?: string | null; currency?: string | null; satisfactionScore?: string | null;
     supplierName?: string | null; notes?: string | null; bookingId?: number | null;
   };
 }) {
   const [expanded, setExpanded] = useState(false);
   const Icon = CAT_ICONS[trip.tripCategory] ?? MapPin;
-  const nights = Math.ceil(
-    (new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24)
-  );
-  const isPast = new Date(trip.endDate) < new Date();
+  const nights = trip.returnDate && trip.departureDate
+    ? Math.ceil(
+        (new Date(trip.returnDate).getTime() - new Date(trip.departureDate).getTime()) / (1000 * 60 * 60 * 24)
+      )
+    : 0;
+  const isPast = trip.returnDate ? new Date(trip.returnDate) < new Date() : false;
 
   return (
     <div className={cn("lanai-card overflow-hidden", !isPast && "ring-1 ring-primary/20")}>
@@ -57,19 +59,19 @@ function TripCard({ trip }: {
                   <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">Upcoming</span>
                 )}
               </div>
-              <div className="text-xs text-muted-foreground mt-0.5 capitalize">
-                {trip.tripCategory.replace("_", " ")}
-                {trip.supplierName ? ` · ${trip.supplierName}` : ""}
-              </div>
+        <div className="text-xs text-muted-foreground mt-0.5 capitalize">
+          {(trip.tripCategory ?? "other").replace("_", " ")}
+          {trip.supplierName ? ` · ${trip.supplierName}` : ""}
+        </div>
             </div>
             <ChevronRight className={cn("w-4 h-4 text-muted-foreground flex-shrink-0 mt-1 transition-transform", expanded && "rotate-90")} />
           </div>
           <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               <Calendar className="w-3 h-3" />
-              {new Date(trip.startDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+              {trip.departureDate ? new Date(trip.departureDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
               {" – "}
-              {new Date(trip.endDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}
+              {trip.returnDate ? new Date(trip.returnDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "—"}
             </span>
             <span className="flex items-center gap-1">
               <Clock className="w-3 h-3" />
@@ -78,7 +80,7 @@ function TripCard({ trip }: {
             {trip.totalSpend && (
               <span className="flex items-center gap-1 font-semibold text-foreground">
                 <DollarSign className="w-3 h-3" />
-                {trip.currency ?? "£"}{parseFloat(trip.totalSpend).toLocaleString()}
+                {trip.currency ?? "£"}{parseFloat(trip.totalSpend ?? "0").toLocaleString()}
               </span>
             )}
             {trip.satisfactionScore && (
@@ -114,8 +116,31 @@ function AddTripDialog({ memberId, onAdded }: { memberId: number; onAdded: () =>
 
   const addTrip = trpc.tripTimeline.add.useMutation({
     onSuccess: () => { toast.success("Trip added to timeline"); setOpen(false); onAdded(); },
-    onError: () => toast.error("Failed to add trip"),
+    onError: (err) => { console.error("[AddTrip] mutation error", err); toast.error("Failed to add trip"); },
   });
+
+  const canSubmit = destination && startDate && endDate;
+  const isDisabled = !canSubmit || addTrip.isPending;
+
+  const handleSubmit = () => {
+    console.log("[AddTrip] submit clicked", { destination, startDate, endDate, category, totalSpend });
+    try {
+      addTrip.mutate({
+        memberId,
+        title: `${category.charAt(0).toUpperCase() + category.slice(1)} - ${destination}`,
+        destination,
+        tripCategory: category,
+        departureDate: startDate,
+        returnDate: endDate,
+        totalSpend: totalSpend || undefined,
+        currency,
+        satisfactionScore: satisfactionScore ? parseInt(satisfactionScore) : undefined,
+        memberFeedback: notes || undefined,
+      });
+    } catch (err) {
+      console.error("[AddTrip] mutate threw", err);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -190,21 +215,12 @@ function AddTripDialog({ memberId, onAdded }: { memberId: number; onAdded: () =>
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button
-              onClick={() => addTrip.mutate({
-                memberId,
-                title: `${category.charAt(0).toUpperCase() + category.slice(1)} - ${destination}`,
-                destination,
-                departureDate: startDate,
-                returnDate: endDate,
-                totalSpend: totalSpend || undefined,
-                currency,
-                satisfactionScore: satisfactionScore ? parseInt(satisfactionScore) : undefined,
-                memberFeedback: notes || undefined,
-              })}
-              disabled={!destination || !startDate || !endDate || addTrip.isPending}
+              type="button"
+              onClick={handleSubmit}
+              disabled={isDisabled}
               className="text-white" style={{ background: "oklch(0.35 0.09 145)" }}
             >
-              {addTrip.isPending ? "Adding..." : "Add Trip"}
+              {addTrip.isPending ? "Adding..." : isDisabled ? `Add Trip (need dest+dates)` : "Add Trip"}
             </Button>
           </div>
         </div>
@@ -220,7 +236,7 @@ export default function TripTimelinePage({ memberId }: { memberId?: number }) {
 
   const { data: trips, isLoading, refetch } = trpc.tripTimeline.getForMember.useQuery({ memberId: id });
 
-  const { data: stats } = trpc.tripTimeline.memberStats.useQuery({ memberId: id });
+  const { data: stats, refetch: refetchStats } = trpc.tripTimeline.memberStats.useQuery({ memberId: id });
 
   return (
     <div className="p-6 lg:p-8 space-y-8 animate-fade-in">
@@ -233,7 +249,7 @@ export default function TripTimelinePage({ memberId }: { memberId?: number }) {
           </h1>
           <p className="text-muted-foreground mt-1">Complete travel history, spending, and satisfaction tracking</p>
         </div>
-        <AddTripDialog memberId={id} onAdded={refetch} />
+        <AddTripDialog memberId={id} onAdded={() => { refetch(); refetchStats(); }} />
       </div>
       <hr className="lanai-divider" />
 
@@ -248,13 +264,13 @@ export default function TripTimelinePage({ memberId }: { memberId?: number }) {
           </div>
           <div className="lanai-card p-4 text-center">
             <div className="text-2xl font-bold" style={{ fontFamily: "'Playfair Display', serif", color: "oklch(0.72 0.12 75)" }}>
-              £{parseFloat(stats.totalSpend ?? "0").toLocaleString()}
+              £{parseFloat(stats?.totalSpend ?? "0").toLocaleString()}
             </div>
             <div className="text-xs text-muted-foreground mt-1">Total Spend</div>
           </div>
           <div className="lanai-card p-4 text-center">
             <div className="text-2xl font-bold" style={{ fontFamily: "'Playfair Display', serif", color: "oklch(0.35 0.09 145)" }}>
-              {(stats as { totalNights?: number }).totalNights ?? "—"}
+              {stats.totalNights ?? "—"}
             </div>
             <div className="text-xs text-muted-foreground mt-1">Total Nights</div>
           </div>
@@ -294,7 +310,7 @@ export default function TripTimelinePage({ memberId }: { memberId?: number }) {
         <div className="space-y-4">
           {trips.map(trip => (
             <TripCard key={trip.id} trip={trip as unknown as {
-              id: number; destination: string; tripCategory: string; startDate: string; endDate: string;
+              id: number; destination: string; tripCategory: string; departureDate?: string | null; returnDate?: string | null;
               totalSpend?: string | null; currency?: string | null; satisfactionScore?: string | null;
               supplierName?: string | null; notes?: string | null; bookingId?: number | null;
             }} />

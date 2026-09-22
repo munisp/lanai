@@ -5,13 +5,14 @@
  *   - Streaming (default): word-by-word markdown output via SSE
  *   - Structured: JSON proposal with expandable sections
  */
-import { useState, useRef, useCallback } from "react";
-import { Brain, Sparkles, Copy, RefreshCw, ChevronDown, ChevronUp, Zap, FileText } from "lucide-react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { Brain, Sparkles, Copy, RefreshCw, ChevronDown, ChevronUp, Zap, FileText, Save, Image as ImageIcon, MapPin, TrendingUp, Star, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { trpc } from "@/lib/trpc";
 
 const TRIP_TYPES = ["Honeymoon","Family Holiday","Adventure","Cultural","Wellness & Spa","Safari","Cruise","City Break","Ski","Bespoke Multi-Destination"];
 const BUDGETS    = ["£5,000–£10,000","£10,000–£25,000","£25,000–£50,000","£50,000–£100,000","£100,000+","Flexible / No Limit"];
@@ -31,6 +32,9 @@ interface ProposalResult {
   next_steps?: string | string[];
   advisor_note?: string;
   personal_touches?: string[];
+  pricing_tiers?: Array<{ name: string; description?: string; price: string }>;
+  upgrades?: Array<{ name: string; price?: string; description?: string }>;
+  margin_pct?: number | string;
 }
 
 // Simple markdown renderer for streaming output
@@ -66,16 +70,74 @@ export default function ProposalEnginePage() {
   const [form, setForm] = useState({
     client_name: "", destination: "", trip_type: "", duration: "",
     budget: "", party_size: "2", special_requests: "", known_preferences: "",
-    occasion: ""
+    occasion: "", travel_request_id: "", member_id: "", hero_image_url: "", map_embed_url: ""
   });
   const [mode, setMode] = useState<"stream" | "structured">("stream");
   const [loading, setLoading] = useState(false);
   const [streamText, setStreamText] = useState("");
   const [proposal, setProposal] = useState<ProposalResult | null>(null);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({ summary: true, dest: true, days: true });
+  const [savedId, setSavedId] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({ summary: true, dest: true, days: true, tiers: true, upgrades: true });
   const abortRef = useRef<AbortController | null>(null);
 
+  const saveProposal = trpc.proposals.generateFromAI.useMutation({
+    onSuccess: (data) => {
+      setSavedId(data.id);
+      setProposalStatus("draft");
+      toast.success(`Proposal saved to client file (ID #${data.id})`);
+    },
+    onError: (e) => toast.error(`Could not save: ${e.message}`),
+  });
+
+  const [proposalStatus, setProposalStatus] = useState<string | null>(null);
+  const [signature, setSignature] = useState("");
+
+  const savedProposal = trpc.proposals.get.useQuery(
+    { id: savedId! },
+    { enabled: savedId !== null }
+  );
+
+  useEffect(() => {
+    if (savedProposal.data?.status) setProposalStatus(savedProposal.data.status);
+  }, [savedProposal.data]);
+
+  const sendProposal = trpc.proposals.send.useMutation({
+    onSuccess: () => { setProposalStatus("sent"); toast.success("Proposal sent to member"); },
+    onError: (e) => toast.error(`Could not send: ${e.message}`),
+  });
+  const approveProposal = trpc.proposals.approve.useMutation({
+    onSuccess: () => { setProposalStatus("approved"); toast.success("Proposal approved"); },
+    onError: (e) => toast.error(`Could not approve: ${e.message}`),
+  });
+  const rejectProposal = trpc.proposals.reject.useMutation({
+    onSuccess: () => { setProposalStatus("rejected"); toast.success("Proposal rejected"); },
+    onError: (e) => toast.error(`Could not reject: ${e.message}`),
+  });
+
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleSave = () => {
+    if (!proposal) { toast.error("Generate a proposal first."); return; }
+    const travelRequestId = parseInt(form.travel_request_id, 10);
+    const memberId = parseInt(form.member_id, 10);
+    if (!travelRequestId || !memberId) {
+      toast.error("Enter a Travel Request ID and Member ID to save.");
+      return;
+    }
+    saveProposal.mutate({
+      travelRequestId,
+      memberId,
+      clientName: form.client_name,
+      destination: form.destination,
+      tripType: form.trip_type || "luxury travel",
+      budget: form.budget,
+      dates: form.duration,
+      preferences: form.known_preferences,
+      specialRequirements: form.special_requests,
+      heroImageUrl: form.hero_image_url || undefined,
+      mapEmbedUrl: form.map_embed_url || undefined,
+    });
+  };
 
   const generateStreaming = useCallback(async () => {
     setLoading(true);
@@ -298,6 +360,31 @@ export default function ProposalEnginePage() {
             <Textarea rows={2} placeholder="e.g. Surprise element, specific experiences, accessibility needs…" value={form.special_requests} onChange={e => set("special_requests", e.target.value)} />
           </div>
 
+          <hr className="lanai-divider" />
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest">Link &amp; Present</p>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Travel Request ID</label>
+              <Input type="number" placeholder="e.g. 1" value={form.travel_request_id} onChange={e => set("travel_request_id", e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Member ID</label>
+              <Input type="number" placeholder="e.g. 1" value={form.member_id} onChange={e => set("member_id", e.target.value)} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Hero Image URL</label>
+              <Input placeholder="https://…" value={form.hero_image_url} onChange={e => set("hero_image_url", e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Map Embed URL</label>
+              <Input placeholder="https://maps.google.com/maps?q=…&output=embed" value={form.map_embed_url} onChange={e => set("map_embed_url", e.target.value)} />
+            </div>
+          </div>
+
           <div className="flex gap-2">
             <Button onClick={generate} disabled={loading} className="flex-1 gap-2" style={{ background:"oklch(0.35 0.09 145)" }}>
               {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
@@ -307,6 +394,11 @@ export default function ProposalEnginePage() {
               <Button variant="outline" onClick={stopGeneration} className="shrink-0">Stop</Button>
             )}
           </div>
+
+          <Button variant="outline" onClick={handleSave} disabled={!proposal || saveProposal.isPending} className="w-full gap-2">
+            <Save className="w-4 h-4" />
+            {savedId ? `Saved (ID #${savedId}) — Save new version` : "Save to client file"}
+          </Button>
 
           {mode === "stream" && (
             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
@@ -373,6 +465,68 @@ export default function ProposalEnginePage() {
                 </Button>
               </div>
 
+              {/* Approval workflow (saved proposals only) */}
+              {savedId !== null && (
+                <div className="lanai-card p-4 flex flex-col gap-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs uppercase tracking-wide text-muted-foreground">Status</span>
+                      <span className={cn(
+                        "text-xs px-2 py-0.5 rounded-full font-medium capitalize",
+                        proposalStatus === "approved" ? "bg-emerald-50 text-emerald-700"
+                          : proposalStatus === "sent" ? "bg-blue-50 text-blue-700"
+                          : proposalStatus === "rejected" ? "bg-red-50 text-red-700"
+                          : "bg-gray-100 text-gray-600"
+                      )}>{proposalStatus ?? "draft"}</span>
+                    </div>
+                    {proposalStatus === "draft" && (
+                      <Button size="sm" className="gap-1 text-white" style={{ background:"oklch(0.35 0.09 145)" }}
+                        onClick={() => sendProposal.mutate({ id: savedId })} disabled={sendProposal.isPending}>
+                        Send to member
+                      </Button>
+                    )}
+                    {proposalStatus === "sent" && (
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" className="gap-1 text-red-600 border-red-200"
+                          onClick={() => { const r = window.prompt("Reason for rejection?"); if (r !== null) rejectProposal.mutate({ id: savedId, reason: r }); }}>
+                          Reject
+                        </Button>
+                        <Button size="sm" className="gap-1 text-white" style={{ background:"oklch(0.35 0.09 145)" }}
+                          onClick={() => approveProposal.mutate({ id: savedId, signatureData: signature || undefined })} disabled={approveProposal.isPending}>
+                          Approve & sign
+                        </Button>
+                      </div>
+                    )}
+                    {proposalStatus === "approved" && (
+                      <span className="text-xs text-emerald-700 flex items-center gap-1">
+                        <CheckCircle className="w-3.5 h-3.5" /> Digitally approved
+                      </span>
+                    )}
+                  </div>
+                  {proposalStatus === "sent" && (
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                        Client digital signature (type full name to approve)
+                      </label>
+                      <Input value={signature} onChange={e => setSignature(e.target.value)}
+                        placeholder="e.g. Eleanor Hart" />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {form.hero_image_url && (
+                <div className="rounded-xl overflow-hidden border border-border">
+                  <img src={form.hero_image_url} alt={proposal.proposal_title} className="w-full h-56 object-cover" />
+                </div>
+              )}
+
+              {form.map_embed_url && (
+                <div className="rounded-xl overflow-hidden border border-border">
+                  <iframe src={form.map_embed_url} title="Destination map" className="w-full h-64" loading="lazy" />
+                </div>
+              )}
+
               <ProposalSection title="Executive Summary" expanded={expanded["summary"]} onToggle={() => toggle("summary")}>
                 <p className="text-sm text-foreground leading-relaxed">{proposal.executive_summary}</p>
               </ProposalSection>
@@ -416,6 +570,45 @@ export default function ProposalEnginePage() {
                   </ul>
                 </ProposalSection>
               ) : null}
+
+              {(proposal.pricing_tiers as any[] | undefined)?.length ? (
+                <ProposalSection title="Pricing Tiers" expanded={expanded["tiers"]} onToggle={() => toggle("tiers")}>
+                  <div className="grid gap-2">
+                    {(proposal.pricing_tiers as any[]).map((t, i) => (
+                      <div key={i} className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                        <div>
+                          <div className="text-sm font-medium text-foreground">{t.name}</div>
+                          {t.description && <div className="text-xs text-muted-foreground">{t.description}</div>}
+                        </div>
+                        <div className="text-sm font-semibold text-foreground whitespace-nowrap ml-3">{t.price}</div>
+                      </div>
+                    ))}
+                  </div>
+                </ProposalSection>
+              ) : null}
+
+              {(proposal.upgrades as any[] | undefined)?.length ? (
+                <ProposalSection title="Recommended Upgrades" expanded={expanded["upgrades"]} onToggle={() => toggle("upgrades")}>
+                  <ul className="space-y-1">
+                    {(proposal.upgrades as any[]).map((u, i) => (
+                      <li key={i} className="text-sm text-foreground flex items-start gap-2">
+                        <Star className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
+                        <span><span className="font-medium">{u.name}</span>{u.price ? ` — ${u.price}` : ""}{u.description ? `: ${u.description}` : ""}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </ProposalSection>
+              ) : null}
+
+              {proposal.margin_pct != null && (
+                <div className="lanai-card p-4 border-l-4 flex items-center gap-3" style={{ borderLeftColor:"oklch(0.6 0.15 150)" }}>
+                  <TrendingUp className="w-5 h-5 text-emerald-600" />
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-widest mb-0.5">Advisor Margin</div>
+                    <div className="text-xl font-bold text-foreground">{proposal.margin_pct}%</div>
+                  </div>
+                </div>
+              )}
 
               <div className="lanai-card p-4 border-l-4" style={{ borderLeftColor:"oklch(0.72 0.12 75)" }}>
                 <div className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Estimated Investment</div>
