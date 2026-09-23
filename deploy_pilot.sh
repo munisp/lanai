@@ -37,6 +37,14 @@ if [ $? -ne 0 ]; then
 fi
 echo "build ok: $(docker images -q $IMAGE | head -1)"
 
+echo "=== PHASE 2.5: verify image runtime layout before rolling ==="
+LAYOUT=$(docker run --rm --entrypoint sh "$IMAGE" -c "ls /app/node_modules 2>/dev/null | head -3; test -e /app/node_modules/drizzle-orm && echo LAYOUT-OK || echo LAYOUT-BAD" 2>/dev/null | tail -1)
+echo "layout check: $LAYOUT"
+if [ "$LAYOUT" != "LAYOUT-OK" ]; then
+  echo "ABORT: /app/node_modules does not expose drizzle-orm at top level; the app would crash on boot. Fix the Dockerfile install layout first."
+  exit 1
+fi
+
 echo "=== PHASE 3: load image into the kind cluster ==="
 if command -v kind >/dev/null; then
   kind load docker-image $IMAGE --name $CLUSTER || { echo "ABORT: kind load failed"; exit 1; }
