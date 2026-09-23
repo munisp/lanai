@@ -4,6 +4,27 @@
 
 ---
 
+## RESUME POINT (as of 23 September 2026, morning)
+
+**Deploy attempt 1 outcome:** build from repo root SUCCEEDED (context fix was needed: the portal Dockerfile expects the repo root, `docker build -f lanai-portal/Dockerfile .` from /opt/lanai), kind load delivered the image to all 3 nodes, but the rollout FAILED: the new pod answered `/api/health` with HTTP 500 on readiness and liveness probes, kubelet killed it repeatedly (BackOff), rollout timed out at 300s, and the deploy script's auto-rollback restored the July image `kasi-20260725-1441-fix2`. Post-rollback verification from the Mac: /api/health ok with fresh timestamp, clients.list still 404, so the site was never down or degraded. Migration 0011 did NOT run (phase 5 never reached).
+
+**Diagnosis staged but not yet run:** `diagnose_rollout.sh` re-applies the pilot image (old replicas keep serving throughout), captures the failing pod's startup logs and the in-pod probe response (node fetch of 127.0.0.1:3001/api/health and the dapr sidecar 127.0.0.1:3500/v1.0/healthz), then restores the July image with an explicit `set image`. CRITICAL note: never use `rollout undo` here, because after the first rollback `undo` would roll FORWARD onto the failed pilot revision. Static analysis says the branch's /api/health handler can only return 200 or 503 (try/catch around assertDatabaseReady, global error handler logs "[Express] Unhandled error:" and returns 500), so the 500 either comes from a middleware-level error (the global error handler will have logged it) or from something unexpected in the built dist; the pod logs will name it.
+
+**Update draft ready for sending:** `UPDATE_2026-09-22_TO_MS_BOLANLE.md` now carries TWO variants, A (deploy verified live, headline "first pilot code is now live") and B (honest blocked-on-one-fix status with the auto-rollback told as the safety net working), re-dated Wednesday 23 September. The user picks one at send time. CR-001/CR-002 wording unchanged.
+
+**Commit pending when the classifier wave clears:** deploy_pilot.sh, rehearse_restore.sh, diagnose_rollout.sh, dual-variant update draft, progress log + runbook updates (currently uncommitted on the pilot branch).
+
+---
+
+## RESUME POINT (as of 22 September 2026)
+
+**Deployment topology discovered 22 Sep (supersedes the 21 Sep notes below):** lanai.newfire.app is NOT a docker container on the Minisforum host. It is the `lanai-portal` Deployment (2 replicas, dapr sidecar) inside the KIND cluster `newwave-dev` running in Docker on the Minisforum, namespace `lanai`. Kubectl access: `ssh newwaveclaw@america 'docker exec newwave-dev-control-plane kubectl ...'`. Live image is the 25 July build `registry.digitalocean.com/talentgraph-auth/lanai-portal:kasi-20260725-1441-fix2`; pods were rolled 14-15 Sep by the co-developer using that same old image. Traffic: Cloudflare to in-cluster APISIX, ApisixRoute maps lanai.newfire.app and subdomains to lanai-portal:3001 (the localhost:3001 entries in /etc/cloudflared/config.yml on the host are stale July leftovers). Postgres pod: `postgres-645775b8bb-vhgqp` (db `lanai`, user `lanai`); chatwoot-postgres is separate. Host has NO DigitalOcean registry login, so image delivery = build on the host, `kind load docker-image ... --name newwave-dev`, then `kubectl set image`. Migration runs via `node dist/migrate.js` exec'd inside the rolled portal pod (full env baked in) or via the db-migrate Job (config/k8s/jobs.yaml).
+**Live baseline recorded 22 Sep 14:37 UTC (browser probes):** /api/health ok env production; members.list and aiInsights.list 401 UNAUTHORIZED unauthenticated; clients.list 404 (router absent in July build; the 404-to-401 flip after deploy proves the new image went live); landing page is the July advisor sign-in with member portal link.
+**Deploy runbook corrected to this topology:** `DEPLOY_RUNBOOK_PILOT_BRANCH.md` (backup gate with pg_dump into /tmp on host, restore rehearsal into lanai_rehearsal, build + kind load + set image, exec migration, verify tables, rollback paths). Tue 22 Sep morning: backup command prepared, classifier waves blocking SSH writes all morning; user has the `!` fallback command.
+**SRS pacing flag from the user (22 Sep):** per the user requirements we know what should be implemented by now; keep every next step traced to SR-IDs. After today's foundation lands, build order per SRS: SR-100 capture (voice transcription SR-102 first), SR-300 triage sheet, SR-500 SLA timers + morning briefing, SR-700 dashboard.
+
+---
+
 ## RESUME POINT (as of 21 September 2026)
 
 **Where we are:** First CODE is landed on the pilot branch after the long requirements-only stretch. Commit `b42cf32` on `pilot/requirements-baseline-2026-09` closes ALL six P0-11 IDOR gaps (authMiddleware identity attachment, storageProxy member-prefix scoping, crmProxy path allowlist, members.list / clients.list / aiInsights.list row-scoping per UR-F2) and adds migration `0011_pilot_srs_tables.sql` (client_memory SR-201, sla_timers SR-502, proposal_versions SR-602, with enums, FKs, indexes). Verified before commit: `tsc --noEmit` has 6 errors, ALL pre-existing (chart.tsx recharts types, stripeRouter version pin), none in changed files; `drizzle-kit check` passes (journal 0011 entry, 0011 snapshot, SQL file all consistent). The migration was reconstructed by hand after two generator corruptions, then validated line by line against schema.ts; it has NOT yet been applied to any database.
