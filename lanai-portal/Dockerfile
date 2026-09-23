@@ -19,7 +19,14 @@ WORKDIR /app
 # application source, so dependency layers remain reproducible and cacheable.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY lanai-portal/package.json ./lanai-portal/package.json
-RUN pnpm install --frozen-lockfile --child-concurrency=1 --network-concurrency=4
+# The runtime stage copies /app/node_modules (workspace root) next to dist and
+# runs node from /app. pnpm's default isolated linker puts the package's
+# dependency symlinks under lanai-portal/node_modules instead, which the
+# runtime stage does not copy, so module resolution fails on boot (this is
+# exactly how the 23 Sep rollout failed). A hoisted layout puts every runtime
+# dependency at /app/node_modules/<name>, matching how dist is executed.
+RUN printf 'node-linker=hoisted\n' > /app/.npmrc \
+  && pnpm install --frozen-lockfile --child-concurrency=1 --network-concurrency=4
 
 COPY lanai-portal ./lanai-portal
 WORKDIR /app/lanai-portal
