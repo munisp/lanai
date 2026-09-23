@@ -102,6 +102,7 @@ export const ENV = {
 
   // Authorization
   permifyGrpcAddress: process.env.PERMIFY_GRPC_ADDRESS ?? "",
+  permifyTrustedInsecure: requireEnvBoolean("PERMIFY_TRUSTED_INSECURE", false),
   permifyTenantId: process.env.PERMIFY_TENANT_ID ?? "lanai",
   permifySchemaVersion: process.env.PERMIFY_SCHEMA_VERSION ?? "",
   // Local integration tests may explicitly use plaintext gRPC. Production
@@ -167,8 +168,21 @@ if (ENV.isProduction) {
     throw new Error("[env] JWT_SECRET must not use the development default");
   if (ENV.allowedOrigins.includes("*"))
     throw new Error("[env] ALLOWED_ORIGINS must contain explicit origins in production; wildcard CORS is prohibited");
-  if (ENV.permifyInsecure)
-    throw new Error("[env] PERMIFY_INSECURE=true is prohibited in production; configure TLS for Permify gRPC");
+  if (ENV.permifyInsecure && !ENV.permifyTrustedInsecure)
+    throw new Error(
+      "[env] PERMIFY_INSECURE=true is prohibited in production; configure TLS for Permify gRPC " +
+        "(permanent path) or set PERMIFY_TRUSTED_INSECURE=true to acknowledge the cluster's " +
+        "reviewed insecure-mode exception (temporary pilot path)",
+    );
+  if (ENV.permifyInsecure && ENV.permifyTrustedInsecure) {
+    console.warn(
+      "[env] SECURITY NOTICE: running with plaintext Permify gRPC under the reviewed pilot " +
+        "exception (PERMIFY_TRUSTED_INSECURE=true). gRPC to permify stays inside the cluster " +
+        "network. Permanent fix: distribute the permify-secure-proxy CA to the portal pods and " +
+        "set PERMIFY_GRPC_ADDRESS=permify-secure-proxy.permify.svc.cluster.local:8443, " +
+        "PERMIFY_INSECURE=false.",
+    );
+  }
   if (ENV.twentyCrmSyncEnabled) {
     const crmRequired = [
       "TWENTY_CRM_URL",

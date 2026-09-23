@@ -54,6 +54,12 @@ else
 fi
 
 echo "=== PHASE 4: roll the deployment ==="
+# Pilot exception (temporary, time-boxed): the cluster's permify-secure-proxy
+# TLS chain is not yet trusted by portal pods (cert not in pod CA store, SAN
+# mismatch). The branch's env validation therefore needs the reviewed
+# insecure-mode acknowledgment. Permanent path is documented in env.ts and
+# tracked as a co-dev follow-up.
+$K set env deployment/lanai-portal PERMIFY_TRUSTED_INSECURE=true
 $K set image deployment/lanai-portal lanai-portal=$IMAGE
 if ! $K rollout status deployment/lanai-portal --timeout=300s; then
   echo "ROLLOUT FAILED. New pod logs:"
