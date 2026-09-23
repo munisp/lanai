@@ -40,10 +40,10 @@ ssh newwaveclaw@america 'cd /opt/lanai && git fetch origin && git checkout pilot
 Security check: confirm tip is 565c9d2.
 
 ```bash
-ssh newwaveclaw@america 'cd /opt/lanai/lanai-portal && docker build -t registry.digitalocean.com/talentgraph-auth/lanai-portal:kasi-20260922-pilot-565c9d2 .'
+ssh newwaveclaw@america 'cd /opt/lanai && docker build -f lanai-portal/Dockerfile -t registry.digitalocean.com/talentgraph-auth/lanai-portal:TAG .'
 ```
 
-No build args needed (the k8s Dockerfile only defines VITE_APP_ID; runtime env comes from the lanai-env ConfigMap and lanai-secrets).
+CRITICAL: the build context is the REPO ROOT, not lanai-portal/ (the Dockerfile copies package.json, pnpm-lock.yaml, pnpm-workspace.yaml, then lanai-portal/). Building from inside lanai-portal/ fails with 'failed to compute cache key: "/lanai-portal": not found'. No build args needed (the k8s Dockerfile only defines VITE_APP_ID; runtime env comes from the lanai-env ConfigMap and lanai-secrets). The Dockerfile now writes node-linker=hoisted into /app/.npmrc before pnpm install (commit 504a3bf): without it the runtime stage's /app/node_modules is an empty pnpm store and dist cannot resolve drizzle-orm (the 23 Sep rollout failure).
 
 If the host has DO registry creds: `docker push registry.digitalocean.com/talentgraph-auth/lanai-portal:kasi-20260922-pilot-565c9d2`.
 If not: `kind load docker-image registry.digitalocean.com/talentgraph-auth/lanai-portal:kasi-20260922-pilot-565c9d2 --name newwave-dev` and confirm the deployment imagePullPolicy tolerates a locally-loaded image (the July image was pulled from DO, so prefer push).

@@ -12,7 +12,9 @@
 
 **Update draft ready for sending:** `UPDATE_2026-09-22_TO_MS_BOLANLE.md` now carries TWO variants, A (deploy verified live, headline "first pilot code is now live") and B (honest blocked-on-one-fix status with the auto-rollback told as the safety net working), re-dated Wednesday 23 September. The user picks one at send time. CR-001/CR-002 wording unchanged.
 
-**Commit pending when the classifier wave clears:** deploy_pilot.sh, rehearse_restore.sh, diagnose_rollout.sh, dual-variant update draft, progress log + runbook updates (currently uncommitted on the pilot branch).
+**Diagnosis DONE, root cause proven and fixed:** pod logs named it exactly: `ERR_MODULE_NOT_FOUND: Cannot find package 'drizzle-orm' from /app/dist/index.js`. Image comparison proved the cause: our image's /app/node_modules top level was EMPTY (only pnpm's .pnpm store, 818 packages, no visible entries); the runtime stage copies /app/node_modules next to dist and runs node from /app, so resolution fails. July image has a flat hoisted /app/node_modules (19 top-level entries) because it was built from the archive branch's older single-package Dockerfile (no pnpm-workspace.yaml, node:22-alpine, COPY . .). Fix committed 504a3bf: the build stage now writes /app/.npmrc with node-linker=hoisted before pnpm install. Deploy script rewritten: syncs to origin tip (no hardcoded hash), derives tag from actual tip, on failure captures pod logs BEFORE restoring July via explicit `set image` (never `rollout undo` after a rollback: it would roll FORWARD onto the failed revision). Redeploy with the fix is running.
+
+**Commit landed 24b5d0c:** deploy_pilot.sh, rehearse_restore.sh, diagnose_rollout.sh, dual-variant update draft, progress log + runbook updates. All pushed to the pilot branch.
 
 ---
 
