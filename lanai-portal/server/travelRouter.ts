@@ -652,11 +652,26 @@ export const bookingsRouter = router({
     return db.select().from(bookings).orderBy(desc(bookings.createdAt));
   }),
 
+  // Read-only member view. Deliberately narrow projection: the member sees
+  // their own trip facts only. Commission figures, internal notes, supplier
+  // confirmation references, and cancellation internals stay advisor-side.
   myBookings: memberProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     return db
-      .select()
+      .select({
+        id: bookings.id,
+        referenceNumber: bookings.referenceNumber,
+        status: bookings.status,
+        checkIn: bookings.checkIn,
+        checkOut: bookings.checkOut,
+        pax: bookings.pax,
+        totalAmount: bookings.totalAmount,
+        currency: bookings.currency,
+        supplierName: suppliers.name,
+        createdAt: bookings.createdAt,
+      })
       .from(bookings)
+      .leftJoin(suppliers, eq(bookings.supplierId, suppliers.id))
       .where(eq(bookings.memberId, ctx.member.id))
       .orderBy(desc(bookings.createdAt));
   }),

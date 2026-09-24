@@ -34,7 +34,7 @@ import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 import MemberBillingPage from "./MemberBillingPage";
 
-type Tab = "trips" | "request" | "documents" | "messages" | "billing";
+type Tab = "trips" | "bookings" | "request" | "documents" | "messages" | "billing";
 
 type TravelRequest = {
   id: number;
@@ -80,6 +80,10 @@ export default function ClientPortalDashboard() {
   // ── Trips (member-scoped, Postgres-backed) ───────────────────────────────
   const { data: trips = [], isLoading: loadingTrips } =
     trpc.travelRequests.myRequests.useQuery(undefined, { enabled: !!member });
+
+  // Bookings (read-only, member-scoped)
+  const { data: bookings = [], isLoading: loadingBookings } =
+    trpc.bookings.myBookings.useQuery(undefined, { enabled: !!member });
 
   // ── Travel request ────────────────────────────────────────────────────────
   const [reqDestination, setReqDestination] = useState("");
@@ -165,6 +169,7 @@ export default function ClientPortalDashboard() {
 
   const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: "trips", label: "My Trips", icon: Plane },
+    { id: "bookings", label: "My Bookings", icon: MapPin },
     { id: "request", label: "New Request", icon: Plus },
     { id: "documents", label: "Documents", icon: FileText },
     { id: "messages", label: "Messages", icon: MessageCircle },
@@ -337,6 +342,100 @@ export default function ClientPortalDashboard() {
                       <button className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
                         View details <ChevronRight className="w-3 h-3" />
                       </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* My Bookings (read-only) */}
+        {activeTab === "bookings" && (
+          <div className="space-y-4">
+            <h2
+              className="text-lg font-semibold text-gray-900"
+              style={{ fontFamily: "'Playfair Display', serif" }}
+            >
+              Your Bookings
+            </h2>
+            {loadingBookings ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              </div>
+            ) : bookings.length === 0 ? (
+              <div className="text-center py-16 text-gray-400">
+                <MapPin className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p>
+                  No bookings yet. Once your advisor confirms a trip, it will
+                  appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                {bookings.map((booking) => (
+                  <div
+                    key={booking.id}
+                    className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <div
+                          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                          style={{ background: "oklch(0.25 0.06 145)20" }}
+                        >
+                          <MapPin
+                            className="w-5 h-5"
+                            style={{ color: "oklch(0.25 0.06 145)" }}
+                          />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">
+                            {booking.supplierName ?? "Booking"}
+                          </h3>
+                          <div className="flex items-center gap-3 mt-1">
+                            <span className="flex items-center gap-1 text-xs text-gray-500">
+                              <Calendar className="w-3 h-3" />
+                              {booking.checkIn && booking.checkOut
+                                ? `${new Date(booking.checkIn).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} to ${new Date(booking.checkOut).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`
+                                : "Dates to be confirmed"}
+                            </span>
+                            {booking.pax ? (
+                              <span className="text-xs text-gray-500">
+                                {booking.pax}{" "}
+                                {booking.pax === 1 ? "guest" : "guests"}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                      <span
+                        className={cn(
+                          "text-xs px-2 py-0.5 rounded-full font-medium shrink-0",
+                          travelStatus(booking.status).color,
+                        )}
+                      >
+                        {travelStatus(booking.status).label}
+                      </span>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
+                      <span className="text-xs text-gray-400">
+                        {booking.referenceNumber
+                          ? `Reference ${booking.referenceNumber}`
+                          : "Reference to follow"}
+                      </span>
+                      {booking.totalAmount ? (
+                        <span
+                          className="text-xs font-mono font-medium"
+                          style={{ color: "oklch(0.35 0.09 145)" }}
+                        >
+                          {new Intl.NumberFormat("en-GB", {
+                            style: "currency",
+                            currency: booking.currency ?? "GBP",
+                            maximumFractionDigits: 0,
+                          }).format(Number(booking.totalAmount))}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                 ))}
