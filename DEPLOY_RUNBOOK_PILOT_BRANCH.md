@@ -2,8 +2,8 @@
 
 **Target:** the KIND Kubernetes cluster `newwave-dev` running in Docker on the Minisforum (SSH `newwaveclaw@america`), namespace `lanai`. The lanai.newfire.app web app is NOT a docker container on the host; it is the `lanai-portal` Deployment in that cluster (2 replicas, dapr sidecar). Traffic path: Cloudflare to in-cluster APISIX, ApisixRoute maps `lanai.newfire.app` (plus www/admin/inbox/member) to `lanai-portal:3001`.
 **Live image as of 22 Sep:** `registry.digitalocean.com/talentgraph-auth/lanai-portal:kasi-20260725-1441-fix2` (25 July build).
-**Deploying:** branch `pilot/requirements-baseline-2026-09` tip (`565c9d2`; code commit `b42cf32`).
-**Rule in force:** main/master untouched. Migration 0011 runs only after the backup and restore rehearsal passes (SR-1005 / P0-10).
+**Deploying:** branch `pilot/requirements-baseline-2026-09` tip (`6edd3aa` as of 23 Sep 14:00 EDT; code commit `b42cf32`, exception commit `6edd3aa`).
+**Rule in force:** main/master untouched. Migration 0011 runs only after the backup and restore rehearsal passes (SR-1005 / P0-10). The backup gate PASSED (rehearsal verified 22 Sep, rehearse_restore.sh).
 
 Kubectl access pattern from the host: `docker exec newwave-dev-control-plane kubectl <args>`.
 
