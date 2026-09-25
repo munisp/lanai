@@ -100,7 +100,12 @@ describe("signed Chatwoot webhook", () => {
     expect(second.status).toBe(200);
     await expect(second.json()).resolves.toEqual({ accepted: 0, duplicates: 1 });
 
-    const events = await db.select().from(chatwootWebhookEvents);
+    // Scope to this suite's delivery identities: the shared integration
+    // database retains fingerprinted deliveries from other runs.
+    const events = await db
+      .select()
+      .from(chatwootWebhookEvents)
+      .where(eq(chatwootWebhookEvents.deliveryId, headers["X-Chatwoot-Delivery"]));
     const conversations = await db.select().from(chatwootConversations).where(eq(chatwootConversations.chatwootId, "conv_881001"));
     const messages = await db.select().from(chatwootMessages).where(eq(chatwootMessages.chatwootId, "msg_991001"));
     expect(events).toHaveLength(1);
@@ -135,7 +140,17 @@ describe("signed Chatwoot webhook", () => {
 
     await expect((await postWebhook(payload, firstHeaders)).json()).resolves.toEqual({ accepted: 1, duplicates: 0 });
     await expect((await postWebhook(payload, secondHeaders)).json()).resolves.toEqual({ accepted: 0, duplicates: 1 });
-    const persisted = await db.select().from(chatwootWebhookEvents);
+    // The headerless delivery identity is the raw-body fingerprint; scope the
+    // assertion to it so shared-database residue from other runs is ignored.
+    const fingerprint = crypto
+      .createHash("sha256")
+      .update("chatwoot:")
+      .update(JSON.stringify(payload))
+      .digest("hex");
+    const persisted = await db
+      .select()
+      .from(chatwootWebhookEvents)
+      .where(eq(chatwootWebhookEvents.deliveryId, fingerprint));
     expect(persisted).toHaveLength(1);
   });
 

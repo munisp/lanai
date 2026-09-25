@@ -9,6 +9,7 @@ import {
 } from "../drizzle/schema";
 import { getDb } from "./db";
 import { ENV } from "./_core/env";
+import { processVoiceTranscription } from "./_core/voiceIngest";
 
 type JsonRecord = Record<string, unknown>;
 type ProjectionTransaction = Pick<
@@ -122,6 +123,12 @@ export function registerChatwootWebhook(app: express.Express): void {
 
       try {
         const accepted = await persistDelivery({ deliveryId, eventType, payloadSha256, payload, now });
+        if (accepted && eventType === "message_created") {
+          // Fire-and-forget enrichment AFTER the durable commit: voice-note
+          // transcription (SR-102) never blocks the webhook response and can
+          // never lose the already-committed message.
+          void processVoiceTranscription(payload);
+        }
         res.status(200).json({ accepted: accepted ? 1 : 0, duplicates: accepted ? 0 : 1 });
       } catch (error) {
         if (error instanceof ChatwootWebhookConflictError) {

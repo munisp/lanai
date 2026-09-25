@@ -1801,6 +1801,12 @@ export const chatwootMessages = pgTable(
     content: text("content").notNull(),
     /** Attachment URL if any. */
     attachmentUrl: varchar("attachmentUrl", { length: 1024 }),
+    /** Local speech-to-text transcript for voice notes (SR-102). */
+    transcription: text("transcription"),
+    /** none | transcribed | failed. */
+    transcriptionStatus: varchar("transcriptionStatus", { length: 16 }).default("none").notNull(),
+    /** Failure detail when transcriptionStatus is failed (SR-102 review task). */
+    transcriptionError: text("transcriptionError"),
     /** Whether this is a template message (WhatsApp). */
     isTemplate: boolean("isTemplate").default(false).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),

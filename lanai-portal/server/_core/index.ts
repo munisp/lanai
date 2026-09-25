@@ -16,6 +16,7 @@ import { serveStatic, setupVite } from "./vite";
 import { registerCrmProxy } from "./crmProxy";
 import { registerStripeWebhook } from "../stripeRouter";
 import { registerChatwootProxy } from "./chatwootProxy";
+import { registerChatwootMediaRoutes } from "./chatwootMediaRouter";
 import { registerChatwootWebhook } from "../chatwootWebhook";
 import { ENV } from "./env";
 import { registerAiRoutes } from "./aiRoutes";
@@ -198,6 +199,7 @@ export async function startServer() {
   registerOAuthRoutes(app);
   registerCrmProxy(app);
   registerChatwootProxy(app);
+  registerChatwootMediaRoutes(app);
   registerAiRoutes(app);
 
   // ── tRPC API ──────────────────────────────────────────────────────────────
