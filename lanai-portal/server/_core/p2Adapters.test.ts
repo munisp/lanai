@@ -16,6 +16,10 @@ vi.mock("./env", () => ({
     get forgeApiKey() { return (globalThis as Record<string, string>).__P2_FORGE_KEY ?? ""; },
     get aiGatewayUrl() { return (globalThis as Record<string, string>).__P2_AI_URL ?? ""; },
     get aiGatewayToken() { return (globalThis as Record<string, string>).__P2_AI_TOKEN ?? ""; },
+    get transcribeApiUrl() { return (globalThis as Record<string, string>).__P2_TRANSCRIBE_URL ?? ""; },
+    get transcribeApiToken() { return (globalThis as Record<string, string>).__P2_TRANSCRIBE_KEY ?? ""; },
+    get transcribeModelHint() { return "small"; },
+    get transcribeTimeoutMs() { return 90_000; },
   },
 }));
 
@@ -149,6 +153,8 @@ beforeEach(() => {
   (globalThis as Record<string, string>).__P2_FORGE_KEY = "forge-test-token";
   (globalThis as Record<string, string>).__P2_AI_URL = fixtureUrl;
   (globalThis as Record<string, string>).__P2_AI_TOKEN = "ai-test-token";
+  (globalThis as Record<string, string>).__P2_TRANSCRIBE_URL = fixtureUrl;
+  (globalThis as Record<string, string>).__P2_TRANSCRIBE_KEY = "transcribe-test-token";
 });
 
 describe("heartbeat adapter", () => {
@@ -198,13 +204,21 @@ describe("voice transcription adapter", () => {
     expect(result).toMatchObject({ text: "Concierge request", language: "en" });
     const request = requests.find((item) => item.path === "/v1/audio/transcriptions");
     expect(request?.method).toBe("POST");
-    expect(request?.headers.authorization).toBe("Bearer forge-test-token");
+    expect(request?.headers.authorization).toBe("Bearer transcribe-test-token");
     expect(request?.headers["content-type"]).toContain("multipart/form-data");
     expect(request?.body).toContain("English");
   });
 
-  it("returns a structured configuration error when Forge is unavailable", async () => {
-    (globalThis as Record<string, string>).__P2_FORGE_URL = "";
+  it("transcribes an in-memory buffer without a URL fetch", async () => {
+    const { transcribeFromBuffer } = await import("./voiceTranscription");
+    const result = await transcribeFromBuffer(Buffer.from("ogg-fixture"), "note.ogg");
+    expect(result).toMatchObject({ text: "Concierge request" });
+    const request = requests.find((item) => item.path === "/v1/audio/transcriptions");
+    expect(request?.body).toContain("note.ogg");
+  });
+
+  it("returns a structured configuration error when transcription is unavailable", async () => {
+    (globalThis as Record<string, string>).__P2_TRANSCRIBE_URL = "";
     const { transcribeAudio } = await import("./voiceTranscription");
     await expect(transcribeAudio({ audioUrl: `${fixtureUrl}/audio/source.wav` })).resolves.toMatchObject({ code: "SERVICE_ERROR" });
   });

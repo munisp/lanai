@@ -63,6 +63,13 @@ export const ENV = {
   aiGatewayUrl: process.env.AI_GATEWAY_URL ?? "",
   aiGatewayToken: process.env.AI_GATEWAY_TOKEN ?? "",
   aiModel: process.env.OLLAMA_MODEL ?? "qwen2.5:3b",
+  // Local speech-to-text (faster-whisper on the homelab, OpenAI-compatible
+  // /v1/audio/transcriptions). Empty URL disables voice transcription: ingest
+  // then flags voice notes for manual review rather than failing the pipeline.
+  transcribeApiUrl: process.env.TRANSCRIBE_API_URL ?? "",
+  transcribeApiToken: process.env.TRANSCRIBE_API_TOKEN ?? "",
+  transcribeModelHint: process.env.TRANSCRIBE_MODEL_HINT ?? "small",
+  transcribeTimeoutMs: requireEnvInt("TRANSCRIBE_TIMEOUT_MS", 90_000),
 
   // Email / payments / CRM / Chatwoot
   resendApiKey: process.env.RESEND_API_KEY ?? "",
