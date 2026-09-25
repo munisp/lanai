@@ -20,6 +20,7 @@ import { sendInvitationEmail } from "./email";
 import { memberPaymentsRouter } from "./stripeRouter";
 import { chatwootRouter } from "./chatwootRouter";
 import { triageRouter } from "./triageRouter";
+import { conversationRouter } from "./conversationRouter";
 import { whatsappOperationsRouter } from "./whatsappOperationsRouter";
 import { crmSyncRouter } from "./crmSyncRouter";
 import { clientsRouter } from "./clientsRouter";
@@ -837,6 +838,9 @@ export const appRouter = router({
 
   // ── AI triage inbox (SR-302) ─────────────────────────────────────────────
   triage: triageRouter,
+
+  // ── Unified conversation screen (SR-700) ─────────────────────────────────
+  conversations: conversationRouter,
 
   // ── WhatsApp durable consumer operations (senior-advisor/admin only) ───────────────────────
   whatsappOperations: whatsappOperationsRouter,

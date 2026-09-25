@@ -137,6 +137,13 @@ spec:
               valueFrom: { secretKeyRef: { name: lanai-secrets, key: STRIPE_SECRET_KEY, optional: true } }
             - name: STRIPE_WEBHOOK_SECRET
               valueFrom: { secretKeyRef: { name: lanai-secrets, key: STRIPE_WEBHOOK_SECRET, optional: true } }
+            # Local speech-to-text (SR-102). whisper is ClusterIP-only.
+            - { name: TRANSCRIBE_API_URL, value: "http://whisper:8000" }
+            - { name: TRANSCRIBE_MODEL_HINT, value: "small" }
+            - { name: TRANSCRIBE_TIMEOUT_MS, value: "90000" }
+            # SLA scheduler + morning briefing (SR-501/502). One 60s tick.
+            - { name: SLA_SCHEDULER_ENABLED, value: "true" }
+            - { name: BRIEFING_HOUR, value: "6" }
           readinessProbe:
             httpGet: { path: /api/health, port: 3001 }
             initialDelaySeconds: 15
