@@ -10,7 +10,9 @@ cd /opt/lanai || exit 1
 K="docker exec newwave-dev-control-plane kubectl -n lanai"
 
 echo "=== PHASE A: whisper (local STT, ClusterIP only, no Ingress) ==="
-$K apply -f config/k8s/whisper.yaml || exit 1
+# kubectl inside the control-plane container cannot see host paths; pipe the
+# manifest in on stdin instead of passing a host path.
+cat config/k8s/whisper.yaml | docker exec -i newwave-dev-control-plane kubectl -n lanai apply -f - || exit 1
 echo "waiting for whisper (first boot downloads the model, can take minutes)..."
 $K wait --for=condition=available deployment/whisper --timeout=600s || {
   echo "whisper not ready yet; pod status:"
