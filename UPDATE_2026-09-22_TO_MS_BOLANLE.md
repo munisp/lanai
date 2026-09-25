@@ -1,73 +1,37 @@
-# Update for Ms Bolanle, Wednesday 23 September 2026 (DRAFT, DO NOT SEND YET)
+# Update for Ms Bolanle, Thursday 24 September 2026 (DRAFT, DO NOT SEND YET)
 
-**Status:** two variants below. Pick ONE headline line based on the deploy state at send time. Sending is a human action: the user sends it by WhatsApp or email.
-
-**Variant A (deploy verified live before sending):** keep the section "The headline" as written in variant A.
-**Variant B (deploy still blocked at send time):** use the honest-status headline.
+**Status:** single variant, ready to send once you approve. Sending is a human action: you send it by WhatsApp or email. This draft reflects verified state as of 24 Sep evening.
 
 ---
-
-## Variant A (only if the deploy lands and verifies first)
 
 Good morning Ms Bolanle,
 
-Here is your Wednesday update on the Lanai pilot.
+Here is your update on the Lanai pilot.
 
 ### The headline
 
-The first pilot code is now live on lanai.newfire.app.
+The client booking view you approved (CR-001) is now live on lanai.newfire.app, and the four demo clients are fully set up with sample trips and bookings.
 
 ### What was delivered since your last update
 
-**1. Security hardening (the item we marked NO-GO last week).** The audit found that an advisor could in principle see client records that were not assigned to them. That entire class of gap is closed: every list now filters by who is asking, your senior team sees everything and other advisors see only their own clients, file storage is scoped per member, and the CRM proxy is locked to the one path it actually serves. Verified in code review and with automated probes against the live site this morning. One internal note, in the spirit of no surprises: one internal service-to-service connection currently runs unencrypted inside the private cluster network, exactly as it has since July, with no path from the public internet. We have logged the permanent encryption fix as a committed follow-up and it ships before the pilot ends.
+**1. The client booking view (CR-001) is live.** Your members can now open their portal, click My Bookings, and see their confirmed trips: the hotel or airline, the dates, number of guests, the booking reference, the status, and the total. It is read only, so members cannot change anything, and it shows each member only their own bookings. Test it yourself: sign in at the client portal with one of the demo member accounts (for example eleanor.vance@example.com, PIN 2026) and open the My Bookings tab.
 
-**2. The data foundation for your three big features.** The database now has the three tables your requirements call for: client memory (travel history, preferences, family, important dates, past requests, issues and patterns), SLA timers (your 15 to 30 minute urgent and 2 to 4 hour ordinary targets), and proposal versions (every revision of a proposal is kept). These were migrated with a full backup and restore rehearsal first, so nothing touched production data until the safety net was proven.
+**2. All four demo personas are complete (CR-002).** Eleanor Vance, Marcus Chen, Sofia Almeida, and James Whitfield now each have a profile, a travel request, a proposal, and a booking in the system. No real client data has entered the system, exactly as you required. When you give the word, these four can be removed or kept for the pilot, your choice at any time.
 
-**3. Every change deployed with a backup first.** Full backup, restored into a scratch database, contents compared. Only then did anything run against the live database. This is the reliability standard from section SR-1000 of your SRS.
+**3. Security posture holds.** Every list in the portal is filtered by who is asking, so an advisor sees only their assigned clients, and members see only their own data. One internal service-to-service connection runs unencrypted inside the private cluster network, same as July, with the permanent encryption fix logged as a committed follow-up before pilot end.
 
-### What we still need from you
+### One fix in flight, and the honest position
 
-These two questions have been open since 15 September and they now block real dates:
+You have our last two updates saying advisor sign-in via Keycloak works; it does not for one demo account. The diagnosis is complete: the account is set up correctly in the identity service but has an unverified email flag, and our portal correctly rejects unverified identities. The one-line fix is identified, and we will apply it before our next update. The admin demo account signs in fine and was used for the verification above.
 
-1. **CR-001, the read-only client booking view.** You asked to discuss this. It decides whether the booking screens appear in the pilot or wait until after. A one line yes or no lets us plan either way.
-2. **CR-002, the pilot data policy.** Our proposal: we seed four synthetic client personas for testing, we may use your own details for end to end testing, and no real client data enters the system without your explicit say so. Confirm or adjust.
+### What you will see next
 
-### The honest position on dates
-
-The original plan aimed for 18 September. It passed without a release, and we owe you the straight version: the requirements phase took the first week, and the build block started this week rather than last. With the foundation now live, the remaining work is the features you will actually touch: message capture with voice transcription, the triage working sheet, the SLA timers and morning briefing, and the dashboard. We propose a revised go-live of [DATE PENDING] and will hold ourselves to the same Tuesday cadence, never silent, never vague.
-
-### What you will see next Tuesday
-
-The capture pipeline: WhatsApp messages in, transcribed, triaged into your working sheet with urgency and draft replies, all reviewable before anything sends. Nothing auto-sends, ever; that stays a hard rule from your requirements.
-
----
-
-## Variant B (honest status if the deploy is still blocked)
-
-Good morning Ms Bolanle,
-
-Here is your Wednesday update on the Lanai pilot.
-
-### The headline
-
-The pilot build is code-complete for its first block: the security hardening is closed and reviewed, the three data tables your features need are built, and the production database safety net was rehearsed and passed. This morning's first deployment attempt was stopped by our own safety checks: the new build misbehaved under the platform's health probes, so the platform restored the previous version automatically within minutes. Your live site was never down and never degraded. We are fixing one build issue and deploying again; you will see it verified before we claim it.
-
-### What was delivered since your last update
-
-**1. Security hardening (the item we marked NO-GO last week).** Same content as variant A item 1, adjusted: "Verified in code review; live probe verification lands with the next deploy."
-
-**2. The data foundation.** Same as variant A item 2, adjusted: the three tables are built and the migration is ready to apply the moment the deploy lands, after the backup gate we already passed.
-
-**3. A proven deployment safety net.** This morning's attempt demonstrated it in practice: a failed build was detected and reverted automatically in minutes with zero downtime and zero data impact. Full backup taken and rehearsed (restore into scratch database, contents verified).
+With CR-001 and CR-002 confirmed, the next block is the features you will actually touch: message capture with voice transcription (SR-100/SR-102), the triage working sheet (SR-300), SLA timers and the morning briefing (SR-500), and the dashboard (SR-700). We propose a revised go-live of Tuesday 29 September for those, holding ourselves to the same Tuesday cadence, never silent, never vague.
 
 ### What we still need from you
 
-Identical to variant A: CR-001 and CR-002, word for word.
-
-### What you will see next Tuesday
-
-Same as variant A.
+Nothing right now. The two items you confirmed (the booking view and the four demo clients) are done, and the one-line advisor sign-in fix is ours to make. We will confirm when it is applied.
 
 ---
 
-*Draft notes for the user (not part of the message): pick one variant based on deploy state at send time. Attach nothing sensitive. Send by WhatsApp or email per her preference. Keep CR wording identical to the 15 September draft so her answers map cleanly. [DATE PENDING] fills from the re-baseline once she answers CR-001/CR-002.*
+*Draft notes for the user (not part of the message): send by WhatsApp or email per her preference. If she asks about the unverified email: the identity service sets that flag when it has never confirmed the address; demo accounts skip email confirmation, so we flip the flag manually, a standard demo-account step. The sign-in fix is the only remaining item on the 30 Sep deliverable.*

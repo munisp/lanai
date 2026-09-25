@@ -255,6 +255,21 @@ export async function startServer() {
     );
   }, 15_000);
   outboxTimer.unref();
+
+outboxTimer.unref();
+
+  // One in-process scheduler for SLA timers + morning briefing (SR-501/502).
+  // Env-guarded so local dev and tests do not tick; unref() so it never holds
+  // the process open.
+  if (process.env.SLA_SCHEDULER_ENABLED === "true") {
+    const schedulerTimer = setInterval(() => {
+      void Promise.all([
+        import("./slaService").then((m) => m.tickSlaTimers()),
+        import("./briefingService").then((m) => m.tickBriefing()),
+      ]).catch((error) => console.error("[scheduler] tick failed", error));
+    }, 60_000);
+    schedulerTimer.unref();
+  }
   void dispatchOutboxBatch().catch((error) =>
     console.error("[outbox] initial dispatch failed", error),
   );

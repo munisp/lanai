@@ -2,6 +2,7 @@
  * Chatwoot tRPC router — procedures for managing the Chatwoot integration.
  */
 import { z } from "zod";
+import { recordFirstResponse } from "./_core/slaService";
 import { adminProcedure, memberProcedure, protectedProcedure, router } from "./_core/trpc";
 import { invokeLocalAi } from "./_core/localAi";
 import {
@@ -157,6 +158,8 @@ export const chatwootRouter = router({
       }
 
       const remote = await sendMessage(chatwootConvId, input.content, "outgoing");
+      // SR-501: an outbound advisor reply closes the open SLA timer.
+      void recordFirstResponse(localConv.id);
       const localMessageId = await createChatwootMessage({
         chatwootId: `msg_${remote.messageId}`,
         conversationId: localConv.id,

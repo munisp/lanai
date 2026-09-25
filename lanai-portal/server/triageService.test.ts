@@ -8,6 +8,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { eq, like } from "drizzle-orm";
 import {
   advisorTasks,
+  slaTimers,
   aiInferenceRuns,
   chatwootConversations,
   chatwootMessages,
@@ -57,11 +58,16 @@ describe("AI triage pipeline", () => {
 
   beforeAll(async () => {
     const db = await getDb();
+    // Shared test database: the fixture may persist across runs, so resolve
+    // instead of blindly inserting.
     const [member] = await db
       .insert(members)
       .values({ email: MEMBER_EMAIL, name: "Triage Member" })
+      .onConflictDoNothing({ target: members.email })
       .returning({ id: members.id });
-    memberId = member.id;
+    memberId = member
+      ? member.id
+      : (await db.select({ id: members.id }).from(members).where(eq(members.email, MEMBER_EMAIL)).limit(1))[0].id;
     const [admin] = await db
       .insert(users)
       .values({
@@ -90,6 +96,18 @@ describe("AI triage pipeline", () => {
     await db.delete(advisorTasks).where(eq(advisorTasks.memberId, memberId));
     await db.delete(aiInferenceRuns).where(eq(aiInferenceRuns.memberId, memberId));
     await db.delete(chatwootMessages).where(like(chatwootMessages.chatwootId, "msg_993%"));
+    await db
+      .delete(slaTimers)
+      .where(
+        eq(
+          slaTimers.conversationId,
+          (await db
+            .select({ id: chatwootConversations.id })
+            .from(chatwootConversations)
+            .where(eq(chatwootConversations.chatwootId, "conv_993777"))
+            .limit(1))[0]?.id ?? -1,
+        ),
+      );
     await db.delete(chatwootConversations).where(eq(chatwootConversations.chatwootId, "conv_993777"));
   });
 
@@ -98,6 +116,18 @@ describe("AI triage pipeline", () => {
     await db.delete(advisorTasks).where(eq(advisorTasks.memberId, memberId));
     await db.delete(aiInferenceRuns).where(eq(aiInferenceRuns.memberId, memberId));
     await db.delete(chatwootMessages).where(like(chatwootMessages.chatwootId, "msg_993%"));
+    await db
+      .delete(slaTimers)
+      .where(
+        eq(
+          slaTimers.conversationId,
+          (await db
+            .select({ id: chatwootConversations.id })
+            .from(chatwootConversations)
+            .where(eq(chatwootConversations.chatwootId, "conv_993777"))
+            .limit(1))[0]?.id ?? -1,
+        ),
+      );
     await db.delete(chatwootConversations).where(eq(chatwootConversations.chatwootId, "conv_993777"));
     await db.delete(members).where(eq(members.email, MEMBER_EMAIL));
     await db.delete(users).where(eq(users.openId, "triage-admin"));

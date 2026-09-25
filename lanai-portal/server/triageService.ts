@@ -114,6 +114,8 @@ export async function processTriage(payload: JsonRecord): Promise<void> {
         transcription: chatwootMessages.transcription,
         conversationId: chatwootMessages.conversationId,
       })
+      // conversationDbId is the local chatwoot_conversations row id, which the
+      // SLA timer keys on.
       .from(chatwootMessages)
       .where(eq(chatwootMessages.chatwootId, chatwootMessageId))
       .limit(1);
@@ -121,11 +123,12 @@ export async function processTriage(payload: JsonRecord): Promise<void> {
     if (!row) return;
 
     const [conversation] = await db
-      .select({ memberId: chatwootConversations.memberId })
+      .select({ id: chatwootConversations.id, memberId: chatwootConversations.memberId })
       .from(chatwootConversations)
       .where(eq(chatwootConversations.id, row.conversationId))
       .limit(1);
     if (!conversation?.memberId) return;
+    const conversationDbId = conversation.id;
 
     const content = (row.transcription?.trim() || row.content || "").trim();
     if (!content) return;
@@ -201,6 +204,14 @@ export async function processTriage(payload: JsonRecord): Promise<void> {
     if (triage.urgency === "urgent" || triage.sentiment === "complaint") {
       await createTriageAlertTask(conversation.memberId, chatwootMessageId, triage);
     }
+
+    // SLA response clock starts as soon as the member message is classified
+    // (SR-501), idempotent per open timer.
+    const { openSlaTimer } = await import("./_core/slaService");
+    await openSlaTimer(
+      conversationDbId,
+      triage.urgency === "urgent" ? "urgent" : "ordinary",
+    );
   } catch (error) {
     console.error(
       "[triage] pipeline failed for",

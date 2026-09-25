@@ -2400,7 +2400,7 @@ export const slaTimers = pgTable(
   "sla_timers",
   {
     id: serial("id").primaryKey(),
-    conversationId: integer("conversationId").references(() => conversations.id),
+    conversationId: integer("conversationId").references(() => chatwootConversations.id),
     urgency: slaUrgencyEnum("urgency").notNull(),
     openedAt: timestamp("openedAt").defaultNow().notNull(),
     firstResponseAt: timestamp("firstResponseAt"),
