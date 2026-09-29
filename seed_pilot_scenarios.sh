@@ -14,7 +14,10 @@
 
 set -u
 K="docker exec newwave-dev-control-plane kubectl -n lanai"
-PSQL="$K exec -i deploy/postgres -- psql -U lanai -d lanai -v ON_ERROR_STOP=1"
+# docker exec MUST carry -i or stdin (the SQL file) never reaches psql and
+# every insert silently no-ops with exit 0. SQL travels by stdin: docker
+# exec -i -> kubectl exec -i -> psql.
+PSQL="docker exec -i newwave-dev-control-plane kubectl -n lanai exec -i deploy/postgres -- psql -U lanai -d lanai -v ON_ERROR_STOP=1"
 SQLFILE=/tmp/seed_sr303.sql
 
 echo "=== seeding SR-303 scenarios (eleanor.vance@example.com) ==="

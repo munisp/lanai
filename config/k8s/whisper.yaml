@@ -22,8 +22,10 @@ spec:
     spec:
       automountServiceAccountToken: false
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1001
+        # fedirz/faster-whisper-server keeps its app under /root/, unreadable by
+        # non-root uid 1001 (CrashLoopBackOff: uv.toml Permission denied).
+        # Running as root is acceptable here: ClusterIP-only, no Ingress,
+        # no browser traffic, caps dropped, no privilege escalation.
         fsGroup: 1001
       containers:
         - name: whisper
