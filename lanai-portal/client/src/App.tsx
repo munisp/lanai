@@ -22,6 +22,7 @@ const SuppliersPage = lazy(() => import("./pages/SuppliersPage"));
 const SupplierServicesPage = lazy(() => import("./pages/SupplierServicesPage"));
 const WhatsAppPage = lazy(() => import("./pages/WhatsAppPage"));
 const ConversationScreenPage = lazy(() => import("./pages/ConversationScreenPage"));
+const TriageInboxPage = lazy(() => import("./pages/TriageInboxPage"));
 const ChatwootInboxPage = lazy(() => import("./pages/ChatwootInboxPage"));
 const ChatwootPage = lazy(() => import("./pages/ChatwootPage"));
 const CommunicationHubPage = lazy(() => import("./pages/CommunicationHubPage"));
@@ -148,6 +149,7 @@ function AdvisorRouter() {
           <Route path="/supplier-services" component={SupplierServicesPage} />
           <Route path="/whatsapp" component={WhatsAppPage} />
           <Route path="/inbox" component={ChatwootInboxPage} />
+          <Route path="/triage" component={TriageInboxPage} />
           <Route path="/conversation" component={ConversationScreenPage} />
           <Route path="/chatwoot" component={ChatwootPage} />
           <Route path="/communication-hub">

@@ -48,6 +48,12 @@ const NAV_ITEMS = [
   // Overview
   { href: "/", icon: LayoutDashboard, label: "Dashboard", group: "main" },
   {
+    href: "/triage",
+    icon: CheckSquare,
+    label: "Triage Inbox",
+    group: "main",
+  },
+  {
     href: "/briefing",
     icon: Sunrise,
     label: "Morning Briefing",
