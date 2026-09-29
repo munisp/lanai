@@ -28,7 +28,6 @@ spec:
       containers:
         - name: whisper
           image: fedirz/faster-whisper-server:latest-cpu
-          args: ["--model", "Systran/faster-whisper-small"]
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: { drop: ["ALL"] }
@@ -37,6 +36,9 @@ spec:
           env:
             # HF cache lives on a persistent volume so the model downloads once.
             - { name: HF_HOME, value: "/models" }
+            # fedirz/faster-whisper-server is configured via env, not CLI args
+            # (a previous --model arg crashed the container at init).
+            - { name: WHISPER__MODEL, value: "Systran/faster-whisper-small" }
           volumeMounts:
             - { name: model-cache, mountPath: /models }
           readinessProbe:
