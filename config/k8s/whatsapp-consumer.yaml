@@ -51,12 +51,14 @@ spec:
           command: ["python", "-m", "lanai_ai.pillars.whatsapp.whatsapp_event_consumer"]
           env:
             - name: DATABASE_URL
+              value: "postgres://lanai:$(POSTGRES_PASSWORD)@postgres:5432/lanai"
+            - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: lanai-whatsapp-consumer-secrets
-                  key: DATABASE_URL
+                  name: lanai-secrets
+                  key: POSTGRES_PASSWORD
             - name: OLLAMA_BASE_URL
-              value: "http://ollama.lanai.svc.cluster.local:11434"
+              value: "http://ollama:11434"
             - name: WHATSAPP_CONSUMER_POLL_SECONDS
               value: "1"
             - name: WHATSAPP_CONSUMER_CLAIM_LEASE_SECONDS
@@ -76,7 +78,7 @@ spec:
             - name: WHATSAPP_ACCESS_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: lanai-whatsapp-bridge-secrets
+                  name: lanai-secrets
                   key: WHATSAPP_ACCESS_TOKEN
             - name: WHISPER_API_URL
               value: "http://whisper.lanai.svc.cluster.local:8000"
@@ -172,3 +174,15 @@ spec:
       ports:
         - protocol: TCP
           port: 11434
+    - to:
+        - podSelector:
+            matchLabels:
+              app: whisper
+      ports:
+        - protocol: TCP
+          port: 8000
+    # WhatsApp media download (graph.facebook.com). Port-scoped allow, all
+    # destinations, so the durable consumer can fetch provider media.
+    - ports:
+        - protocol: TCP
+          port: 443
