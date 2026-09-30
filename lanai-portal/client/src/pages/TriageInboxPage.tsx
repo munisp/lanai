@@ -20,9 +20,10 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 
 // Holding note inserted into the draft when the advisor clicks the holding
-// note button. Not sent automatically.
+// note button. Not sent automatically. Wording is the UR-C5/SR-306 approved
+// text; changes only via CR.
 const HOLDING_NOTE =
-  "Thank you for your message. I am reviewing your request and will come back to you shortly with a proper response.";
+  "Thank you for your message. The concierge team has received it and will respond shortly.";
 
 // Channel icons
 
