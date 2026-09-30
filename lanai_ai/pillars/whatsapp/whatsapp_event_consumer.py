@@ -32,6 +32,12 @@ from lanai_ai.pillars.whatsapp.whatsapp_consumer_metrics import (
 
 PROVIDER = "meta_whatsapp"
 DATABASE_URL = os.getenv("DATABASE_URL", "")
+if not DATABASE_URL and os.getenv("POSTGRES_PASSWORD"):
+    DATABASE_URL = (
+        f"postgres://{os.getenv('POSTGRES_USER', 'lanai')}:"
+        f"{os.getenv('POSTGRES_PASSWORD')}@{os.getenv('POSTGRES_HOST', 'postgres')}:5432/"
+        f"{os.getenv('POSTGRES_DB', 'lanai')}"
+    )
 WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
 WHATSAPP_MEDIA_API_BASE = os.getenv("WHATSAPP_MEDIA_API_BASE", "https://graph.facebook.com")
 WHATSAPP_MEDIA_API_VERSION = os.getenv("WHATSAPP_MEDIA_API_VERSION", "v21.0")
