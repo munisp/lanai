@@ -149,9 +149,9 @@ spec:
           port: 9465
   egress:
     - to:
-        - namespaceSelector:
+        - podSelector:
             matchLabels:
-              lanai.io/platform-db: "true"
+              app: postgres
       ports:
         - protocol: TCP
           port: 5432
