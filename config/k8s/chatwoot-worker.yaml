@@ -1,0 +1,61 @@
+# Chatwoot Sidekiq worker — async job processing (webhook delivery,
+# notifications, digests). The web deployment runs Puma only, so every
+# Sidekiq job queues forever; webhook events never reach the portal.
+# Mirrors the chatwoot Deployment env exactly; command swapped to sidekiq.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatwoot-worker
+  labels: { app: chatwoot-worker }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: chatwoot-worker } }
+  template:
+    metadata:
+      labels: { app: chatwoot-worker }
+    spec:
+      initContainers:
+        - name: chatwoot-worker-db-prepare
+          image: chatwoot/chatwoot:latest
+          command: ["bundle", "exec", "rails", "db:prepare"]
+          env:
+            - name: SECRET_KEY_BASE
+              valueFrom: { secretKeyRef: { key: CHATWOOT_SECRET_KEY_BASE, name: lanai-secrets } }
+            - name: CHATWOOT_DB_PASSWORD
+              valueFrom: { secretKeyRef: { key: CHATWOOT_DB_PASSWORD, name: lanai-secrets } }
+            - name: REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { key: REDIS_PASSWORD, name: lanai-secrets } }
+            - name: DATABASE_URL
+              value: "postgres://chatwoot:$(CHATWOOT_DB_PASSWORD)@chatwoot-postgres:5432/chatwoot"
+            - name: REDIS_URL
+              value: "redis://:$(REDIS_PASSWORD)@redis-master.redis.svc.cluster.local:6379"
+            - name: FRONTEND_URL
+              value: "https://chatwoot.lanai.newfire.app"
+            - name: RAILS_ENV
+              value: "production"
+      containers:
+        - name: chatwoot-worker
+          image: chatwoot/chatwoot:latest
+          command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
+          env:
+            - name: SECRET_KEY_BASE
+              valueFrom: { secretKeyRef: { key: CHATWOOT_SECRET_KEY_BASE, name: lanai-secrets } }
+            - name: CHATWOOT_DB_PASSWORD
+              valueFrom: { secretKeyRef: { key: CHATWOOT_DB_PASSWORD, name: lanai-secrets } }
+            - name: REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { key: REDIS_PASSWORD, name: lanai-secrets } }
+            - name: DATABASE_URL
+              value: "postgres://chatwoot:$(CHATWOOT_DB_PASSWORD)@chatwoot-postgres:5432/chatwoot"
+            - name: REDIS_URL
+              value: "redis://:$(REDIS_PASSWORD)@redis-master.redis.svc.cluster.local:6379"
+            - name: FRONTEND_URL
+              value: "https://chatwoot.lanai.newfire.app"
+            - name: RAILS_ENV
+              value: "production"
+            - name: ACTIVE_STORAGE_SERVICE
+              value: "local"
+            - name: DEFAULT_LOCALE
+              value: "en"
+          resources:
+            requests: { cpu: "250m", memory: "768Mi" }
+            limits: { cpu: "1", memory: "1536Mi" }

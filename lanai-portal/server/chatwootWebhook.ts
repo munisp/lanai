@@ -195,7 +195,10 @@ async function projectMessage(
   now: Date,
 ): Promise<void> {
   const conversation = asRecord(payload.conversation);
-  const contact = asRecord(payload.contact);
+  // Chatwoot message_created payloads carry no top-level `contact`; the
+  // sender lives at conversation.meta.sender (verified live). Fall back.
+  const contact =
+    asRecord(payload.contact) ?? asRecord(conversation?.meta?.sender);
   const inbox = asRecord(payload.inbox);
   const messageId = positiveInteger(payload.id);
   const conversationId = positiveInteger(conversation?.id);
