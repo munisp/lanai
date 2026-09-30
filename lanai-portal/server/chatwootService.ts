@@ -144,7 +144,17 @@ async function resolveChatwootConfig(): Promise<ResolvedChatwootConfig> {
   }
 
   const url = new URL(instanceUrl);
-  if (ENV.isProduction && url.protocol !== "https:") {
+  // Pilot exception (same posture as PERMIFY_TRUSTED_INSECURE): cluster-internal
+  // http to Chatwoot is allowed ONLY when CHATWOOT_ALLOW_INSECURE_URL is
+  // explicitly set. The service never receives browser traffic; TLS termination
+  // from inside the kind cluster to its public hostname fails on CA trust.
+  const allowInsecure =
+    process.env.CHATWOOT_ALLOW_INSECURE_URL === "true";
+  if (
+    ENV.isProduction &&
+    url.protocol !== "https:" &&
+    !allowInsecure
+  ) {
     throw new Error("Chatwoot requires an HTTPS instance URL in production");
   }
 
