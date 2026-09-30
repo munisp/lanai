@@ -4,6 +4,20 @@
 
 ---
 
+## RESUME POINT (as of 30 September 2026, late evening)
+
+**CHATWOOT LIVE END-TO-END (30 Sep, verified via webhook event 4 / message 8):** real Chatwoot message -> webhook -> mirror row -> auto AI triage (triage:msg_8, urgent, group_booking_issue, 25s). Chain is fully working on staging. What was needed:
+1. Chatwoot onboarding completed via rails runner (super admin admin@lanai.newfire.app / Account "Lanai Lifestyle" id 1 / WhatsApp API channel id 1 + inbox). Instance was stuck on /installation/onboarding for 53 days (INSTALLATION_NAME et al written to installation_configs).
+2. Missing Sidekiq worker deployed (config/k8s/chatwoot-worker.yaml, commit 0b56360): web pod ran Puma only, every async job queued forever. Worker drains backlog fine.
+3. Portal env: CHATWOOT_URL=http://chatwoot:3000 + CHATWOOT_ALLOW_INSECURE_URL=true (pilot exception commit d423b37; public hostname TLS fails from inside pod) + CHATWOOT_WEBHOOK_SECRET=<account webhook secret PuXBu51ht28GquH4pUobhZF2>.
+4. TWO ingest bugs fixed and deployed (commits 0b56360 + a29e488): (a) projector read payload.contact, but Chatwoot message_created has no top-level contact key -> fall back to conversation.meta.sender; (b) Chatwoot contact must carry additional_attributes.lanai_member_id for member linkage (set to 1 for the test contact).
+5. Account Webhook record created (message_created, conversation_created, conversation_status_changed -> https://lanai.newfire.app/api/chatwoot/webhook); channel-level webhook cleared (dual 401s).
+
+**NEXT:** member portal login UI loop (blocks CR-001 browser demo), briefing stale-display after Generate, dashboard Twenty CRM "Workspace not found", then Bolanle's CR decisions (SLA window, urgency tiers).
+
+---
+
+
 ## RESUME POINT (as of 24 September 2026, late evening)
 
 **NEXT BUILD BLOCK (capture, transcription, triage, SLA, unified screen) SHIPPED 24 Sep, 3 commits pushed to pilot/requirements-baseline-2026-09:**
