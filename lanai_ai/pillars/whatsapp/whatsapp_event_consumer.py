@@ -16,6 +16,7 @@ import random
 import signal
 import threading
 import time
+import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -31,6 +32,14 @@ from lanai_ai.pillars.whatsapp.whatsapp_consumer_metrics import (
 
 PROVIDER = "meta_whatsapp"
 DATABASE_URL = os.getenv("DATABASE_URL", "")
+WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+WHATSAPP_MEDIA_API_BASE = os.getenv("WHATSAPP_MEDIA_API_BASE", "https://graph.facebook.com")
+WHATSAPP_MEDIA_API_VERSION = os.getenv("WHATSAPP_MEDIA_API_VERSION", "v21.0")
+WHISPER_API_URL = os.getenv("WHISPER_API_URL", "http://whisper:8000")
+WHISPER_MODEL_HINT = os.getenv("WHISPER_MODEL_HINT", "small")
+WHISPER_TIMEOUT_SECONDS = float(os.getenv("WHISPER_TIMEOUT_SECONDS", "90"))
+WHISPER_MAX_AUDIO_BYTES = 16 * 1024 * 1024
+_TRANSCRIBABLE_TYPES = frozenset({"audio", "voice", "ptt", "video_note", "ogg"})
 POLL_INTERVAL_SECONDS = float(os.getenv("WHATSAPP_CONSUMER_POLL_SECONDS", "1"))
 CLAIM_LEASE_SECONDS = int(os.getenv("WHATSAPP_CONSUMER_CLAIM_LEASE_SECONDS", "300"))
 MAX_ATTEMPTS = int(os.getenv("WHATSAPP_CONSUMER_MAX_ATTEMPTS", "10"))
@@ -353,6 +362,76 @@ def _member_context(cursor: psycopg.Cursor[Any], sender: str) -> tuple[int | Non
     return member_id, str(member_name), history
 
 
+def _transcribe_media(payload: dict[str, Any]) -> str | None:
+    """Download a media message and return its whisper transcript.
+
+    Voice notes arrive as a typed marker with only the provider media id; the
+    durable consumer is the right place to fetch the binary (bounded retries,
+    lease-protected). Returns None when the event is not media or the media
+    reference is missing (the marker text is then triaged as before). Raises a
+    retryable RuntimeError on transient fetch/transcribe failures so the claim
+    machinery retries with backoff.
+    """
+    if payload.get("messageType") not in _TRANSCRIBABLE_TYPES:
+        return None
+    media_id = payload.get("mediaId")
+    if not isinstance(media_id, str) or not media_id:
+        return None
+    if not WHATSAPP_ACCESS_TOKEN:
+        raise RuntimeError("WHATSAPP_ACCESS_TOKEN unavailable; cannot download media")
+
+    auth_header = f"Bearer {WHATSAPP_ACCESS_TOKEN}"
+
+    def _get(url: str, timeout: float, headers: dict[str, str]) -> bytes:
+        request = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - provider URL, pinned host
+            return response.read()
+
+    # Resolve the provider media URL from the media id.
+    media_endpoint = f"{WHATSAPP_MEDIA_API_BASE}/{WHATSAPP_MEDIA_API_VERSION}/{media_id}"
+    metadata_body = _get(media_endpoint, 30.0, {"Authorization": auth_header})
+    metadata = json.loads(metadata_body.decode("utf-8"))
+    media_url = metadata.get("url") if isinstance(metadata, dict) else None
+    if not isinstance(media_url, str) or not media_url:
+        raise RuntimeError("WhatsApp media metadata returned no url")
+
+    audio_bytes = _get(media_url, 60.0, {"Authorization": auth_header})
+    if len(audio_bytes) == 0:
+        raise RuntimeError("WhatsApp media download was empty")
+    if len(audio_bytes) > WHISPER_MAX_AUDIO_BYTES:
+        raise RuntimeError("WhatsApp media exceeds transcription size limit")
+
+    # Whisper-compatible multipart transcription endpoint (same contract the
+    # portal's voiceTranscription path uses).
+    boundary = f"lanai-transcribe-{media_id[:24]}"
+    parts: list[bytes] = []
+    parts.append(
+        f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="audio.ogg"\r\n'
+        f"Content-Type: application/octet-stream\r\n\r\n".encode("utf-8")
+    )
+    parts.append(audio_bytes)
+    parts.append(
+        f"\r\n--{boundary}\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\n{WHISPER_MODEL_HINT}\r\n".encode(
+            "utf-8"
+        )
+    )
+    parts.append(
+        f"--{boundary}\r\nContent-Disposition: form-data; name=\"response_format\"\r\n\r\nverbose_json\r\n".encode("utf-8")
+    )
+    parts.append(f"--{boundary}--\r\n".encode("utf-8"))
+    transcription_request = urllib.request.Request(
+        f"{WHISPER_API_URL.rstrip('/')}/v1/audio/transcriptions",
+        data=b"".join(parts),
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+    )
+    with urllib.request.urlopen(transcription_request, timeout=WHISPER_TIMEOUT_SECONDS) as response:  # noqa: S310 - in-cluster service
+        result = json.loads(response.read().decode("utf-8"))
+    transcript = result.get("text") if isinstance(result, dict) else None
+    if not isinstance(transcript, str) or not transcript.strip():
+        raise RuntimeError("whisper returned an empty transcript")
+    return transcript[:8192].strip()
+
+
 def _payload_fields(payload: dict[str, Any]) -> tuple[str, str, str]:
     if payload.get("provider") != PROVIDER:
         raise ConsumerValidationError("provider is invalid")
@@ -368,10 +447,18 @@ def _sentiment_for_timeline(value: str, urgency: str) -> str:
     return {"POSITIVE": "positive", "NEUTRAL": "neutral", "NEGATIVE": "negative", "FRUSTRATED": "negative"}[value]
 
 
-def complete_claim(event: ClaimedInboundEvent, triage: dict[str, Any], started_at: datetime) -> bool:
+def complete_claim(
+    event: ClaimedInboundEvent,
+    triage: dict[str, Any],
+    started_at: datetime,
+    *,
+    message_text_override: str | None = None,
+) -> bool:
     """Persist all projections and follow-up work atomically while still owning the claim."""
     _require_configured(DATABASE_URL, "DATABASE_URL")
     provider_event_id, sender, message_text = _payload_fields(event.payload)
+    if message_text_override:
+        message_text = message_text_override
     if provider_event_id != event.provider_event_id:
         raise ConsumerValidationError("provider event identity mismatch")
     request_id = f"whatsapp-triage-{hashlib.sha256(event.provider_event_id.encode('utf-8')).hexdigest()[:40]}"
@@ -427,7 +514,7 @@ def complete_claim(event: ClaimedInboundEvent, triage: dict[str, Any], started_a
                     DEFAULT_MODEL,
                     member_id,
                     input_digest,
-                    json.dumps({"providerEventId": event.provider_event_id, "senderHash": hashlib.sha256(sender.encode("utf-8")).hexdigest()}),
+                    json.dumps({"providerEventId": event.provider_event_id, "senderHash": hashlib.sha256(sender.encode("utf-8")).hexdigest(), "transcribed": bool(message_text_override)}),
                     json.dumps(triage),
                     latency_ms,
                     now,
@@ -520,6 +607,17 @@ def process_next_event() -> bool:
     renewer.start()
     try:
         _provider_event_id, sender, message_text = _payload_fields(event.payload)
+        # Voice notes arrive as a typed marker with a provider media reference;
+        # transcribe before triage so the AI classifies real content (SR-102).
+        transcript: str | None
+        try:
+            transcript = _transcribe_media(event.payload)
+        except RuntimeError as transcription_error:
+            logger.error("WhatsApp media transcription failed type=%s", type(transcription_error).__name__)
+            raise
+        if transcript:
+            message_text = transcript
+            logger.info("WhatsApp voice note transcribed chars=%d", len(transcript))
         with psycopg.connect(DATABASE_URL) as connection:
             with connection.cursor() as cursor:
                 _member_id, member_name, history = _member_context(cursor, sender)
@@ -533,7 +631,7 @@ def process_next_event() -> bool:
             logger.warning("WhatsApp consumer claim lost before persistence")
         else:
             renewer.begin_terminal_transition()
-            if not complete_claim(event, triage, started_at):
+            if not complete_claim(event, triage, started_at, message_text_override=transcript):
                 logger.warning("WhatsApp consumer claim lost before persistence")
             else:
                 increment_metric("processed_total")

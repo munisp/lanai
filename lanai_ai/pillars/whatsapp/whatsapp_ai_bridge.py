@@ -60,6 +60,7 @@ class InboundMessage:
     message_type: str
     message_text: str
     received_at: str | None
+    media_id: str | None = None
 
 
 class WebhookValidationError(ValueError):
@@ -122,6 +123,7 @@ def _parse_messages(payload: Any) -> list[InboundMessage]:
                 if not isinstance(message_type, str) or len(message_type) > 32:
                     raise WebhookValidationError("message type is invalid")
 
+                media_id = None
                 if message_type == "text":
                     text = message.get("text", {}).get("body", "")
                     if not isinstance(text, str) or not text.strip() or len(text) > 8192:
@@ -130,6 +132,13 @@ def _parse_messages(payload: Any) -> list[InboundMessage]:
                     # Store a bounded typed marker. Binary media is never downloaded or
                     # reflected into logs from the inbound webhook path.
                     text = f"[{message_type} message received]"
+                    # The durable consumer downloads and transcribes media out of band;
+                    # here we only retain the provider media reference (no binary).
+                    media_object = message.get(message_type)
+                    if isinstance(media_object, dict):
+                        media_ref = media_object.get("id")
+                        if isinstance(media_ref, str) and 1 <= len(media_ref) <= 128:
+                            media_id = media_ref
 
                 timestamp = message.get("timestamp")
                 parsed.append(
@@ -139,13 +148,14 @@ def _parse_messages(payload: Any) -> list[InboundMessage]:
                         message_type=message_type,
                         message_text=text,
                         received_at=timestamp if isinstance(timestamp, str) and len(timestamp) <= 32 else None,
+                        media_id=media_id,
                     )
                 )
     return parsed
 
 
 def _event_payload(message: InboundMessage) -> dict[str, Any]:
-    return {
+    payload: dict[str, Any] = {
         "provider": PROVIDER,
         "providerEventId": message.provider_event_id,
         "sender": message.sender,
@@ -153,6 +163,9 @@ def _event_payload(message: InboundMessage) -> dict[str, Any]:
         "messageText": message.message_text,
         "providerTimestamp": message.received_at,
     }
+    if message.media_id is not None:
+        payload["mediaId"] = message.media_id
+    return payload
 
 
 def _persist_inbound_event(message: InboundMessage) -> str:

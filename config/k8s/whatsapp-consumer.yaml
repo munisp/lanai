@@ -73,6 +73,17 @@ spec:
               value: "10"
             - name: WHATSAPP_CONSUMER_METRICS_PORT
               value: "9465"
+            - name: WHATSAPP_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lanai-whatsapp-bridge-secrets
+                  key: WHATSAPP_ACCESS_TOKEN
+            - name: WHISPER_API_URL
+              value: "http://whisper.lanai.svc.cluster.local:8000"
+            - name: WHISPER_MODEL_HINT
+              value: "small"
+            - name: WHISPER_TIMEOUT_SECONDS
+              value: "90"
           ports:
             - name: metrics
               containerPort: 9465
