@@ -132,27 +132,34 @@ async function markDelivery(
 async function publish(event: OutboxEvent): Promise<void> {
   const envelope = toEnvelope(event);
   const payload = JSON.stringify(envelope);
+  // Telemetry targets are pilot-gated: fluvio topic and the lakehouse ingest
+  // service are degraded in this cluster, and a failed telemetry replica must
+  // never block domain progress (dapr carries the actual bus). Disabled via
+  // OUTBOX_FLUVIO_DISABLED / OUTBOX_LAKEHOUSE_DISABLED = "true".
   const deliveries: Array<{
     target: DeliveryTarget;
     operation: Promise<unknown>;
-  }> = [
-    {
+  }> = [];
+  if (process.env.OUTBOX_FLUVIO_DISABLED !== "true") {
+    deliveries.push({
       target: "fluvio",
       operation: Fluvio.produce(
         topicFor(envelope),
         payload,
         String(envelope.aggregateId),
       ),
-    },
-    {
-      target: "dapr",
-      operation: Dapr.publishEvent("pubsub", daprTopicFor(envelope), envelope),
-    },
-    {
+    });
+  }
+  deliveries.push({
+    target: "dapr",
+    operation: Dapr.publishEvent("pubsub", daprTopicFor(envelope), envelope),
+  });
+  if (process.env.OUTBOX_LAKEHOUSE_DISABLED !== "true") {
+    deliveries.push({
       target: "lakehouse",
       operation: Lakehouse.insertRecord("platform_events", envelope),
-    },
-  ];
+    });
+  }
   // CRM is feature-gated. When disabled, it does not create a misleading
   // delivery record or block platform events; when enabled it shares the exact
   // same durable retry boundary as the other outbox targets.
