@@ -38,6 +38,10 @@ if not DATABASE_URL and os.getenv("POSTGRES_PASSWORD"):
         f"{os.getenv('POSTGRES_PASSWORD')}@{os.getenv('POSTGRES_HOST', 'postgres')}:5432/"
         f"{os.getenv('POSTGRES_DB', 'lanai')}"
     )
+# Bounded connect so a transient network-policy gap cannot wedge the loop
+# inside an un-timed psycopg.connect().
+if DATABASE_URL and "connect_timeout" not in DATABASE_URL:
+    DATABASE_URL += ("&" if "?" in DATABASE_URL else "?") + "connect_timeout=10"
 WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
 WHATSAPP_MEDIA_API_BASE = os.getenv("WHATSAPP_MEDIA_API_BASE", "https://graph.facebook.com")
 WHATSAPP_MEDIA_API_VERSION = os.getenv("WHATSAPP_MEDIA_API_VERSION", "v21.0")

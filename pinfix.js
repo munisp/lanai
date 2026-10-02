@@ -1,13 +1,31 @@
-// Runs inside the lanai-portal pod: sets numeric demo PIN 2026 for the 4 personas.
-const b = require("/app/node_modules/bcryptjs");
-const { Client } = require("/app/node_modules/pg");
+// Set demo persona PINs to 2026 (bcryptjs 12 rounds, matching BCRYPT_ROUNDS)
+// and mark onboarding complete. Runs INSIDE the portal pod where the image
+// provides /app/node_modules/postgres (postgres-js) and bcryptjs. Note: this
+// image has no `pg` package, so postgres-js is used instead.
+const bcrypt = require("/app/node_modules/bcryptjs");
+const postgres = require("/app/node_modules/postgres");
+
+const emails = [
+  "eleanor.vance@example.com",
+  "marcus.chen@example.com",
+  "sofia.almeida@example.com",
+  "james.whitfield@example.com",
+];
+
 (async () => {
-  const hash = b.hashSync("2026", 12);
-  const c = new Client({ connectionString: process.env.DATABASE_URL });
-  await c.connect();
-  for (const email of ["eleanor.vance@example.com","marcus.chen@example.com","sofia.almeida@example.com","james.whitfield@example.com"]) {
-    const r = await c.query('UPDATE members SET "pinHash"=$1, "onboardingComplete"=true WHERE email=$2', [hash, email]);
-    console.log(email + ": updated " + r.rowCount);
+  const sql = postgres(process.env.DATABASE_URL, { max: 1 });
+  const pinHash = bcrypt.hashSync("2026", 12);
+  for (const email of emails) {
+    const rows = await sql`
+      update members
+      set "pinHash" = ${pinHash}, "onboardingComplete" = true
+      where email = ${email}
+      returning id, email`;
+    if (rows.length) console.log("updated:", rows[0].email, "id", rows[0].id);
+    else console.log("NOT FOUND:", email);
   }
-  await c.end();
-})().catch(e => { console.error("DBERR", e.message); process.exit(1); });
+  await sql.end();
+})().catch((error) => {
+  console.error("DBERR:", error.message);
+  process.exit(1);
+});
